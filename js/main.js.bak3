@@ -1394,7 +1394,7 @@ function initAdminCouponsPage() {
 // --- Checkout Page Initialization (Updated) ---
 function initCheckoutPage() {
     // console.log("Initializing Checkout Page");
-    const stripePublicKey = document.body.dataset.stripePublicKey || '<?= defined(\'STRIPE_PUBLIC_KEY\') ? STRIPE_PUBLIC_KEY : \'\' ?>';
+    const stripePublicKey = document.body.dataset.stripePublicKey; // Get PK from data attribute only
     const checkoutForm = document.getElementById('checkoutForm');
     const submitButton = document.getElementById('submit-button');
     const spinner = document.getElementById('spinner');
@@ -1774,11 +1774,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let initialized = false;
     for (const pageClass in pageInitializers) {
         if (body.classList.contains(pageClass)) {
-	    // Assign data attributes using PHP variables for use in page initializers
-            body.dataset.baseUrl = '<?= BASE_URL ?>';
-            body.dataset.stripePublicKey = '<?= STRIPE_PUBLIC_KEY ?>';
-            body.dataset.freeShippingThreshold = '<?= FREE_SHIPPING_THRESHOLD ?>';
-            body.dataset.baseShippingCost = '<?= SHIPPING_COST ?>';
             pageInitializers[pageClass]();
             initialized = true;
             // console.log(`Initialized: ${pageClass}`); // For debugging

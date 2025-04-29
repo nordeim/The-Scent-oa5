@@ -1592,7 +1592,8 @@ require_once __DIR__ . '/layout/header.php'; // Includes CSRF token output globa
             <?php endif; ?>
 
             <form action="index.php?page=register" method="POST" class="auth-form space-y-6" id="registerForm">
-                 <!-- CSRF Token is handled globally by JS reading #csrf-token-value -->
+		 <!-- CSRF Token is handled globally by JS reading #csrf-token-value -->
+		<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
                 <div class="form-group">
                     <label for="name" class="block text-sm font-medium text-gray-700 mb-1 font-body">Full Name</label>
                     <input type="text" id="name" name="name" required

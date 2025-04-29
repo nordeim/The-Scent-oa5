@@ -1,3 +1,9 @@
+need to fix both views/login.php and views/register.php  
+https://github.com/sepnetflix/The-Scent-oa5/blob/main/views/register.php  
+https://github.com/sepnetflix/The-Scent-oa5/blob/main/views/login.php  
+https://github.com/copilot/share/807d1102-49c4-8487-b801-504964ea69fe  
+
+---
 <think>
 Let's analyze each file and how it handles the CSRF token. I will focus on whether the CSRF token is present as a named hidden input inside POST forms, and whether this matches my earlier recommendation for robust CSRF protection (especially for non-JS clients).
 

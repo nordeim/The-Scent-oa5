@@ -1,4 +1,94 @@
 <think>
+Let's analyze each file and how it handles the CSRF token. I will focus on whether the CSRF token is present as a named hidden input inside POST forms, and whether this matches my earlier recommendation for robust CSRF protection (especially for non-JS clients).
+
+### 1. **views/cart.php**
+- Has:
+  ```php
+  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  ```
+- This is inside the cart form used to update the cart (POST).
+- ✔️ **Compliant**: The CSRF token is present as a hidden form field.
+
+---
+
+### 2. **views/checkout.php**
+- Has:
+  ```php
+  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  ```
+- This is inside the `#checkoutForm` form (used for POST).
+- JS uses `document.getElementById('csrf-token-value').value` for AJAX, but the form itself also contains the hidden input.
+- ✔️ **Compliant**: The CSRF token is present as a hidden form field.
+
+---
+
+### 3. **views/contact.php**
+- Has:
+  ```php
+  <input type="hidden" name="csrf_token" id="csrf-token-value" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  ```
+- This is inside the contact form (method="post").
+- ✔️ **Compliant**: The CSRF token is present as a hidden form field.
+
+---
+
+### 4. **views/home.php**
+- Has:
+  ```php
+  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  ```
+- This is in the newsletter subscription form.
+- ✔️ **Compliant**: The CSRF token is present as a hidden form field.
+
+---
+
+### 5. **views/order-tracking.php**
+- Has:
+  ```php
+  <input type="hidden" name="csrf_token" id="csrf-token-value" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  ```
+- This is inside the order-tracking form (method="post").
+- ✔️ **Compliant**: The CSRF token is present as a hidden form field.
+
+---
+
+### 6. **views/product_detail.php**
+- Has:
+  ```php
+  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  ```
+- This is inside the add-to-cart form (POST).
+- ✔️ **Compliant**: The CSRF token is present as a hidden form field.
+
+---
+
+### **Missing: views/login.php and views/register.php**
+- **From prior context**: Neither the login nor register forms contain a `<input type="hidden" name="csrf_token" ...>` inside the form. They rely solely on a hidden input (with `id="csrf-token-value"`) outside the form, intended for JS to pick up and submit via AJAX.
+- ❌ **NOT compliant** for non-JS users.
+
+---
+
+### **Summary**
+All major forms except **login** and **register** include a hidden CSRF token field named `csrf_token` inside the form, making them robust for both AJAX and native POST submissions.
+
+**My previous recommendation is validated:**  
+- For robust CSRF protection, **all forms that POST sensitive data should include** a hidden `<input type="hidden" name="csrf_token" ...>` inside the form.
+- The login and register forms are missing this, making them vulnerable to CSRF validation failure for non-JS clients or if JS fails.
+
+</think>
+
+**Final Recommendation (validated):**
+
+- **Add**  
+  ```php
+  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
+  ```
+  **inside the** login and register forms in `views/login.php` and `views/register.php`.
+
+This will bring their CSRF handling in line with the rest of your forms and fully resolve the server error for non-JS clients.
+
+---
+<think>
 Let's validate my earlier finding about the CSRF token and the login form by reviewing the actual contents of `js/main.js` as provided above.
 
 ### Key Points to Check

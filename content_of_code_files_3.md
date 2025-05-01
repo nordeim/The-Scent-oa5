@@ -581,7 +581,7 @@ class Cart {
 # includes/ErrorHandler.php  
 ```php
 <?php
-// includes/ErrorHandler.php (Corrected - Re-added missing handler methods)
+// includes/ErrorHandler.php (Updated v2 - Robust Error Page Display)
 
 // Ensure SecurityLogger class is defined before ErrorHandler uses it.
 // (It's defined below in this same file)
@@ -592,17 +592,17 @@ class ErrorHandler {
     private static array $errorCount = []; // Use type hint
     private static array $lastErrorTime = []; // Use type hint
 
-    public static function init($logger = null): void { // Add void return type hint
+    public static function init($logger = null): void {
         self::$logger = $logger;
 
         // Instantiate SecurityLogger - PDO injection needs careful handling here
         // Since init is static and called early, we rely on the logger's fallback
         if (self::$securityLogger === null) {
-            self::$securityLogger = new SecurityLogger(); // Instantiated without PDO initially
+            // Assumes SecurityLogger constructor handles PDO optionally or logs if unavailable
+            self::$securityLogger = new SecurityLogger();
         }
 
         // --- Set up handlers ---
-        // Ensure these methods exist below before setting handlers!
         set_error_handler([self::class, 'handleError']);
         set_exception_handler([self::class, 'handleException']);
         register_shutdown_function([self::class, 'handleFatalError']);
@@ -612,27 +612,24 @@ class ErrorHandler {
         // Log rotation setup (Improved checks)
         $logDir = realpath(__DIR__ . '/../logs');
         if ($logDir === false) {
-             if (!is_dir(__DIR__ . '/../logs')) { // Check if directory creation is needed
-                if (!@mkdir(__DIR__ . '/../logs', 0750, true)) { // Attempt creation, suppress errors for logging
-                      error_log("FATAL: Failed to create log directory: " . __DIR__ . '/../logs' . " - Check parent directory permissions.");
-                      // Potentially terminate or throw exception if logging is critical
+             $potentialLogDir = __DIR__ . '/../logs';
+             if (!is_dir($potentialLogDir)) { // Check if directory creation is needed
+                if (!@mkdir($potentialLogDir, 0750, true)) { // Attempt creation, suppress errors for logging
+                      error_log("FATAL: Failed to create log directory: " . $potentialLogDir . " - Check parent directory permissions.");
                  } else {
-                     @chmod(__DIR__ . '/../logs', 0750); // Try setting permissions after creation
+                     @chmod($potentialLogDir, 0750); // Try setting permissions after creation
                  }
             } else {
                  // Directory exists but realpath failed (symlink issue?)
-                 error_log("Warning: Log directory path resolution failed for: " . __DIR__ . '/../logs');
+                 error_log("Warning: Log directory path resolution failed for: " . $potentialLogDir);
             }
         } elseif (!is_writable($logDir)) {
-             error_log("FATAL: Log directory is not writable: " . $logDir . " - Check permissions.");
-             // Potentially terminate or throw exception
+             error_log("FATAL: Log directory is not writable: " . ($logDir ?: 'N/A') . " - Check permissions.");
         }
     }
 
-    // --- START: Missing Handler Methods Added Back ---
-
     /**
-     * Custom error handler. Converts PHP errors to exceptions (optional) or logs and displays them.
+     * Custom error handler. Logs errors and displays an error page.
      */
     public static function handleError(int $errno, string $errstr, string $errfile = '', int $errline = 0): bool {
         // Check if error reporting is suppressed with @
@@ -646,50 +643,47 @@ class ErrorHandler {
             'file' => $errfile,
             'line' => $errline,
             'context' => self::getSecureContext()
+            // No trace available from set_error_handler directly
         ];
 
         self::trackError($error); // Track frequency
         self::logErrorToFile($error); // Log to file/logger
 
-        // Display error only in development, hide details in production
-        // Using output buffering inside displayErrorPage for safety
+        // Set status code IF headers haven't been sent yet.
         if (!headers_sent()) {
              http_response_code(500);
         } else {
-            error_log("ErrorHandler Warning: Cannot set HTTP 500 status code, headers already sent before error handling (errno: {$errno}).");
+            // Log the fact that we couldn't set the status code.
+            error_log("ErrorHandler Warning: Cannot set HTTP 500 status code for handled error (errno: {$errno}), headers already sent. Error: {$errstr} in {$errfile}:{$errline}");
         }
 
-        if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
-            self::displayErrorPage($error);
-        } else {
-            self::displayErrorPage(null); // Display generic error page
+        // Attempt to display the error page using output buffering for safety.
+        ob_start();
+        try {
+            if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
+                self::displayErrorPage($error);
+            } else {
+                self::displayErrorPage(null); // Display generic error page
+            }
+            // Send the buffered error page content.
+            // This might append to already sent content if headers were sent, which is unavoidable but better than a fatal error.
+            echo ob_get_clean();
+        } catch (Throwable $displayError) {
+             ob_end_clean(); // Clean buffer if error page fails
+             // If the error page itself fails, log it and output plain text.
+             self::logDisplayError($error, $displayError);
+             self::outputPlainTextError($error); // Output plain text fallback
         }
 
-        // Returning true prevents PHP's default error handler.
-        // Usually desired, but might want to return false for certain non-fatal errors
-        // if you want PHP's logging to also occur.
-        // For E_USER_ERROR, returning true *might* prevent script termination, depending on PHP version/config.
-        // It's safer to exit explicitly in handleException for uncaught exceptions.
-        // If this error is fatal (E_ERROR, E_PARSE, etc.), PHP will likely terminate anyway.
-        // Let's return true to indicate we've handled it.
+        // Prevent PHP's default error handler from running.
+        // For fatal errors (E_ERROR, etc.), PHP might terminate regardless.
         return true;
     }
 
      /**
       * Custom exception handler. Logs uncaught exceptions and displays an error page.
       */
-     public static function handleException(Throwable $exception): void { // Use Throwable type hint (PHP 7+)
-        // --- Enhanced Logging ---
-        $errorMessage = sprintf(
-            "Uncaught Exception '%s': \"%s\" in %s:%d",
-            get_class($exception),
-            $exception->getMessage(),
-            $exception->getFile(),
-            $exception->getLine()
-        );
-        error_log($errorMessage); // Log basic info immediately
-        error_log("Stack trace:\n" . $exception->getTraceAsString()); // Log trace separately
-
+     public static function handleException(Throwable $exception): void {
         $error = [
             'type' => get_class($exception),
             'message' => $exception->getMessage(),
@@ -699,19 +693,20 @@ class ErrorHandler {
             'context' => self::getSecureContext()
         ];
 
+        // Log the exception details
+        self::logErrorToFile($error);
+
         // Log security exceptions specifically
-        if (self::isSecurityError($error)) { // Check keywords for security relevance
+        if (self::isSecurityError($error)) {
              if(self::$securityLogger) self::$securityLogger->warning("Potentially security-related exception caught", $error);
         }
 
-        self::logErrorToFile($error); // Log all exceptions with more detail
-
-         // Display error only in development, hide details in production
-         if (!headers_sent()) {
-              http_response_code(500);
-         } else {
-             error_log("ErrorHandler Warning: Cannot set HTTP 500 status code, headers already sent before exception handling.");
-         }
+        // Set status code IF headers haven't been sent.
+        if (!headers_sent()) {
+            http_response_code(500);
+        } else {
+            error_log("ErrorHandler Warning: Cannot set HTTP 500 status code for exception, headers already sent. Exception: " . $error['message']);
+        }
 
          // Use output buffering to capture the error page output safely
          ob_start();
@@ -723,27 +718,23 @@ class ErrorHandler {
              }
              echo ob_get_clean(); // Send buffered output
          } catch (Throwable $displayError) {
-              ob_end_clean(); // Discard buffer if error page itself fails
-              // Fallback to plain text if error page fails
-              if (!headers_sent()) { // Check again before sending fallback header
-                   header('Content-Type: text/plain; charset=UTF-8', true, 500);
-              }
-              echo "A critical error occurred, and the error page could not be displayed.\n";
-              echo "Please check the server error logs for details.\n";
-              error_log("FATAL: Failed to display error page. Original error: " . print_r($error, true) . ". Display error: " . $displayError->getMessage());
+              ob_end_clean(); // Discard buffer if error page fails
+              self::logDisplayError($error, $displayError);
+              self::outputPlainTextError($error); // Output plain text fallback
          }
 
          exit(1); // Ensure script terminates after handling uncaught exception
      }
 
      /**
-      * Shutdown handler to catch fatal errors that aren't caught by set_error_handler.
+      * Shutdown handler to catch fatal errors.
       */
      public static function handleFatalError(): void {
          $error = error_get_last();
+
          // Check if it's a fatal error type we want to handle
          if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR])) {
-              // Create a structured error array similar to handleError/handleException
+             // Create a structured error array similar to handleError/handleException
              $fatalError = [
                  'type' => self::getErrorType($error['type']),
                  'message' => $error['message'],
@@ -755,17 +746,14 @@ class ErrorHandler {
 
              self::logErrorToFile($fatalError); // Log the fatal error
 
-              // Avoid double display if headers already sent by previous output/error
-              // Use output buffering for safety
+              // Use output buffering for safety.
               ob_start();
               try {
+                   // Attempt to set status code only if headers not sent.
                    if (!headers_sent()) {
                        http_response_code(500);
-                       // We might be mid-output, but try to set HTML type if possible
-                       // Avoid this if displaying a plain text fallback later
-                       // header('Content-Type: text/html; charset=UTF-8');
                    } else {
-                        error_log("ErrorHandler Warning: Cannot set HTTP 500 status code, headers already sent before fatal error handling.");
+                        error_log("ErrorHandler Warning: Cannot set HTTP 500 status code during fatal error handling, headers already sent.");
                    }
 
                    if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
@@ -776,17 +764,14 @@ class ErrorHandler {
                    echo ob_get_clean(); // Send buffered output
                } catch (Throwable $displayError) {
                    ob_end_clean(); // Discard buffer if error page itself fails
-                   if (!headers_sent()) { // Check again before sending fallback header
-                       header('Content-Type: text/plain; charset=UTF-8', true, 500);
-                   }
-                   // If headers WERE sent, this plain text might interleave badly, but it's a last resort
-                   echo "\n\nA critical fatal error occurred, and the error page could not be displayed.\n";
-                   echo "Please check the server error logs for details.\n";
-                   error_log("FATAL: Failed to display fatal error page. Original error: " . print_r($fatalError, true) . ". Display error: " . $displayError->getMessage());
+                   self::logDisplayError($fatalError, $displayError);
+                   self::outputPlainTextError($fatalError); // Output plain text fallback
                }
-              // No exit() here, as shutdown function runs after script execution theoretically finishes.
+              // No exit() here, as script is already shutting down.
          }
      }
+
+     // --- Helper methods ---
 
      private static function getErrorType(int $errno): string {
         switch ($errno) {
@@ -816,199 +801,198 @@ class ErrorHandler {
             'ip' => $_SERVER['REMOTE_ADDR'] ?? 'N/A',
             'timestamp' => date('Y-m-d H:i:s T') // Add timezone
         ];
-
         // Add user context if available and session started
-        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
-            $context['user_id'] = $_SESSION['user_id'];
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            // Safely access user ID from session, checking both common structures
+            $context['user_id'] = $_SESSION['user']['id'] ?? $_SESSION['user_id'] ?? null;
         }
-         if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user']['id'])) { // Check preferred structure
-             $context['user_id'] = $_SESSION['user']['id'];
-         }
-
         return $context;
     }
 
-     // Renamed logError to logErrorToFile to avoid confusion with SecurityLogger::error
+     // Logs error details to the configured log file or PHP's error log.
      private static function logErrorToFile(array $error): void {
         $message = sprintf(
             "[%s] [%s] %s in %s on line %d",
-            date('Y-m-d H:i:s T'), // Add timezone
+            date('Y-m-d H:i:s T'),
             $error['type'],
             $error['message'],
-            $error['file'],
-            $error['line']
+            $error['file'] ?? 'N/A', // Use null coalescing for safety
+            $error['line'] ?? 0     // Use null coalescing for safety
         );
-
-        // Append trace if available and relevant (not for notices/warnings usually)
-        if (!empty($error['trace']) && !in_array($error['type'], ['E_NOTICE', 'E_USER_NOTICE', 'E_WARNING', 'E_USER_WARNING', 'E_DEPRECATED', 'E_USER_DEPRECATED', 'E_STRICT'])) {
+        // Append trace if available
+        if (!empty($error['trace'])) {
             $message .= "\nStack trace:\n" . $error['trace'];
         }
-
         // Append context if available
         if (!empty($error['context'])) {
-            // Use pretty print for readability in logs
             $contextJson = json_encode($error['context'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-            if ($contextJson === false) {
-                 $contextJson = "Failed to encode context: " . json_last_error_msg();
-            }
-            $message .= "\nContext: " . $contextJson;
+            $message .= "\nContext: " . ($contextJson ?: "Failed to encode context: " . json_last_error_msg());
         }
 
-        // Log to external logger if provided, otherwise use PHP's error_log
-        if (self::$logger) {
+        // Log to external logger if provided (PSR-3 basic compatibility check)
+        if (self::$logger && method_exists(self::$logger, 'error')) {
             // Map error type to PSR log level (simplified mapping)
             $level = match (substr($error['type'], 0, 7)) {
-                 'E_ERROR', 'E_PARSE', 'E_CORE_', 'E_COMPI' => 'critical', // Treat fatal/compile/parse as critical
-                 'E_USER_' => 'error', // User errors treated as errors
-                 'E_WARNI', 'E_RECOV' => 'warning', // Warnings, recoverable
-                 'E_DEPRE' => 'notice', // Deprecated as notice
-                 'E_NOTIC', 'E_STRIC' => 'notice', // Notices, strict standards
-                 default => 'error' // Default to error
+                 'E_ERROR', 'E_PARSE', 'E_CORE_', 'E_COMPI' => 'critical',
+                 'E_USER_' => 'error',
+                 'E_WARNI', 'E_RECOV' => 'warning',
+                 'E_DEPRE', 'E_NOTIC', 'E_STRIC' => 'notice', // Grouping notices
+                 default => 'error'
             };
-            // Ensure logger implements PSR-3 or adapt call accordingly
-            if (method_exists(self::$logger, $level)) {
-                 self::$logger->{$level}($message); // Assumes PSR-3 compatible logger
-            } else {
-                self::$logger->log('error', $message); // Fallback PSR log level
-            }
+             // Call the appropriate PSR-3 method if it exists, otherwise fallback to error
+             if (method_exists(self::$logger, $level)) {
+                  self::$logger->{$level}($message);
+             } else {
+                 self::$logger->error($message); // Fallback to error level
+             }
         } else {
-             // Log to PHP's configured error log
-             error_log($message);
+             error_log($message); // Log to PHP's configured error log
         }
 
-        // Log to security log if it seems security-related
+        // Log security related errors using SecurityLogger
         if (self::isSecurityError($error)) {
-             if(self::$securityLogger) self::$securityLogger->warning("Security-related error detected", $error);
+             // Ensure logger is available before calling
+             if(isset(self::$securityLogger) && self::$securityLogger instanceof SecurityLogger) {
+                self::$securityLogger->warning("Security-related error detected", $error);
+             }
         }
     }
 
-
+    // Checks if an error message or file indicates a potential security issue.
     private static function isSecurityError(array $error): bool {
-        // Keep this simple keyword check
-        $securityKeywords = [
-            'sql', 'database', 'injection', // Common DB/Injection terms
-            'xss', 'cross-site', 'script', // XSS related
-            'csrf', 'token', // CSRF related
-            'auth', 'password', 'login', 'permission', 'credentials', 'unauthorized', // Auth/Access
-            'ssl', 'tls', 'certificate', 'encryption', // Security transport/crypto
-            'overflow', 'upload', 'file inclusion', 'directory traversal', // Common vulnerabilities
-            'session fixation', 'hijack' // Session issues
-        ];
-
-        $errorMessageLower = strtolower($error['message']);
-        $errorFileLower = isset($error['file']) ? strtolower($error['file']) : '';
+        $securityKeywords = ['sql', 'database', 'injection', 'xss', 'cross-site', 'script', 'csrf', 'token', 'auth', 'password', 'login', 'permission', 'credentials', 'unauthorized', 'ssl', 'tls', 'certificate', 'encryption', 'overflow', 'upload', 'file inclusion', 'directory traversal', 'session fixation', 'hijack'];
+        $errorMessageLower = strtolower($error['message'] ?? ''); // Use null coalescing
+        $errorFileLower = strtolower($error['file'] ?? ''); // Use null coalescing
 
         foreach ($securityKeywords as $keyword) {
-            if (str_contains($errorMessageLower, $keyword)) { // Use str_contains (PHP 8+)
-                return true;
-            }
+            // Use str_contains (PHP 8+) for better readability
+            if (function_exists('str_contains') && str_contains($errorMessageLower, $keyword)) return true;
+            // Fallback for PHP < 8
+            elseif (!function_exists('str_contains') && strpos($errorMessageLower, $keyword) !== false) return true;
         }
          // Check if error occurs in sensitive files
-         if (str_contains($errorFileLower, 'securitymiddleware.php') || str_contains($errorFileLower, 'auth.php')) {
-             return true;
+         if (function_exists('str_contains')) {
+             if (str_contains($errorFileLower, 'securitymiddleware.php') || str_contains($errorFileLower, 'auth.php')) {
+                return true;
+             }
+         } else { // Fallback for PHP < 8
+              if (strpos($errorFileLower, 'securitymiddleware.php') !== false || strpos($errorFileLower, 'auth.php') !== false) {
+                  return true;
+              }
          }
 
         return false;
     }
 
+     // Includes the dedicated error view file.
+     private static function displayErrorPage(?array $error = null): void {
+        // This method is called within output buffering by the handlers.
+        // It includes the error view, which is now self-contained.
+        $isDevelopment = defined('ENVIRONMENT') && ENVIRONMENT === 'development';
+        // Prepare data for the view, only passing details in development.
+        $viewData = [
+            'pageTitle' => 'Application Error', // Title for the error page itself
+            // Pass the error details only if in development mode
+            'error' => ($isDevelopment && $error !== null) ? $error : null
+        ];
+        // Extract variables into the current scope for the view file
+        extract($viewData);
 
-     // Renamed displayError to displayErrorPage for clarity
-     private static function displayErrorPage(?array $error = null): void { // Allow null for production
-        // This method now assumes it's called *within* output buffering
-        // in the handler methods (handleError, handleException, handleFatalError)
-        try {
-            $pageTitle = 'Error'; // Define variables needed by the view
-            $bodyClass = 'page-error';
-            $isDevelopment = defined('ENVIRONMENT') && ENVIRONMENT === 'development';
+        // Define ROOT_PATH if not already defined globally (needed for view path)
+        if (!defined('ROOT_PATH')) {
+            // Assuming ErrorHandler.php is in includes/
+            define('ROOT_PATH', realpath(__DIR__ . '/..'));
+        }
+        $errorViewPath = ROOT_PATH . '/views/error.php';
 
-            // Prepare data for extraction
-            $viewData = [
-                'pageTitle' => $pageTitle,
-                'bodyClass' => $bodyClass,
-                // Only pass detailed error info if in development
-                'error' => ($isDevelopment && $error !== null) ? $error : null
-            ];
-
-            extract($viewData); // Extract variables into the current scope
-
-            // Define ROOT_PATH if not already defined globally
-            if (!defined('ROOT_PATH')) {
-                define('ROOT_PATH', realpath(__DIR__ . '/..'));
-            }
-
-            // Use a dedicated, self-contained error view
-            $errorViewPath = ROOT_PATH . '/views/error.php';
-
-            if (file_exists($errorViewPath)) {
-                // Include the error view - This view should NOT include header/footer
-                include $errorViewPath;
-            } else {
-                 // Fallback INLINE HTML if error view is missing
-                 echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Error</title>';
-                 echo '<style>body { font-family: sans-serif; padding: 20px; } .error-details { margin-top: 20px; padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; }</style>';
-                 echo '</head><body><h1>Application Error</h1>';
-                 echo '<p>An unexpected error occurred. Please try again later or contact support.</p>';
-                 if ($isDevelopment && isset($error)) { // Only show details in dev
-                     echo '<div class="error-details"><strong>Details (Development Mode):</strong><br>';
-                     echo htmlspecialchars(print_r($error, true));
-                     echo '</div>';
-                 }
-                 echo '</body></html>';
-                 error_log("FATAL: Error view file not found at: " . $errorViewPath);
-            }
-
-        } catch (Throwable $t) {
-            // If displaying the error page ITSELF throws an error, fallback to text
-             if (!headers_sent()) {
-                  header('Content-Type: text/plain; charset=UTF-8', true, 500);
+        if (file_exists($errorViewPath) && is_readable($errorViewPath)) {
+            include $errorViewPath; // Include the self-contained view
+        } else {
+            // Fallback inline HTML ONLY if error view is missing (should not happen in production)
+            // This fallback is minimal and safe.
+            echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Error</title><style>body{font-family:sans-serif;padding:20px;background-color:#f8f9fa;color:#212529;}h1{color:#dc3545;}p{color:#6c757d;}.error-details{margin-top:20px;padding:15px;background-color:#f8d7da;border:1px solid #f5c6cb;color:#721c24;border-radius:4px;white-space:pre-wrap;word-wrap:break-word;font-size:0.9em;}</style></head><body><h1>Application Error</h1><p>An unexpected error occurred. Please try again later.</p>';
+             // Conditionally display basic error info in development mode within the fallback
+             if ($isDevelopment && isset($error)) {
+                 echo '<div class="error-details"><strong>Details (Development Mode):</strong><br>';
+                 echo 'Type: ' . htmlspecialchars($error['type'] ?? 'Unknown') . '<br>';
+                 echo 'Message: ' . htmlspecialchars($error['message'] ?? 'N/A') . '<br>';
+                 echo 'File: ' . htmlspecialchars($error['file'] ?? 'N/A') . '<br>';
+                 echo 'Line: ' . htmlspecialchars($error['line'] ?? 'N/A') . '<br>';
+                 // Avoid full trace in basic fallback for brevity/safety
+                 echo '</div>';
              }
-            echo "A critical error occurred while trying to display the error page.\n";
-            echo "Original Error: " . ($error['message'] ?? 'N/A') . "\n";
-            echo "Error Display Error: " . $t->getMessage() . "\n";
-            error_log("FATAL: Failed to display error page itself. Original error: " . print_r($error, true) . ". Display error: " . $t->getMessage());
+            echo '</body></html>';
+            // Log that the primary error view was missing
+            error_log("FATAL: Error view file not found or not readable at: " . $errorViewPath);
         }
      }
 
-    // --- END: Missing Handler Methods Added Back ---
+     // Logs an error that occurred during the display of the error page itself.
+     private static function logDisplayError(array $originalError, Throwable $displayError): void {
+         error_log(sprintf(
+             "FATAL: Error occurred while displaying error page for original error [%s: %s]. Display Error: %s in %s:%d",
+             $originalError['type'] ?? 'Unknown',
+             $originalError['message'] ?? 'N/A',
+             $displayError->getMessage(),
+             $displayError->getFile(),
+             $displayError->getLine()
+         ));
+         // Also log the trace of the error that occurred while displaying the page
+         error_log("Display Error Stack Trace:\n" . $displayError->getTraceAsString());
+     }
 
+     // Outputs a plain text error message as a last resort.
+     private static function outputPlainTextError(array $error): void {
+         if (!headers_sent()) {
+             // Attempt to send plain text header only if none were sent
+             header('Content-Type: text/plain; charset=UTF-8', true, 500);
+         }
+         // Output might interleave badly if headers were already sent, but it's a fallback.
+         echo "A critical error occurred.\n";
+         if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
+             // Provide more details in development mode plain text fallback
+             echo "Error Type: " . ($error['type'] ?? 'Unknown') . "\n";
+             echo "Message: " . ($error['message'] ?? 'N/A') . "\n";
+             echo "File: " . ($error['file'] ?? 'N/A') . "\n";
+             echo "Line: " . ($error['line'] ?? 'N/A') . "\n";
+             if (!empty($error['trace'])) {
+                 echo "Trace:\n" . $error['trace'] . "\n";
+             }
+         } else {
+             echo "Please check server logs for details or contact support.\n";
+         }
+     }
 
-    // --- TrackError method from new version ---
-    private static function trackError(array $error): void { // Use type hint, keep private
+    // Tracks error frequency and alerts if threshold is exceeded.
+    private static function trackError(array $error): void {
          $errorKey = md5(($error['file'] ?? 'unknown_file') . ($error['line'] ?? '0') . ($error['type'] ?? 'unknown_type'));
          $now = time();
-
-         // Initialize if not set
+         // Initialize counters/timestamps if not set
          self::$errorCount[$errorKey] = self::$errorCount[$errorKey] ?? 0;
          self::$lastErrorTime[$errorKey] = self::$lastErrorTime[$errorKey] ?? $now;
 
-
-         // Reset count if more than an hour has passed
+         // Reset count if more than an hour (3600 seconds) has passed since the start of the window
          if ($now - self::$lastErrorTime[$errorKey] > 3600) {
-             self::$errorCount[$errorKey] = 0;
-             self::$lastErrorTime[$errorKey] = $now; // Reset time as well
+             self::$errorCount[$errorKey] = 0; // Reset count
+             self::$lastErrorTime[$errorKey] = $now; // Reset window start time
          }
+         self::$errorCount[$errorKey]++; // Increment count for this error
 
-         self::$errorCount[$errorKey]++;
-         // Update last error time on each occurrence within the window
-         // self::$lastErrorTime[$errorKey] = $now; // Decide if you want last time or first time in window
-
-         // Alert on high frequency errors
-         // Use constant or configurable value
-         $alertThreshold = defined('ERROR_ALERT_THRESHOLD') ? (int)ERROR_ALERT_THRESHOLD : 10;
-         if (self::$errorCount[$errorKey] > $alertThreshold) {
-             // Ensure securityLogger is initialized
-             if (isset(self::$securityLogger)) {
+         // Alert just once when the threshold is first exceeded within the window
+         $alertThreshold = defined('ERROR_ALERT_THRESHOLD') ? (int)ERROR_ALERT_THRESHOLD : 10; // Get threshold from config or default
+         if (self::$errorCount[$errorKey] === $alertThreshold + 1) {
+             // Ensure securityLogger is initialized and available
+             if (isset(self::$securityLogger) && self::$securityLogger instanceof SecurityLogger) {
                  self::$securityLogger->alert("High frequency error detected", [
-                     'error_type' => $error['type'] ?? 'Unknown', // Use specific fields
+                     'error_type' => $error['type'] ?? 'Unknown',
                      'error_message' => $error['message'] ?? 'N/A',
                      'file' => $error['file'] ?? 'N/A',
                      'line' => $error['line'] ?? 'N/A',
                      'count_in_window' => self::$errorCount[$errorKey],
-                     'window_start_time' => date('Y-m-d H:i:s T', self::$lastErrorTime[$errorKey]) // Time window started
+                     'window_start_time' => date('Y-m-d H:i:s T', self::$lastErrorTime[$errorKey])
                  ]);
-                 // Optionally reset count after alerting to prevent spamming
-                 // self::$errorCount[$errorKey] = 0; // Reset immediately after alert
              } else {
+                 // Fallback log if SecurityLogger isn't available
                  error_log("High frequency error detected but SecurityLogger not available: " . print_r($error, true));
              }
          }
@@ -1017,7 +1001,7 @@ class ErrorHandler {
 } // End of ErrorHandler class
 
 
-// --- SecurityLogger Class Update (from new version) ---
+// --- SecurityLogger Class (Remains unchanged from previous version) ---
 
 class SecurityLogger {
     private string $logFile; // Use type hint
@@ -1081,7 +1065,7 @@ class SecurityLogger {
          }
      }
 
-    // --- Private log method (from new version) ---
+    // --- Private log method ---
     private function log(string $level, string $message, array $context): void {
         $timestamp = date('Y-m-d H:i:s T'); // Add Timezone
 
@@ -1096,7 +1080,6 @@ class SecurityLogger {
         ];
         // Merge auto-context first, so provided context can override if needed
         $finalContext = array_merge($autoContext, $context);
-
 
         // Use json_encode with flags for better readability and error handling
         $contextStr = json_encode($finalContext, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
@@ -1122,7 +1105,7 @@ class SecurityLogger {
         }
     }
 
-    // --- alertAdmins method (from new version with pragmatic fix) ---
+    // --- alertAdmins method ---
     private function alertAdmins(string $level, string $message, array $context): void {
         // Ensure EmailService class exists and is included/autoloaded
         if (!class_exists('EmailService')) {

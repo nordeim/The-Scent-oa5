@@ -53,10 +53,11 @@ class EmailService {
             }
             $this->mailer->isSMTP();
             $this->mailer->Host = SMTP_HOST;
-            $this->mailer->SMTPAuth = true;
-            $this->mailer->Username = SMTP_USER;
-            $this->mailer->Password = SMTP_PASS;
-            $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            // disable below 4 for Mailhog. Need to enable back for production
+            // $this->mailer->SMTPAuth = true;
+            // $this->mailer->Username = SMTP_USER;
+            // $this->mailer->Password = SMTP_PASS;
+            // $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $this->mailer->Port = SMTP_PORT;
             $this->mailer->CharSet = 'UTF-8';
             $this->mailer->Encoding = 'base64';

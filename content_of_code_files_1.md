@@ -345,7 +345,7 @@ define('SECURITY_SETTINGS', [
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         // CSP tightened: removed 'unsafe-inline' from script-src and style-src
-        // 'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self'; frame-src https://js.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com",
+        'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self'; frame-src https://js.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com",
         'Strict-Transport-Security' => 'max-age=31536000; includeSubDomains'
     ],
     'file_upload' => [
@@ -373,12 +373,12 @@ define('STRIPE_SECRET_KEY', 'sk_test_your_stripe_secret_key');
 define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret');
 
 // Email Configuration (for next phase)
-define('SMTP_HOST', 'smtp.gmail.com');
-define('SMTP_PORT', 587);
-define('SMTP_USER', 'your_email@gmail.com');
-define('SMTP_PASS', 'your_email_app_password');
-define('SMTP_FROM', 'noreply@thescent.com');
-define('SMTP_FROM_NAME', 'The Scent');
+define('SMTP_HOST', 'localhost');
+define('SMTP_PORT', 1025);
+define('SMTP_USER', '');
+define('SMTP_PASS', '');
+define('SMTP_FROM', 'noreply@thescent.local');
+define('SMTP_FROM_NAME', 'The Scent (Dev)');
 
 // Application Settings
 define('TAX_RATE', 0.10); // 10% tax rate

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Scent - Premium Aromatherapy Products</title>
+    <title>Home - The Scent</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,14 +36,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class=""
+<body class="page-home"
       data-base-url="/"
       data-stripe-public-key="pk_test_your_stripe_public_key"
       data-free-shipping-threshold="50"
       data-base-shipping-cost="5.99">
 
     <!-- Global CSRF Token Input for JavaScript AJAX Requests -->
-    <input type="hidden" id="csrf-token-value" value="5df529d3e82923e189ecbb4bbaa253b293b21b8a910426ab58c0167ecd03d0e8">
+    <input type="hidden" id="csrf-token-value" value="fb969da164ba08732b5a17d6d9125759d608663119e14b4c0ccde32e381f3b05">
 
     <header>
         <nav class="main-nav sample-header">
@@ -88,7 +88,7 @@
         <!-- Container for dynamically added flash messages by JS -->
         <div class="flash-message-container fixed top-5 right-5 z-[1100] max-w-sm w-full space-y-2"></div>
 <!-- DEBUG: home.php loaded --><!-- Output CSRF token for JS (for AJAX add-to-cart/newsletter) -->
-<input type="hidden" id="csrf-token-value" value="5df529d3e82923e189ecbb4bbaa253b293b21b8a910426ab58c0167ecd03d0e8">
+<input type="hidden" id="csrf-token-value" value="fb969da164ba08732b5a17d6d9125759d608663119e14b4c0ccde32e381f3b05">
 
 <!-- Hero Section with Video Background -->
 <section class="hero-section relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -349,7 +349,7 @@
             <p class="mb-8">Subscribe to receive updates, exclusive offers, and aromatherapy tips.</p>
             <!-- Apply suggested form structure/style -->
             <form id="newsletter-form" class="newsletter-form flex flex-col sm:flex-row gap-4 justify-center">
-                <input type="hidden" name="csrf_token" value="5df529d3e82923e189ecbb4bbaa253b293b21b8a910426ab58c0167ecd03d0e8">
+                <input type="hidden" name="csrf_token" value="fb969da164ba08732b5a17d6d9125759d608663119e14b4c0ccde32e381f3b05">
                 <input type="email" name="email" placeholder="Enter your email" required class="newsletter-input flex-1 px-4 py-2 rounded-full border border-gray-300 focus:border-primary">
                 <button type="submit" class="btn btn-primary newsletter-btn">Subscribe</button>
             </form>
@@ -422,7 +422,7 @@
                     <p><i class="fas fa-phone"></i> +1 (555) 123-4567</p>
                     <p><i class="fas fa-envelope"></i> hello@thescent.com</p>
                     <form id="newsletter-form-footer" class="newsletter-form" style="margin-top:1rem;">
-                        <input type="hidden" name="csrf_token" value="5df529d3e82923e189ecbb4bbaa253b293b21b8a910426ab58c0167ecd03d0e8">
+                        <input type="hidden" name="csrf_token" value="fb969da164ba08732b5a17d6d9125759d608663119e14b4c0ccde32e381f3b05">
                         <input type="email" name="email" placeholder="Enter your email" required class="newsletter-input">
                         <button type="submit" class="btn btn-primary newsletter-btn">Subscribe</button>
                     </form>

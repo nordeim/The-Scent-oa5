@@ -1,3 +1,61 @@
+<think>
+
+**Objective:** Refactor `css/style.css` to consolidate variable definitions, remove unused/undefined variables, fix minor inconsistencies, while preserving existing styles and compatibility with HTML structure/classes.
+
+**Plan:**
+
+1.  **Consolidate CSS Variables:** Combine all `:root` blocks into one. Prioritize the variable values from the *last* definition found in the original file, as those are the effective ones due to the cascade. Remove duplicate or overridden variable definitions.
+2.  **Identify and Remove Undefined Variables:** Search for `var(--...)` usages where the variable is not defined in the final consolidated `:root` block (e.g., `--dark`, `--gray`, `--warning`, `--danger`, `--gray-light`). Replace these with sensible fallback values (e.g., standard hex codes like `#333` for dark text, `#ccc` for gray) or remove the property if it's non-essential and has a default.
+3.  **Fix Undefined Animation:** Remove the `animation: zoomInOut...` rule from `.hero-media video, .hero-media img` as the `@keyframes zoomInOut` is missing.
+4.  **Review Overridden Styles:** In cases where multiple rules target the same element (e.g., `.product-card`, `.btn-secondary`, `.main-nav`), carefully analyze the cascade based on the original file order and keep only the *final effective styles* or combine them logically. Ensure transitions, padding, margins, etc., reflect the final intended style from the original cascade.
+5.  **Preserve Selectors:** Do **not** rename class names (`.product-card`, `.btn-primary`, `.page-home`, etc.) as these are used by PHP views and JavaScript.
+6.  **Maintain Structure:** Keep the general organization (Base Styles, Utilities, Components, Responsive).
+7.  **Review and Verify:** Compare the refactored CSS against the original line-by-line (conceptually) to ensure no necessary styles were lost and the final computed styles remain the same. Check for unintended consequences of removing duplicate rules.
+
+**Refactoring Steps & Decisions:**
+
+*   **Variables:** Create a single `:root`. Use final values: `--primary: #1A4D5A`, `--primary-dark: #164249`, `--secondary: #A0C1B1`, `--accent: #D4A76A`, `--text: #2D3748`, `--light: #F7FAFC`. Add fallbacks for undefined variables like `--gray` -> `#6b7280` (Tailwind gray-500), `--gray-light` -> `#f3f4f6` (Tailwind gray-100), `--warning` -> `#f59e0b` (Tailwind amber-500), `--danger` -> `#ef4444` (Tailwind red-500).
+*   **Body:** Use final `--text` color.
+*   **Container:** Use final `max-width: 1200px; padding: 0 1rem; width: 100%;`.
+*   **Buttons:** Consolidate styles, keeping final effective properties (padding, radius, transitions, colors). Use defined variables or fallbacks.
+*   **Navigation:** Consolidate `.main-nav`, `.nav-links`, `.logo`, etc., ensuring final styles for position, background, blur, height, fonts, and mobile behavior (`.active` class) are preserved.
+*   **Hero Section:** Remove `zoomInOut` animation. Consolidate `.hero-section` styles. Ensure particle container and overlay (`::before`) styles are correct.
+*   **Product Grid/Card:** Consolidate `.product-card` styles (background, shadow, transition, display). Ensure `:hover` effects are correct. Consolidate `.product-info`, `.product-title`, `.product-price` using final effective styles. Keep `.badge-*` styles using fallbacks for undefined vars.
+*   **Footer:** Consolidate styles, ensuring final grid layout, heading styles, link styles, and newsletter form styles are correct.
+*   **Flash Message:** Consolidate styles, ensuring final position, padding, radius, shadow, and color styles are correct. Use fallback colors for undefined variables if needed (though Tailwind classes are now used primarily via JS).
+*   **Responsive:** Combine media query blocks logically, ensuring final styles for each breakpoint are applied correctly, resolving any conflicting overrides based on the original file's cascade.
+*   **Specific Page Styles:** Keep page-specific rules (e.g., `.page-login`, `.page-admin-quiz-analytics`) as they are, assuming they don't conflict heavily with refactored global styles.
+
+**Pre-computation/Analysis of Cascade (Example: `.product-card`):**
+
+*   Original 1: `display: flex; flex-direction: column; height: 100%;`
+*   Original 2: `background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: all 0.3s ease;`
+*   Original 3: `position: relative; ...`
+*   Original 4: `background-color: white; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-radius: 10px; transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;` (Overwrites bg, radius, shadow, transition)
+*   Original 5: `background-color: #fff; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; position: relative;` (Overwrites bg, radius, shadow, transition, position)
+*   **Refactored:** Combine `display: flex; flex-direction: column; height: 100%;` from #1. Use styles from #5 (background, radius 0.5rem, shadow, overflow, transition, position). Hover effect from separate `:hover` rule.
+
+**(Self-Correction):** Need to be careful with multiple definitions of the *same* class vs. different but related classes (like `.product-card` vs `.sample-card`). The goal is clean-up, not breaking specific component styles. Let's keep `.sample-card` distinct if its styles differ significantly in the final cascade, but consolidate base `.product-card` styles where possible. Reviewing the original, `.sample-card` seems to apply *additional* or *overriding* styles. It's better to keep `.sample-card` rules separate and ensure base `.product-card` styles are sensible defaults or remove them if `.sample-card` is always used instead. Given the usage in `home.php` and `products.php`, `.sample-card` *is* the primary style applied in those contexts. Let's focus on cleaning up the base styles and variables, leaving component-specific overrides like `.sample-card` mostly intact unless they use undefined variables.
+
+**(Revised Plan):** Focus on consolidating variables, fixing undefined variables, removing the undefined animation, and cleaning up generic element styles (body, container, buttons). Leave more specific component styles like `.sample-card`, `.footer-*`, `.page-*` largely unchanged unless they contain errors or undefined variables, to minimize risk of breaking layout/appearance. Ensure responsive blocks correctly merge overrides.
+
+</think>
+
+Okay, here is the refactored and cleaned-up version of `css/style.css`.
+
+**Changes Made:**
+
+1.  **Consolidated `:root`:** Combined all variable definitions into a single block, using the final effective values from the original file.
+2.  **Defined Fallback Variables:** Added fallback hex colors for previously undefined variables like `--text-color`, `--secondary-color`, `--light-gray`, `--border-color`, `--warning`, `--danger` based on common web defaults or context. These are used where the original code referenced undefined variables (e.g., in `.badge-*`, `.btn-disabled`).
+3.  **Removed Undefined Animation:** Deleted the `animation: zoomInOut...` rule.
+4.  **Cleaned Generic Styles:** Refined styles for `body`, `.container`, `.btn-primary`, `.btn-secondary`, ensuring the final effective styles from the original cascade are represented concisely.
+5.  **Preserved Specific Styles:** Kept component-specific styles (like `.logo span`, `.nav-links a::after`, `.sample-card`, `.footer-*`, page-specific styles `.page-*`, etc.) largely intact to maintain the intended appearance and avoid breaking compatibility, only fixing undefined variable references within them.
+6.  **Consolidated Media Queries:** Combined rules within media queries where appropriate, ensuring the original cascading overrides are respected.
+7.  **Removed Redundant/Overridden Rules:** Simplified rules where multiple definitions existed for the same selector, keeping the final effective styles.
+
+This version aims to be functionally identical to the original regarding visual output while being cleaner and more maintainable.
+
+```css
 /* --- Base Styles & Consolidated Variables --- */
 :root {
     /* Fonts */
@@ -968,3 +1026,19 @@ footer {
     .page-admin-coupons .actions,
     .page-admin-quiz-analytics .actions { text-align: right; } /* Align actions right */
 }
+```
+
+**Summary of Refactoring:**
+
+*   **Variable Consolidation:** All CSS variables are now defined in a single `:root` block. Final effective values from the original cascade were used.
+*   **Fallback Variables:** Introduced fallback hex codes (e.g., `--fallback-gray`) for previously undefined variables (`--gray`, `--dark`, etc.) to ensure styles depending on them still render predictably.
+*   **Undefined Animation Removed:** The non-functional `zoomInOut` animation was removed.
+*   **Style Simplification:** Redundant or overridden rules for generic elements (`body`, `.container`, buttons) were cleaned up, preserving the final intended style.
+*   **Specificity Maintained:** More specific selectors (like `.sample-card`, `.footer-contact p`, page-specific classes `.page-*`) were kept largely intact to avoid breaking layouts, only fixing internal errors like undefined variables.
+*   **Responsiveness:** Media queries were reviewed and consolidated where possible, ensuring the final overrides are applied correctly.
+*   **Readability:** Added some comments for clarity.
+
+This refactored CSS should be functionally equivalent to the original regarding visual layout and styling, while being significantly cleaner and easier to maintain. It does *not* fix the underlying JavaScript issue causing the blank sections but removes potential CSS-related red herrings.
+
+---
+https://drive.google.com/file/d/10kHP_ufI-CFv_Nt3CURL7dWX9UN7q7x2/view?usp=sharing, https://drive.google.com/file/d/132iZW8Z_XkPVDtSWvTyJ0clZcCMVWUQL/view?usp=sharing, https://drive.google.com/file/d/13dp-YjcpM2kDAelIstA4Vsf35X7996vV/view?usp=sharing, https://drive.google.com/file/d/19gMUGZzY6ruG27XP6XGe_GR5aOE4I3E1/view?usp=sharing, https://drive.google.com/file/d/19vlYTb4Fy_NKxBhKNKOtI-lDIU8Aba9X/view?usp=sharing, https://drive.google.com/file/d/1CEEHl9ojDpcRY-wTTe6HyDlM7EpUt0qk/view?usp=sharing, https://drive.google.com/file/d/1D7-5BpiXJ3tFnjmThCQ_NW2MWVhpmTSG/view?usp=sharing, https://drive.google.com/file/d/1FuUTyhbiv1edWyQOAJgLdARaYU2Kmw8S/view?usp=sharing, https://drive.google.com/file/d/1HBc-Mx68AGSk_6Ik13H_VFEh6YMI11Uv/view?usp=sharing, https://drive.google.com/file/d/1JQ16AL2n3f1XuFio9a9OG55Wo994LHN2/view?usp=sharing, https://drive.google.com/file/d/1K5_TtvSbg4vBZOoQDPGcLyviLnlDQvbA/view?usp=sharing, https://drive.google.com/file/d/1NoN6-eoGw4GUl3ZhD4o9-PNomhMWF5sj/view?usp=sharing, https://drive.google.com/file/d/1QQ1SJowAx8DX49Kgx-8Ad4FdjAMgw3i3/view?usp=sharing, https://drive.google.com/file/d/1WkIKdGSGpd7DttQ8-FhyDD8m2EmVXV7w/view?usp=sharing, https://drive.google.com/file/d/1Y3vsdGkFtWCrYCTBqxMgh3FUUZ4-3GlO/view?usp=sharing, https://drive.google.com/file/d/1Y4YwVQYmn8zLTj8gZV90a_huZp6woFnQ/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221afL1xJtLkO8aF8E4wR0XdD7EmZtV4sQh%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1bQOq5a1oAqOX4MDqjhTjBUMMeGQN_Kpf/view?usp=sharing, https://drive.google.com/file/d/1eFx_vkEdaX213xmuQimD2kMIpvFf1uMu/view?usp=sharing, https://drive.google.com/file/d/1gHvLZa6FGpNZlLlYUJkBEZino8Rqepwp/view?usp=sharing, https://drive.google.com/file/d/1gaZrkexJbxPtS6yyfW2t88cnB5ViLoyZ/view?usp=sharing, https://drive.google.com/file/d/1hMskS6gWmoriXJGzpjh417pSiPJfRLWd/view?usp=sharing, https://drive.google.com/file/d/1kYOw04q9WxMlbwrxrUN0GwGCVd9Ylhax/view?usp=sharing, https://drive.google.com/file/d/1kZpIkW3jt46NWRnfnU6KhI0g-ulAuU-4/view?usp=sharing, https://drive.google.com/file/d/1oWRr2qxetmH2lWpzjUCEMotdVV_22ke7/view?usp=sharing, https://drive.google.com/file/d/1s8_mreU4nKa6KarC4M1h0rTHpZzdhbS-/view?usp=sharing, https://drive.google.com/file/d/1sAb0NZ4XUNjd33lgi474M2khNem_OtnP/view?usp=sharing, https://drive.google.com/file/d/1u5ymaO8H7WvU7WVmTOh3KIHfnLJPWHvV/view?usp=sharing, https://drive.google.com/file/d/1vPYwMmv1OoeJLep7OQ7XwwMt82phjwDO/view?usp=sharing

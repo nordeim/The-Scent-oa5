@@ -2875,7 +2875,7 @@ function initAdminOrdersPage() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'X-```javascript
+                // 'X-```javascript
                 'X-Requested-With': 'XMLHttpRequest'
             },
             body: `order_id=${encodeURIComponent(orderId)}&status=${encodeURIComponent(status)}`

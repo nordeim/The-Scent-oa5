@@ -1,0 +1,1 @@
+[SECURITY] Event: rate_limit_exceeded | Details: {"timestamp":"2025-05-02 00:23:15 UTC","user_id":null,"ip":"127.0.0.1","user_agent":"Mozilla\/5.0 (X11; Linux x86_64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/135.0.0.0 Safari\/537.36","request_uri":"\/index.php?page=login","request_method":"POST","action":"login","limit":5,"window":300}

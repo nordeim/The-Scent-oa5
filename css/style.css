@@ -721,7 +721,7 @@ footer {
 
 /* --- Responsive Design --- */
 @media (max-width: 992px) {
-    .main-nav { display: none; } /* Hide desktop nav container */
+    /* .main-nav { display: none; } */ /* Hide desktop nav container */
     .mobile-menu-toggle { display: block; }
     .header-icons { display: flex; } /* Ensure icons show on tablet */
     .about-container { grid-template-columns: 1fr; text-align: center; }

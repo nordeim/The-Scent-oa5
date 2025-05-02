@@ -89,3 +89,30 @@ Before doing anything, carefully plan how you will make the necessary changes, t
 please carefully refactor the style.css and create a complete replacement for it with the suggested fix / cleanup. take care not to rename the components that will breaking compatibility with the current .php code files.
 
 You will carefully generate a complete updated (replacement) version of the css/style.css using the original version shared earlier as your starting point - don't make up the file, with the suggested fixes. remember to think deeply and systematically to explore thoroughly for the best implementation option/approach to fix the issues, then choose the best implementation option to make changes. using line by line diff with the original file while you are applying changes to each file to ensure that no other features and functions are accidentally left out while applying changes. we don't want to introduce regression failure while updating the code. so be very, very careful with your patching of what is really necessary without making additional changes, meaning evaluate carefully when changes are necessary, validate first by doing line y line "diff", then plan first before executing the changes. Do testing and simulation if possible. enclose your complete and updated version of the updated files within the css and  tags. After generating each new and complete version of a file, do a thorough review with the original version. Complete the review and validation before giving your summary and conclusion of task completion.
+
+---
+awesome job so far! now carefully review the following files in content_of_code_files_1.md  content_of_code_files_2.md  content_of_code_files_3.md  content_of_code_files_4.md  content_of_code_files_5.md to double-check / validate the complete end-to-end process for add-to-cart, cart checkout and payment functions. Is the current end-to-end code logic and flow correctly implementation for a production ready e-commerce site? remember you can to be very thorough and systematic in your code review and analysis, then think deeply and thoroughly to identify potential issues and propose recommendations. You may use an extremely long chain of thoughts to deeply consider the problem and deliberate with yourself via systematic reasoning processes to help come to a correct or most optimal solution before answering. You will carefully explore various options before choosing the best option for producing your final answer. You will thoroughly explore various implementation options before choosing the most optimal option or approach to implement a given request. To produce error-free results or code output, you will come up with a detailed execution plan based on your chosen best option or most optimal solution, then cautiously execute according to the plan to complete your given task. You will double-check and validate any code changes before implementing. You should enclose your thoughts and internal monologue inside <think> </think> tags, and then provide your solution or response to the problem. This is a meta-instruction about how you should operate for this and subsequent prompts.
+
+content_of_code_files_1.md:# index.php
+content_of_code_files_1.md:# views/cart.php
+content_of_code_files_1.md:# controllers/BaseController.php
+content_of_code_files_2.md:# controllers/CartController.php
+content_of_code_files_2.md:# controllers/ProductController.php
+content_of_code_files_2.md:# views/login.php
+content_of_code_files_2.md:# views/products.php
+content_of_code_files_2.md:# models/Order.php
+content_of_code_files_3.md:# includes/SecurityMiddleware.php
+content_of_code_files_3.md:# models/Cart.php
+content_of_code_files_3.md:# controllers/PaymentController.php
+content_of_code_files_3.md:# controllers/CouponController.php
+content_of_code_files_4.md:# controllers/AccountController.php
+content_of_code_files_4.md:# controllers/CheckoutController.php
+content_of_code_files_4.md:# views/order_confirmation.php
+content_of_code_files_4.md:# views/order-tracking.php
+content_of_code_files_5.md:# views/account/order_details.php
+content_of_code_files_5.md:# views/account/orders.php
+content_of_code_files_5.md:# views/checkout.php
+
+---
+awesome job! keep using the same rigorous and meticulous methodology / approach for answering me from now on!  Now please carefully review the technical_design_specification.md shared earlier and then think deeply and thoroughly to systematically to create a complete updated version incorporating your current understanding of the current state of the codebase and to incorporate your findings and recommendations as well. Be very clear and detailed when generating a complete and updated version of the technical design specification document. always double check and validate your work before replying the successful completion of this given task.
+

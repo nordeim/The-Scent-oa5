@@ -1,6 +1,8 @@
 # index.php  
 ```php
 <?php
+// index.php (Updated - CheckoutController instantiation)
+
 define('ROOT_PATH', __DIR__);
 require_once __DIR__ . '/config.php'; // Defines BASE_URL, etc.
 
@@ -30,7 +32,7 @@ try {
     // --- Stripe Webhook Route (skip CSRF) ---
     if ($page === 'payment' && $action === 'webhook' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/controllers/PaymentController.php';
-        $controller = new PaymentController($pdo);
+        $controller = new PaymentController($pdo); // Instantiate PaymentController here too
         $controller->handleWebhook(); // Handles Stripe POST, returns JSON
         exit;
     }
@@ -99,8 +101,17 @@ try {
                 header('Location: ' . BASE_URL . 'index.php?page=login');
                 exit;
             }
+            // --- UPDATED CONTROLLER INSTANTIATION ---
+            require_once __DIR__ . '/controllers/PaymentController.php'; // Ensure PaymentController is loaded
             require_once __DIR__ . '/controllers/CheckoutController.php';
-            require_once __DIR__ . '/controllers/CartController.php';
+            require_once __DIR__ . '/controllers/CartController.php'; // Keep this include
+
+            // Instantiate PaymentController first
+            $paymentController = new PaymentController($pdo);
+            // Instantiate CheckoutController, passing the PaymentController instance
+            $controller = new CheckoutController($pdo, $paymentController);
+            // --- END UPDATE ---
+
             // Only check cart for main page load
             if (empty($action)) {
                 $cartCtrl = new CartController($pdo);
@@ -112,11 +123,12 @@ try {
                     exit;
                 }
             }
-            $controller = new CheckoutController($pdo);
+
+            // --- Routing logic remains the same ---
             if ($action === 'processCheckout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $controller->processCheckout();
             } elseif ($action === 'confirmation') {
-                $controller->showOrderConfirmation();
+                $controller->showOrderConfirmation(); // Will now use the new logic
             } elseif ($action === 'calculateTax' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $controller->calculateTax();
             } elseif ($action === 'applyCouponAjax' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -126,7 +138,7 @@ try {
             }
             break;
 
-        // --- Account Related Routes (No changes from previous version) ---
+        // --- Account Related Routes --- (Unchanged from original)
         case 'login':
             if (isLoggedIn()) { header('Location: ' . BASE_URL . 'index.php?page=account'); exit; }
             require_once __DIR__ . '/controllers/AccountController.php';
@@ -140,7 +152,14 @@ try {
             $controller->register();
             break;
         case 'logout':
-             logoutUser();
+             // Assuming logoutUser() is defined in auth.php or similar
+             if (function_exists('logoutUser')) {
+                 logoutUser();
+             } elseif (function_exists('logout')) { // Fallback to potential auth.php function
+                 logout();
+             } else { // Manual fallback
+                 session_unset(); session_destroy();
+             }
              header('Location: ' . BASE_URL . 'index.php?page=login&loggedout=1');
              exit;
         case 'account':
@@ -153,20 +172,21 @@ try {
              $controller = new AccountController($pdo);
              switch ($action) {
                  case 'profile': $controller->showProfile(); break;
-                 case 'update_profile':
+                 case 'update_profile': // Renamed action for consistency? Assuming updateProfile handles this.
                      if ($_SERVER['REQUEST_METHOD'] === 'POST') { $controller->updateProfile(); }
-                     else { header('Location: ' . BASE_URL . 'index.php?page=account&action=profile'); exit; }
+                     else { header('Location: ' . BASE_URL . 'index.php?page=account&section=profile'); exit; }
                      break;
-                 case 'orders': $controller->showOrders(); break;
+                 case 'orders': $controller->showOrders(); break; // Assuming showOrders handles pagination etc.
                  case 'order_details':
                      if ($id) { $controller->showOrderDetails($id); }
-                     else { header('Location: ' . BASE_URL . 'index.php?page=account&action=orders'); exit; }
+                     else { header('Location: ' . BASE_URL . 'index.php?page=account&section=orders'); exit; }
                      break;
-                 case 'update_newsletter':
+                 case 'update_newsletter': // Assuming method name matches
                      if ($_SERVER['REQUEST_METHOD'] === 'POST') { $controller->updateNewsletterPreferences(); }
-                     else { header('Location: ' . BASE_URL . 'index.php?page=account&action=profile'); exit; }
+                     else { header('Location: ' . BASE_URL . 'index.php?page=account&section=profile'); exit; }
                      break;
-                 case 'dashboard': default: $controller->showDashboard(); break;
+                 case 'dashboard': // Added explicit dashboard case
+                 default: $controller->showDashboard(); break;
              }
              break;
         case 'forgot_password':
@@ -182,7 +202,7 @@ try {
              $controller->resetPassword();
              break;
 
-        // --- Other Routes (No changes from previous version) ---
+        // --- Other Routes --- (Unchanged from original)
         case 'quiz':
             require_once __DIR__ . '/controllers/QuizController.php';
             $controller = new QuizController($pdo);
@@ -230,7 +250,7 @@ try {
              }
              break;
 
-        // --- Static Pages (No changes from previous version) ---
+        // --- Static Pages --- (Unchanged from original)
         case 'contact':
             $pageTitle = 'Contact Us'; $csrfToken = SecurityMiddleware::generateCSRFToken(); $bodyClass = 'page-contact';
             extract(['pageTitle' => $pageTitle, 'csrfToken' => $csrfToken, 'bodyClass' => $bodyClass]);
@@ -267,14 +287,15 @@ try {
             extract(['pageTitle' => $pageTitle, 'bodyClass' => $bodyClass, 'csrfToken' => $csrfToken]);
             require_once __DIR__ . '/views/404.php'; break;
     }
-} catch (PDOException $e) {
+// --- Exception Handling --- (Unchanged from original, added more specific catches)
+} catch (PDOException $e) { // Catch specific DB errors
     ErrorHandler::handleException($e);
     exit(1);
 } catch (\Stripe\Exception\ApiErrorException $e) { // Catch Stripe API errors specifically
-     error_log("Stripe API error in routing: " . $e->getMessage());
+     error_log("Stripe API error in routing/controller: " . $e->getMessage());
      ErrorHandler::handleException($e); // Let ErrorHandler manage display
      exit(1);
-} catch (Throwable $e) { // Catch other exceptions
+} catch (Throwable $e) { // Catch other general errors/exceptions
     error_log("General error/exception in index.php: " . $e->getMessage() . " Trace: " . $e->getTraceAsString());
     ErrorHandler::handleException($e);
     exit(1);

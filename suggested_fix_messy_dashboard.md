@@ -1,446 +1,57 @@
-# includes/EmailService.php  
-```php
-<?php
-// includes/EmailService.php (Updated)
+Okay, let's systematically review the compatibility and address the reported issues.
 
-// Assuming PHPMailer is managed via Composer autoload
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+**Goal:**
 
-// Ensure the path to autoload.php is correct if using Composer
-// If not using Composer, ensure PHPMailer classes are included manually before this class.
-// require_once __DIR__ . '/../vendor/autoload.php'; // Uncomment if using Composer
+1.  Ensure `index.php` and `main.js` are compatible with the refactored `AccountController.php`.
+2.  Fix the messy UI on the account dashboard page (`/index.php?page=account&action=dashboard`).
+3.  Fix the issue where the cart page (`/index.php?page=cart`) shows as empty after login, even when it shouldn't be.
+4.  Review general compatibility of other PHP files.
+5.  Provide complete, updated versions of the fixed files based on the originals provided.
 
-// Include dependencies manually if not using Composer
-// require_once __DIR__ . '/../path/to/PHPMailer/src/Exception.php';
-// require_once __DIR__ . '/../path/to/PHPMailer/src/PHPMailer.php';
-// require_once __DIR__ . '/../path/to/PHPMailer/src/SMTP.php';
+**Analysis & Plan:**
 
-require_once __DIR__ . '/../config.php'; // For SMTP constants, BASE_URL
-require_once __DIR__ . '/../includes/ErrorHandler.php'; // For SecurityLogger (assuming it's defined there)
+1.  **Compatibility Check (`index.php`, `main.js` vs. `AccountController`):**
+    *   `index.php` correctly routes requests based on `page`, `action`, and `section` parameters to the relevant methods in `AccountController`. It handles GET requests for displaying views and POST requests for form submissions (like profile update, password reset). It also correctly routes AJAX POST requests for login and registration to the respective controller methods.
+    *   `main.js` contains `initLoginPage` and `initRegisterPage` functions that handle AJAX form submissions for login and registration. These match the expected JSON response format (`success`, `redirect`, `error`) from the `login` and `register` methods in `AccountController`. Other account actions (profile update, password reset) correctly use standard POST submissions handled by `AccountController`.
+    *   `AccountController` methods seem to align with the routing and AJAX/POST expectations from `index.php` and `main.js`.
+    *   **Conclusion:** `index.php`, `main.js`, and `AccountController` appear compatible.
 
-class EmailService {
-    private PHPMailer $mailer;
-    private string $templatePath;
-    private SecurityLogger $securityLogger;
-    private ?string $dkimPrivateKey = null;
-    private array $emailQueue = [];
-    private PDO $pdo; // Changed from global to instance property
+2.  **Issue 1: Messy Account Dashboard UI:**
+    *   **Diagnosis:** Looking at the provided `views/account/dashboard.php` (and the other `views/account/*.php` files in `content_of_code_files_6.md`), they are missing the standard layout includes: `require_once __DIR__ . '/../layout/header.php';` at the top and `require_once __DIR__ . '/../layout/footer.php';` at the bottom. This causes the raw section content to be displayed without the overall site structure, CSS, and JS.
+    *   **Fix:** Add the `header.php` and `footer.php` includes to all four account view files: `dashboard.php`, `order_details.php`, `orders.php`, and `profile.php`.
 
-    // Constructor now accepts PDO dependency
-    public function __construct(PDO $pdo) {
-        $this->pdo = $pdo; // Store PDO instance
-        $this->templatePath = realpath(__DIR__ . '/../views/emails/');
-        if ($this->templatePath === false || !is_dir($this->templatePath)) {
-             error_log("Email template path invalid or not found: " . __DIR__ . '/../views/emails/');
-             // Consider throwing an exception or handling this more gracefully
-             $this->templatePath = ''; // Prevent errors later, but emails with templates will fail
-        } else {
-            $this->templatePath .= '/'; // Ensure trailing slash
-        }
-        $this->securityLogger = new SecurityLogger(); // Assumes SecurityLogger doesn't need PDO
-        $this->loadDKIMKey();
-        $this->initializeMailer();
-    }
+3.  **Issue 2: Cart Page Appears Empty After Login:**
+    *   **Diagnosis:**
+        *   The `CartController` uses `$_SESSION['cart']` for guests and the `cart_items` database table (via `models/Cart.php`) for logged-in users.
+        *   Upon login, `CartController::mergeSessionCartOnLogin` is called, which attempts to move session items to the DB cart and *then clears* `$_SESSION['cart']`.
+        *   `CartController::showCart` correctly fetches items using `$this->cartModel->getItems()` when logged in, which queries the database.
+        *   The Apache error log shows warnings like `Undefined array key "id" in /cdrom/project/The-Scent-oa5/views/cart.php` on lines 32, 46, 67, 84 when accessing `/index.php?page=cart`. This strongly suggests that the `$cartItems` array passed to the `views/cart.php` template has an incorrect structure or is missing expected keys (specifically `['product']['id']`) after login.
+        *   Looking at `models/Cart.php::getItems` in `content_of_code_files_3.md`, it joins `cart_items` with `products` and selects `ci.product_id, ..., p.name, p.price, p.image, ...`. The structure returned seems correct (`product_id` is present).
+        *   Looking at `CartController::showCart`, it builds `$cartItems[] = ['product' => $item, 'quantity' => $quantity, 'subtotal' => $subtotal];` where `$item` is the result from `$this->cartModel->getItems()`. This structure *is* correct.
+        *   *Hypothesis Revisit:* The issue isn't that the *wrong* cart (session vs. DB) is being checked. The issue is likely that the *data structure* being iterated over in `views/cart.php` doesn't consistently have `['product']['id']`. Let's re-examine `views/cart.php` and how it accesses data.
+        *   **Root Cause:** In `views/cart.php`, lines like `data-product-id="<?= $item['product']['id'] ?>"`, `name="updates[<?= $item['product']['id'] ?>]"`, and `data-product-id="<?= $item['product']['id'] ?>"` all expect `$item['product']['id']`. However, the `Undefined array key "id"` errors suggest that `$item['product']` itself exists, but the `id` key *within* `$item['product']` is missing for some items when the page is rendered *after login*. This could happen if `models/Cart.php::getItems()` sometimes fails to join correctly or if the product associated with a cart item was deleted. The DB query *does* select `ci.product_id`, but the view uses `$item['product']['id']`.
+        *   **Refined Diagnosis:** The query in `models/Cart.php::getItems` selects `ci.product_id`. The code in `CartController::showCart` structures the data as `$cartItems[] = ['product' => $item, ...]`, where `$item` is the result row containing `product_id`, `name`, `price` etc. Therefore, the view should access the ID via `$item['product']['product_id']`, *not* `$item['product']['id']`.
+    *   **Fix:** Update `views/cart.php` to consistently use `$item['product']['product_id']` when accessing the product ID within the loop.
 
-    private function initializeMailer(): void {
-        $this->mailer = new PHPMailer(true); // Enable exceptions
+4.  **General Compatibility:**
+    *   `views/layout/header.php`: Seems compatible. Correctly handles login state display and cart count display using session variables updated by controllers.
+    *   Other files reviewed (`EmailService`, `ErrorHandler`, `SecurityMiddleware`, `Models`, other `Controllers`): No immediate compatibility issues found with the `AccountController`, `index.php`, and `main.js` based on the provided code snippets and recent changes. The primary issues seem confined to the Account view includes and the Cart view data access.
 
-        try {
-            // Server settings
-            if (defined('SMTP_DEBUG') && SMTP_DEBUG) { // Optional debug configuration
-                $this->mailer->SMTPDebug = SMTP::DEBUG_SERVER;
-            }
-            $this->mailer->isSMTP();
-            $this->mailer->Host = SMTP_HOST;
-            // disable below 4 for Mailhog. Need to enable back for production
-            // $this->mailer->SMTPAuth = true;
-            // $this->mailer->Username = SMTP_USER;
-            // $this->mailer->Password = SMTP_PASS;
-            // $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $this->mailer->Port = SMTP_PORT;
-            $this->mailer->CharSet = 'UTF-8';
-            $this->mailer->Encoding = 'base64';
+**Execution Plan:**
 
-            // Sender
-             if (defined('SMTP_FROM') && defined('SMTP_FROM_NAME')) {
-                 $this->mailer->setFrom(SMTP_FROM, SMTP_FROM_NAME);
-             } else {
-                 error_log("SMTP_FROM or SMTP_FROM_NAME not defined in config.php");
-                 // Set a default fallback if needed
-                 // $this->mailer->setFrom('noreply@example.com', 'The Scent');
-             }
+1.  Modify `views/account/dashboard.php` to add header/footer includes.
+2.  Modify `views/account/order_details.php` to add header/footer includes.
+3.  Modify `views/account/orders.php` to add header/footer includes.
+4.  Modify `views/account/profile.php` to add header/footer includes.
+5.  Modify `views/cart.php` to use `$item['product']['product_id']` instead of `$item['product']['id']`.
+6.  Provide the complete, updated code for these five files.
 
+---
 
-            // Enable DKIM signing if configured
-            if ($this->dkimPrivateKey && defined('BASE_URL')) {
-                 $domain = parse_url(BASE_URL, PHP_URL_HOST) ?: 'the-scent.com'; // Fallback domain
-                $this->mailer->DKIM_domain = $domain;
-                $this->mailer->DKIM_private = $this->dkimPrivateKey;
-                $this->mailer->DKIM_selector = 'thescent'; // Make this configurable?
-                $this->mailer->DKIM_passphrase = ''; // Assuming no passphrase
-                $this->mailer->DKIM_identity = $this->mailer->From;
-            }
+**Applying Fixes:**
 
-        } catch (Exception $e) {
-            $this->logError('Mailer initialization failed: ' . $this->mailer->ErrorInfo);
-            // Throwing here might prevent the app from loading if email is critical on startup
-            // Consider just logging and letting sending fail later.
-            // throw new Exception('Email service initialization failed');
-        }
-    }
+**1. Fixing Account Views (Adding Layout Includes)**
 
-    private function loadDKIMKey(): void {
-        // Make DKIM path configurable?
-        $keyPath = realpath(__DIR__ . '/../config/dkim/private.key'); // Use realpath for robustness
-        if ($keyPath && file_exists($keyPath) && is_readable($keyPath)) {
-            $this->dkimPrivateKey = file_get_contents($keyPath);
-        } else {
-            // Log if DKIM key is expected but not found/readable
-            // error_log("DKIM private key not found or not readable at: " . $keyPath);
-            $this->dkimPrivateKey = null;
-        }
-    }
-
-    // Now uses $this->pdo
-    private function logEmail(?int $userId, string $emailType, string $recipientEmail, string $subject, string $status, ?string $errorMessage = null): void {
-        try {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO email_log
-                (user_id, email_type, to_email, subject, status, error_message, sent_at)
-                VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ");
-            $stmt->execute([
-                $userId,
-                $emailType,
-                $recipientEmail,
-                $subject,
-                $status,
-                $errorMessage
-            ]);
-        } catch (Exception $e) {
-            // Log to PHP error log if DB logging fails
-            error_log("DB Email logging failed for '{$emailType}' to '{$recipientEmail}': " . $e->getMessage());
-        }
-    }
-
-    // --- START OF ADDED METHOD ---
-    /**
-     * Sends a welcome email to a newly registered user.
-     *
-     * @param string $recipientEmail The email address of the new user.
-     * @param string $recipientName The name of the new user.
-     * @return bool True on success, false on failure.
-     */
-    public function sendWelcome(string $recipientEmail, string $recipientName): bool {
-        $subject = 'Welcome to The Scent!';
-        $template = 'welcome'; // Assumes views/emails/welcome.php exists
-        $userId = null; // Usually no user ID known *yet* when sending welcome
-
-        // Data for the email template
-        $data = [
-            'name' => $recipientName,
-            'store_url' => BASE_URL,
-            'login_url' => BASE_URL . 'index.php?page=login'
-        ];
-
-        try {
-            $this->validateEmailAddress($recipientEmail); // Validate recipient
-
-            // Use the generic sendEmail method for consistency
-            return $this->sendEmail($recipientEmail, $subject, $template, $data, false, $userId, 'welcome_email');
-
-        } catch (Exception $e) {
-            // Error already logged within sendEmail or validation methods
-            // Log specific context if needed
-            error_log("Failed to initiate welcome email to {$recipientEmail}: " . $e->getMessage());
-            return false;
-        }
-    }
-    // --- END OF ADDED METHOD ---
-
-
-    // Updated sendPasswordReset to use sendEmail method
-    public function sendPasswordReset(array $user, string $token, string $resetLink): bool {
-         if (!isset($user['email']) || !isset($user['name'])) {
-             $this->logError('Invalid user data for password reset', ['user_id' => $user['id'] ?? null]);
-             return false; // Or throw exception
-         }
-         $subject = 'Reset Your Password - The Scent';
-         $template = 'password_reset';
-         $data = [
-             'name' => $user['name'],
-             'resetLink' => $resetLink // Pass the pre-generated link
-         ];
-         // Send with high priority maybe?
-         return $this->sendEmail($user['email'], $subject, $template, $data, true, $user['id'], 'password_reset');
-     }
-
-    // Updated sendOrderConfirmation to use sendEmail method
-    public function sendOrderConfirmation(array $order, array $user): bool {
-         if (!isset($user['email']) || !isset($order['id'])) {
-             $this->logError('Invalid order/user data for confirmation', ['user_id' => $user['id'] ?? null, 'order_id' => $order['id'] ?? null]);
-             return false; // Or throw exception
-         }
-         $subject = 'Order Confirmation #' . str_pad($order['id'], 6, '0', STR_PAD_LEFT);
-         $template = 'order_confirmation';
-         $data = [
-             'user' => $user,
-             'order' => $order
-         ];
-         return $this->sendEmail($user['email'], $subject, $template, $data, false, $user['id'], 'order_confirmation');
-     }
-
-     // Updated sendShippingUpdate to use sendEmail method
-     public function sendShippingUpdate(array $order, array $user, string $trackingNumber, string $carrier): bool {
-         if (!isset($user['email']) || !isset($order['id'])) {
-             $this->logError('Invalid order/user data for shipping update', ['user_id' => $user['id'] ?? null, 'order_id' => $order['id'] ?? null]);
-             return false; // Or throw exception
-         }
-         $subject = 'Shipping Update - Order #' . str_pad($order['id'], 6, '0', STR_PAD_LEFT);
-         $template = 'shipping_update'; // Assumes views/emails/shipping_update.php exists
-         $data = [
-             'user' => $user,
-             'order' => $order,
-             'trackingNumber' => $trackingNumber,
-             'carrier' => $carrier
-             // Add tracking URL if available/needed
-         ];
-         return $this->sendEmail($user['email'], $subject, $template, $data, false, $user['id'], 'shipping_update');
-     }
-
-     // Updated sendNewsletter to use sendEmail method (for consistency, though it was similar)
-     public function sendNewsletter(string $email, string $subject, string $template = 'newsletter_general', array $data = []): bool {
-         // Assuming a generic newsletter template exists
-         return $this->sendEmail($email, $subject, $template, $data, false, null, 'newsletter');
-     }
-
-     // Keep sendSecurityAlert as it might have specific formatting/recipient needs
-     public function sendSecurityAlert(string $level, string $message, array $context): bool {
-        $template = 'security_alert'; // Assumes views/emails/security_alert.php exists
-        $subject = "Security Alert [{$level}]: The Scent";
-        $recipient = defined('SECURITY_ALERT_EMAIL') ? SECURITY_ALERT_EMAIL : null; // Get recipient from config
-
-        if (!$recipient) {
-            $this->logError('SECURITY_ALERT_EMAIL not configured. Cannot send alert.', $context);
-            return false;
-        }
-
-        $data = [
-            'level' => $level,
-            'alert_message' => $message, // Use different key to avoid clash if 'message' is in context
-            'context' => print_r($context, true), // Format context for email body
-            'timestamp' => date('Y-m-d H:i:s T')
-        ];
-
-        // Send with high priority
-        return $this->sendEmail($recipient, $subject, $template, $data, true, null, 'security_alert');
-    }
-
-    // Generic send method - The core sending logic
-    // Added $userId and $emailType for centralized logging
-    public function sendEmail(string $to, string $subject, string $template, array $data = [], bool $priority = false, ?int $userId = null, string $emailType = 'general'): bool {
-        try {
-            $this->validateEmailAddress($to);
-            $this->validateTemplate($template);
-
-            $html = $this->renderTemplate($template, $data);
-            $text = $this->convertToPlainText($html); // Generate plain text version
-
-            // Reset mailer state for this specific email
-            $this->mailer->clearAllRecipients(); // Clears all types of recipients (To, CC, BCC)
-            $this->mailer->clearAttachments();
-            $this->mailer->clearCustomHeaders();
-
-            // Re-apply necessary headers and settings
-            $this->addSecurityHeaders(); // Add custom security headers
-            if ($this->dkimPrivateKey) { // Re-apply DKIM if needed
-                 $domain = parse_url(BASE_URL, PHP_URL_HOST) ?: 'the-scent.com';
-                 $this->mailer->DKIM_domain = $domain;
-                 $this->mailer->DKIM_private = $this->dkimPrivateKey;
-                 $this->mailer->DKIM_selector = 'thescent';
-                 $this->mailer->DKIM_passphrase = '';
-                 $this->mailer->DKIM_identity = $this->mailer->From;
-             }
-
-
-            // Add recipient
-            $this->mailer->addAddress($to);
-
-            // Set content
-            $this->mailer->Subject = $this->sanitizeSubject($subject);
-            $this->mailer->isHTML(true);
-            $this->mailer->Body = $html;
-            $this->mailer->AltBody = $text;
-
-            // Set message priority if requested
-            if ($priority) {
-                $this->mailer->Priority = 1; // 1 = High, 3 = Normal, 5 = Low
-                $this->mailer->AddCustomHeader('X-Priority', '1 (Highest)');
-                $this->mailer->AddCustomHeader('Importance', 'High');
-            } else {
-                 $this->mailer->Priority = 3;
-                 $this->mailer->AddCustomHeader('X-Priority', '3 (Normal)');
-                 $this->mailer->AddCustomHeader('Importance', 'Normal');
-            }
-
-            $sent = $this->mailer->send();
-
-            if ($sent) {
-                // Log success to DB
-                $this->logEmail($userId, $emailType, $to, $subject, 'sent');
-                return true;
-            } else {
-                // Log failure to DB (PHPMailer exception usually caught below)
-                 $this->logEmail($userId, $emailType, $to, $subject, 'failed', $this->mailer->ErrorInfo);
-                $this->logError("Email sending failed (Mailer Error): {$this->mailer->ErrorInfo}", ['to' => $to, 'subject' => $subject]);
-                 return false;
-            }
-
-        } catch (Exception $e) {
-            // Log general exception during sending or setup
-            $errorMessage = $e->getMessage() . (isset($this->mailer->ErrorInfo) ? " | Mailer Error: " . $this->mailer->ErrorInfo : "");
-            $this->logError("Email sending failed (Exception): " . $errorMessage, [
-                'to' => $to,
-                'subject' => $subject,
-                'template' => $template
-            ]);
-            // Log failure to DB
-            $this->logEmail($userId, $emailType, $to, $subject, 'failed', $errorMessage);
-            // Optionally re-throw or return false based on desired application flow
-            // throw new Exception('Failed to send email');
-             return false;
-        }
-    }
-
-
-    // --- Helper Methods --- (validateEmailAddress, validateTemplate, renderTemplate, sanitize*, convertToPlainText, addSecurityHeaders)
-
-    private function validateEmailAddress(string $email): void {
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->securityLogger->warning('Invalid email format attempted', ['email' => $email]);
-            throw new Exception('Invalid email address format');
-        }
-        // Add domain/MX record check optionally here if needed
-    }
-
-    private function validateTemplate(string $template): void {
-         if (empty($this->templatePath)) {
-             throw new Exception('Email template path is not configured.');
-         }
-        // Basic check for directory traversal
-        if (strpos($template, '..') !== false || strpos($template, '/') !== false || strpos($template, '\\') !== false) {
-             $this->securityLogger->error('Potential directory traversal in email template name', ['template' => $template]);
-            throw new Exception('Invalid email template name.');
-        }
-        $templateFile = $this->templatePath . $template . '.php';
-        if (!file_exists($templateFile) || !is_readable($templateFile)) {
-             $this->logError('Email template not found or not readable', ['template_file' => $templateFile]);
-            throw new Exception('Email template not found: ' . $template);
-        }
-        // Permission check removed - focus on readability and existence. Filesystem permissions are server config.
-    }
-
-    private function renderTemplate(string $template, array $data): string {
-        if (empty($this->templatePath)) return "Error: Email template path missing."; // Graceful fallback
-
-        $templateFile = $this->templatePath . $template . '.php';
-         // Double check existence just before include
-         if (!file_exists($templateFile) || !is_readable($templateFile)) {
-             error_log("Error: Template file missing or unreadable in renderTemplate: $templateFile");
-             return "Error rendering email content."; // Fallback content
-         }
-
-        // Sanitize data before extracting
-        extract($this->sanitizeTemplateData($data));
-        ob_start();
-        try {
-            include $templateFile;
-        } catch (Throwable $t) { // Catch parse errors etc. in template
-            error_log("Error including email template ($templateFile): " . $t->getMessage());
-            ob_end_clean(); // Clean buffer if include failed
-            return "Error rendering email content."; // Fallback content
-        }
-        return ob_get_clean();
-    }
-
-    private function sanitizeTemplateData(array $data): array {
-        $sanitized = [];
-        foreach ($data as $key => $value) {
-            // Allow arrays/objects to pass through for structured data in templates,
-            // but ensure strings are escaped. Individual templates must handle nested data safely.
-            if (is_string($value)) {
-                $sanitized[$key] = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-            } elseif (is_scalar($value) || is_null($value)) {
-                $sanitized[$key] = $value; // Allow numbers, bools, null
-            } else {
-                $sanitized[$key] = $value; // Pass arrays/objects as is - template must handle
-            }
-        }
-        return $sanitized;
-    }
-
-    private function sanitizeSubject(string $subject): string {
-        // Remove characters that could interfere with email headers
-        return preg_replace('/[\r\n\t]+/', '', trim($subject));
-    }
-
-    private function convertToPlainText(string $html): string {
-        // More robust conversion
-        $text = $html;
-        // Convert links
-        $text = preg_replace('/<a\s[^>]*href=(\"??)([^\" >]*?)\\1[^>]*>(.*?)<\/a>/si', '$3 [$2]', $text);
-        // Convert line breaks
-        $text = preg_replace('/<br\s*\/?>/i', "\n", $text);
-        // Convert paragraphs
-        $text = preg_replace('/<\/?p\s*\/?>/i', "\n\n", $text);
-        // Remove remaining tags
-        $text = strip_tags($text);
-        // Decode HTML entities
-        $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
-        // Normalize whitespace
-        $text = preg_replace('/[ \t]+/', ' ', $text);
-        $text = preg_replace('/(\s*\n\s*){3,}/', "\n\n", $text); // Max 2 consecutive newlines
-        return trim($text);
-    }
-
-    private function addSecurityHeaders(): void {
-        // Generate a unique message ID if not already set by PHPMailer
-        if (empty($this->mailer->MessageID)) {
-            $messageId = sprintf(
-                '<%s@%s>',
-                bin2hex(random_bytes(16)), // More standard unique ID format
-                parse_url(BASE_URL, PHP_URL_HOST) ?: 'the-scent.com'
-            );
-            $this->mailer->MessageID = $messageId;
-        }
-        // These are less common/standard for basic emails, but can add minor obscurity
-        // $this->mailer->AddCustomHeader('X-Mailer', 'TheScent-SecureMailer/1.0');
-        // $this->mailer->AddCustomHeader('X-Content-Type-Options', 'nosniff');
-        // $this->mailer->AddCustomHeader('X-XSS-Protection', '1; mode=block');
-    }
-
-    // --- Removed Methods ---
-    // Removed specific template getter functions like getOrderConfirmationTemplate as renderTemplate is used.
-    // Removed queueing logic for simplicity - emails are sent directly. Add back if needed.
-    // Removed duplicate sendPasswordResetEmail - use sendPasswordReset.
-
-    // Log Error Helper (uses SecurityLogger)
-    private function logError(string $message, array $context = []): void {
-        // Log using the SecurityLogger instance
-        $this->securityLogger->error($message, $context); // Assuming SecurityLogger has an error method
-        // Also log to PHP's error log for visibility
-        error_log("EmailService Error: " . $message . " | Context: " . json_encode($context));
-    }
-
-    // Ensure processEmailQueue is removed if queueing is removed
-    // public function processEmailQueue() { ... }
-
-} // End of EmailService class
-
-```
-
-# views/account/dashboard.php  
 ```php
 <?php
 // Updated: views/account/dashboard.php
@@ -670,10 +281,8 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
 </section>
 
 <?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
-
 ```
 
-# views/account/order_details.php  
 ```php
 <?php
 // Updated: views/account/order_details.php
@@ -1007,10 +616,8 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
 </style>
 
 <?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
-
 ```
 
-# views/account/orders.php  
 ```php
 <?php
 // Updated: views/account/orders.php
@@ -1262,10 +869,8 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
-
 ```
 
-# views/account/profile.php  
 ```php
 <?php
 // Updated: views/account/profile.php
@@ -1578,603 +1183,171 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
-
 ```
 
-# views/checkout.php  
+**2. Fixing Cart View (`views/cart.php`)**
+
 ```php
-<?php require_once __DIR__ . '/layout/header.php'; ?>
-<!-- Output CSRF token for JS (for AJAX checkout/coupon/tax) -->
+<?php
+// Updated: views/cart.php
+// Fixed access to product ID within the loop
+
+require_once __DIR__ . '/layout/header.php';
+?>
+<body class="page-cart">
+<!-- Output CSRF token for JS (for AJAX cart actions) -->
 <input type="hidden" id="csrf-token-value" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
-<!-- Add Stripe.js -->
-<script src="https://js.stripe.com/v3/"></script>
-
-<section class="checkout-section">
+<section class="cart-section">
     <div class="container">
-        <div class="checkout-container" data-aos="fade-up">
-            <h1>Checkout</h1>
+        <div class="cart-container" data-aos="fade-up">
+            <h1>Your Shopping Cart</h1>
 
-            <div class="checkout-grid">
-                <!-- Shipping Form -->
-                <div class="shipping-details">
-                    <h2>Shipping Details</h2>
-                    <!-- NOTE: The form tag itself doesn't need action/method as JS handles the submission -->
-                    <form id="checkoutForm">
-                        <!-- ADD Standard CSRF Token for initial server-side check during processCheckout -->
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                        <!-- Hidden field to potentially store applied coupon code -->
-                        <input type="hidden" id="applied_coupon_code" name="applied_coupon_code" value="">
-
-                        <div class="form-group">
-                            <label for="shipping_name">Full Name *</label>
-                            <input type="text" id="shipping_name" name="shipping_name" required class="form-input"
-                                   value="<?= htmlspecialchars($_SESSION['user']['name'] ?? '') ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="shipping_email">Email Address *</label>
-                            <input type="email" id="shipping_email" name="shipping_email" required class="form-input"
-                                   value="<?= htmlspecialchars($_SESSION['user']['email'] ?? '') ?>">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="shipping_address">Street Address *</label>
-                            <input type="text" id="shipping_address" name="shipping_address" required class="form-input"
-                                   value="<?= htmlspecialchars($userAddress['address_line1'] ?? '') ?>">
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="shipping_city">City *</label>
-                                <input type="text" id="shipping_city" name="shipping_city" required class="form-input"
-                                       value="<?= htmlspecialchars($userAddress['city'] ?? '') ?>">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="shipping_state">State/Province *</label>
-                                <input type="text" id="shipping_state" name="shipping_state" required class="form-input"
-                                       value="<?= htmlspecialchars($userAddress['state'] ?? '') ?>">
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="shipping_zip">ZIP/Postal Code *</label>
-                                <input type="text" id="shipping_zip" name="shipping_zip" required class="form-input"
-                                       value="<?= htmlspecialchars($userAddress['postal_code'] ?? '') ?>">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="shipping_country">Country *</label>
-                                <select id="shipping_country" name="shipping_country" required class="form-select">
-                                    <option value="">Select Country</option>
-                                    <option value="US" <?= (($userAddress['country'] ?? '') === 'US') ? 'selected' : '' ?>>United States</option>
-                                    <option value="CA" <?= (($userAddress['country'] ?? '') === 'CA') ? 'selected' : '' ?>>Canada</option>
-                                    <option value="GB" <?= (($userAddress['country'] ?? '') === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
-                                    <!-- Add more countries as needed -->
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="order_notes">Order Notes (Optional)</label>
-                            <textarea id="order_notes" name="order_notes" rows="3" class="form-textarea"></textarea>
-                        </div>
-                        <!-- The submit button is now outside the form, controlled by JS -->
-                    </form>
+            <?php if (empty($cartItems)): ?>
+                <div class="empty-cart text-center py-16">
+                    <i class="fas fa-shopping-cart text-6xl text-gray-300 mb-4"></i>
+                    <p class="text-xl text-gray-700 mb-6">Your cart is currently empty.</p>
+                    <a href="index.php?page=products" class="btn btn-primary">Continue Shopping</a>
                 </div>
+            <?php else: ?>
+                <form id="cartForm" action="index.php?page=cart&action=update" method="POST" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
-                <!-- Order Summary -->
-                <div class="order-summary">
-                    <h2>Order Summary</h2>
+                    <!-- Cart Items Column -->
+                    <div class="lg:col-span-2 space-y-4">
+                        <div class="cart-items bg-white shadow rounded-lg overflow-hidden">
+                             <div class="hidden md:flex px-6 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase text-gray-500 tracking-wider">
+                                 <div class="w-2/5">Product</div>
+                                 <div class="w-1/5 text-center">Price</div>
+                                 <div class="w-1/5 text-center">Quantity</div>
+                                 <div class="w-1/5 text-right">Subtotal</div>
+                                 <div class="w-10"></div> <!-- Spacer for remove button -->
+                             </div>
+                            <?php foreach ($cartItems as $item): ?>
+                                <?php
+                                    // Defensive variable assignment
+                                    $productData = $item['product'] ?? [];
+                                    $productId = $productData['product_id'] ?? ($productData['id'] ?? null); // <<<< USE product_id FIRST
+                                    $productName = $productData['name'] ?? 'N/A';
+                                    $imageUrl = $productData['image'] ?? '/images/placeholder.jpg';
+                                    $price = $productData['price'] ?? 0;
+                                    $stockQuantity = $productData['stock_quantity'] ?? 0;
+                                    $backorderAllowed = $productData['backorder_allowed'] ?? false;
+                                    $categoryName = $productData['category_name'] ?? '';
+                                    $quantity = $item['quantity'] ?? 0;
+                                    $subtotal = $item['subtotal'] ?? 0;
+                                    $maxQuantity = ($backorderAllowed || !isset($stockQuantity)) ? 99 : max(1, $stockQuantity);
+                                ?>
+                                <div class="cart-item flex flex-wrap md:flex-nowrap items-center px-4 py-4 md:px-6 md:py-4 border-b border-gray-200 last:border-b-0" data-product-id="<?= htmlspecialchars($productId ?? '') ?>">
+                                    <!-- Product Details (Image & Name) -->
+                                    <div class="w-full md:w-2/5 flex items-center mb-4 md:mb-0">
+                                        <div class="item-image w-16 h-16 md:w-20 md:h-20 mr-4 flex-shrink-0">
+                                            <img src="<?= htmlspecialchars($imageUrl) ?>"
+                                                 alt="<?= htmlspecialchars($productName) ?>"
+                                                 class="w-full h-full object-cover rounded border">
+                                        </div>
+                                        <div class="item-details flex-grow">
+                                            <h3 class="font-semibold text-primary hover:text-accent text-sm md:text-base">
+                                                <a href="index.php?page=product&id=<?= htmlspecialchars($productId ?? '') ?>">
+                                                    <?= htmlspecialchars($productName) ?>
+                                                </a>
+                                            </h3>
+                                            <?php if (!empty($categoryName)): ?>
+                                                <p class="text-xs text-gray-500 hidden md:block"><?= htmlspecialchars($categoryName) ?></p>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
 
-                    <!-- Coupon Code Section -->
-                    <div class="coupon-section">
-                        <div class="form-group">
-                            <label for="coupon_code">Have a coupon?</label>
-                            <div class="coupon-input">
-                                <input type="text" id="coupon_code" name="coupon_code_input" class="form-input"
-                                       placeholder="Enter coupon code">
-                                <button type="button" id="apply-coupon" class="btn-secondary">Apply</button>
-                            </div>
-                            <div id="coupon-message" class="hidden mt-2 text-sm"></div>
-                        </div>
-                    </div>
+                                    <!-- Price -->
+                                    <div class="item-price w-1/3 md:w-1/5 text-center md:text-base text-gray-700" data-price="<?= $price ?>">
+                                        <span class="md:hidden text-xs text-gray-500 mr-1">Price:</span>
+                                        $<?= number_format($price, 2) ?>
+                                    </div>
 
-                    <div class="summary-items border-b border-gray-200 pb-4 mb-4">
-                        <?php foreach ($cartItems as $item): ?>
-                            <?php
-                                // Defensive access for variables used in this item's display
-                                $productId = $item['product']['id'] ?? ''; // Use empty string or 0 if appropriate
-                                $imageUrl = $item['product']['image'] ?? '/images/placeholder.jpg';
-                                $productName = $item['product']['name'] ?? 'Unknown Product';
-                                $quantity = $item['quantity'] ?? 0;
-                                $lineSubtotal = $item['subtotal'] ?? 0;
-                            ?>
-                            <div class="summary-item flex justify-between items-center text-sm py-1">
-                                <div class="item-info flex items-center">
-                                     <img src="<?= htmlspecialchars($imageUrl) ?>" alt="<?= htmlspecialchars($productName) ?>" class="w-10 h-10 object-cover rounded mr-2">
-                                     <div>
-                                         <span class="item-name font-medium text-gray-800"><?= htmlspecialchars($productName) ?></span>
-                                         <span class="text-xs text-gray-500 block">Qty: <?= htmlspecialchars($quantity) ?></span>
-                                     </div>
+                                    <!-- Quantity -->
+                                    <div class="item-quantity w-1/3 md:w-1/5 text-center flex justify-center items-center my-2 md:my-0">
+                                        <div class="quantity-selector flex items-center border border-gray-300 rounded">
+                                             <button type="button" class="quantity-btn minus w-8 h-8 md:w-10 md:h-10 text-lg md:text-xl font-light text-gray-600 hover:bg-gray-100 transition duration-150 ease-in-out rounded-l" aria-label="Decrease quantity">-</button>
+                                             <input type="number" name="updates[<?= htmlspecialchars($productId ?? '') ?>]"
+                                                    value="<?= $quantity ?>" min="1" max="<?= $maxQuantity ?>"
+                                                    class="w-10 h-8 md:w-12 md:h-10 text-center border-l border-r border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary text-sm"
+                                                    aria-label="Product quantity" <?= empty($productId) ? 'disabled' : '' ?>>
+                                             <button type="button" class="quantity-btn plus w-8 h-8 md:w-10 md:h-10 text-lg md:text-xl font-light text-gray-600 hover:bg-gray-100 transition duration-150 ease-in-out rounded-r" aria-label="Increase quantity">+</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Subtotal -->
+                                    <div class="item-subtotal w-1/3 md:w-1/5 text-right font-semibold md:text-base text-gray-900">
+                                         <span class="md:hidden text-xs text-gray-500 mr-1">Subtotal:</span>
+                                        $<?= number_format($subtotal, 2) ?>
+                                    </div>
+
+                                    <!-- Remove Button -->
+                                    <div class="w-full md:w-10 text-center md:text-right mt-2 md:mt-0 md:pl-2">
+                                        <button type="button" class="remove-item text-gray-400 hover:text-red-600 transition duration-150 ease-in-out"
+                                                data-product-id="<?= htmlspecialchars($productId ?? '') ?>" title="Remove item" <?= empty($productId) ? 'disabled' : '' ?>>
+                                            <i class="fas fa-times-circle text-lg"></i>
+                                        </button>
+                                    </div>
                                 </div>
-                                <span class="item-price font-medium text-gray-700">$<?= number_format($lineSubtotal, 2) ?></span>
+                            <?php endforeach; ?>
+                        </div>
+                        <!-- Cart Actions (Update Cart moved near items) -->
+                        <div class="cart-actions text-right mt-4">
+                            <button type="submit" class="btn btn-secondary update-cart">
+                                <i class="fas fa-sync-alt mr-1"></i> Update Cart
+                            </button>
+                        </div>
+                    </div>
+
+
+                    <!-- Cart Summary Column -->
+                    <div class="lg:col-span-1">
+                        <div class="cart-summary bg-white shadow rounded-lg p-6 sticky top-24">
+                            <h2 class="text-xl font-semibold mb-6 border-b pb-3">Order Summary</h2>
+                            <div class="space-y-3 mb-6">
+                                <div class="summary-row flex justify-between items-center">
+                                    <span class="text-gray-600">Subtotal:</span>
+                                    <span class="font-medium text-gray-900">$<?= number_format($total ?? 0, 2) ?></span>
+                                </div>
+                                <div class="summary-row shipping flex justify-between items-center">
+                                    <span class="text-gray-600">Shipping:</span>
+                                    <?php $shipping_cost = ($total ?? 0) >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST; ?>
+                                    <span class="font-medium text-gray-900">
+                                        <?= $shipping_cost == 0 ? '<span class="text-green-600">FREE</span>' : '$' . number_format($shipping_cost, 2) ?>
+                                    </span>
+                                </div>
                             </div>
-                        <?php endforeach; ?>
-                    </div>
-
-                    <div class="summary-totals space-y-2">
-                        <div class="summary-row flex justify-between items-center">
-                            <span class="text-gray-600">Subtotal:</span>
-                            <span class="font-medium text-gray-900">$<span id="summary-subtotal"><?= number_format($subtotal ?? 0, 2) ?></span></span>
-                        </div>
-                         <div class="summary-row discount hidden flex justify-between items-center text-green-600">
-                            <span>Discount (<span id="applied-coupon-code-display" class="font-mono text-xs bg-green-100 px-1 rounded"></span>):</span>
-                            <span>-$<span id="discount-amount">0.00</span></span>
-                        </div>
-                        <div class="summary-row flex justify-between items-center">
-                            <span class="text-gray-600">Shipping:</span>
-                            <span class="font-medium text-gray-900" id="summary-shipping"><?= ($shipping_cost ?? 0) > 0 ? '$' . number_format($shipping_cost, 2) : '<span class="text-green-600">FREE</span>' ?></span>
-                        </div>
-                        <div class="summary-row flex justify-between items-center">
-                            <span class="text-gray-600">Tax (<span id="tax-rate" class="text-xs"><?= htmlspecialchars($tax_rate_formatted ?? 'N/A') ?></span>):</span>
-                            <span class="font-medium text-gray-900" id="tax-amount">$<?= number_format($tax_amount ?? 0, 2) ?></span>
-                        </div>
-                        <div class="summary-row total flex justify-between items-center border-t pt-3 mt-2">
-                            <span class="text-lg font-bold text-gray-900">Total:</span>
-                            <span class="text-lg font-bold text-primary">$<span id="summary-total"><?= number_format($total ?? 0, 2) ?></span></span>
+                            <div class="summary-row total flex justify-between items-center border-t pt-4">
+                                <span class="text-lg font-bold text-gray-900">Total:</span>
+                                <span class="text-lg font-bold text-primary" id="cart-grand-total">
+                                    $<?= number_format(($total ?? 0) + $shipping_cost, 2) ?>
+                                </span>
+                            </div>
+                            <div class="mt-8">
+                                <a href="index.php?page=checkout" class="btn btn-primary w-full text-center checkout <?= empty($cartItems) ? 'opacity-50 cursor-not-allowed' : '' ?>" <?= empty($cartItems) ? 'aria-disabled="true" onclick="return false;"' : '' ?>>
+                                    Proceed to Checkout
+                                </a>
+                            </div>
+                            <p class="text-xs text-gray-500 text-center mt-4">Shipping & taxes calculated at checkout.</p>
                         </div>
                     </div>
-
-                    <div class="payment-section mt-6">
-                        <h3 class="text-lg font-semibold mb-4">Payment Method</h3>
-                        <!-- Stripe Payment Element -->
-                        <div id="payment-element" class="mb-4 p-3 border rounded bg-gray-50"></div>
-                        <!-- Used to display form errors -->
-                        <div id="payment-message" class="hidden text-red-600 text-sm text-center mb-4"></div>
-                    </div>
-
-                    <!-- Button is outside the form, triggered by JS -->
-                    <button type="button" id="submit-button" class="btn btn-primary w-full place-order">
-                        <span id="button-text">Place Order & Pay</span>
-                        <div class="spinner hidden" id="spinner"></div>
-                    </button>
-
-                    <div class="secure-checkout mt-4 text-center text-xs text-gray-500">
-                        <i class="fas fa-lock mr-1"></i>Secure Checkout via Stripe
-                    </div>
-                </div>
-            </div>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
 </section>
 
-<script>
-// PASTE THE ENTIRE SCRIPT BLOCK FROM js/main.js initCheckoutPage() HERE
-// The provided JS in main.js already seems robust for checkout.
-// The critical change was ensuring the PHP view provides data defensively.
-// For completeness, I'll include the JS init logic here again,
-// assuming it's correctly placed within the `initCheckoutPage` function in main.js.
-
-document.addEventListener('DOMContentLoaded', function() {
-    // This function would typically be called by the page dispatcher in main.js
-    // if the body has class 'page-checkout'
-    function initCheckoutPage() {
-        console.log("Initializing Checkout Page JS..."); // Add console log for debugging
-        // --- Configuration ---
-        // Fetch config from body data attributes for better security/flexibility
-        const bodyData = document.body.dataset;
-        const stripePublicKey = bodyData.stripePublicKey || '';
-        const freeShippingThreshold = parseFloat(bodyData.freeShippingThreshold || '50');
-        const baseShippingCost = parseFloat(bodyData.baseShippingCost || '5.99');
-        const baseUrl = bodyData.baseUrl || '/'; // Use base URL for return_url
-
-        // --- Element Selectors ---
-        const checkoutForm = document.getElementById('checkoutForm');
-        const submitButton = document.getElementById('submit-button');
-        const spinner = document.getElementById('spinner');
-        const buttonText = document.getElementById('button-text');
-        const paymentElementContainer = document.getElementById('payment-element');
-        const paymentMessage = document.getElementById('payment-message');
-        const csrfToken = document.getElementById('csrf-token-value')?.value;
-        const couponCodeInput = document.getElementById('coupon_code');
-        const applyCouponButton = document.getElementById('apply-coupon');
-        const couponMessageEl = document.getElementById('coupon-message');
-        const discountRow = document.querySelector('.summary-row.discount');
-        const discountAmountEl = document.getElementById('discount-amount');
-        const appliedCouponCodeDisplay = document.getElementById('applied-coupon-code-display');
-        const appliedCouponHiddenInput = document.getElementById('applied_coupon_code');
-        const taxRateEl = document.getElementById('tax-rate');
-        const taxAmountEl = document.getElementById('tax-amount');
-        const shippingCountryEl = document.getElementById('shipping_country');
-        const shippingStateEl = document.getElementById('shipping_state');
-        const summarySubtotalEl = document.getElementById('summary-subtotal');
-        const summaryShippingEl = document.getElementById('summary-shipping');
-        const summaryTotalEl = document.getElementById('summary-total');
-
-        // --- State Variables ---
-        let elements;
-        let stripe;
-        // Initialize state from PHP output, using parseFloat defensively
-        let currentSubtotal = parseFloat(summarySubtotalEl?.textContent?.replace('$', '') || '0');
-        let currentShippingCost = parseFloat(summaryShippingEl?.textContent?.replace('$', '') || baseShippingCost.toString()); // Use parsed value or default
-        let currentTaxAmount = parseFloat(taxAmountEl?.textContent?.replace('$', '') || '0');
-        let currentDiscountAmount = parseFloat(discountAmountEl?.textContent?.replace('-$', '') || '0'); // Handle initial discount if page reloads with coupon
-
-
-        // --- Basic Checks ---
-        if (!stripePublicKey) {
-            showMessage("Stripe configuration error. Payment cannot proceed.", true);
-            setLoading(false, true); // Disable button permanently
-            return;
-        }
-        if (!checkoutForm || !submitButton || !paymentElementContainer || !csrfToken || !summarySubtotalEl) {
-            console.error("Checkout form critical elements missing. Aborting initialization.");
-            // Don't show generic message here, could be confusing if Stripe hasn't loaded yet
-            // showMessage("Checkout form error. Please refresh the page.", true);
-            return;
-        }
-
-        // --- Initialize Stripe ---
-        try {
-             stripe = Stripe(stripePublicKey);
-             const appearance = {
-                 theme: 'stripe',
-                 variables: {
-                     colorPrimary: '#1A4D5A', colorBackground: '#ffffff', colorText: '#374151',
-                     colorDanger: '#dc2626', fontFamily: 'Montserrat, sans-serif', borderRadius: '0.375rem'
-                 }
-             };
-             elements = stripe.elements({ appearance });
-             const paymentElement = elements.create('payment');
-             paymentElement.mount('#payment-element');
-             console.log("Stripe Payment Element mounted.");
-        } catch (stripeError) {
-            console.error("Stripe initialization error:", stripeError);
-            showMessage("Could not initialize payment system. Please refresh.", true);
-            setLoading(false, true);
-            return;
-        }
-
-
-        // --- Helper Functions ---
-        function setLoading(isLoading, disablePermanently = false) {
-            if (!submitButton || !spinner || !buttonText) return;
-            if (isLoading) {
-                submitButton.disabled = true;
-                spinner.classList.remove('hidden');
-                buttonText.classList.add('hidden');
-            } else {
-                submitButton.disabled = disablePermanently;
-                spinner.classList.add('hidden');
-                buttonText.classList.remove('hidden');
-            }
-        }
-
-        function showMessage(message, isError = true) {
-            if (!paymentMessage) return;
-            paymentMessage.textContent = message;
-            paymentMessage.className = `payment-message text-center text-sm my-4 ${isError ? 'text-red-600' : 'text-green-600'}`;
-            paymentMessage.classList.remove('hidden');
-        }
-
-        function showCouponMessage(message, type) { // type = 'success', 'error', 'info'
-            if (!couponMessageEl) return;
-            couponMessageEl.textContent = message;
-            couponMessageEl.className = `coupon-message mt-2 text-sm ${
-                type === 'success' ? 'text-green-600' : (type === 'error' ? 'text-red-600' : 'text-gray-600')
-            }`;
-            couponMessageEl.classList.remove('hidden');
-        }
-
-        function updateOrderSummaryUI() {
-            if (!summarySubtotalEl || !discountRow || !discountAmountEl || !appliedCouponCodeDisplay || !summaryShippingEl || !taxAmountEl || !summaryTotalEl) return;
-
-            summarySubtotalEl.textContent = parseFloat(currentSubtotal).toFixed(2);
-
-            if (currentDiscountAmount > 0 && appliedCouponHiddenInput?.value) {
-                discountAmountEl.textContent = parseFloat(currentDiscountAmount).toFixed(2);
-                appliedCouponCodeDisplay.textContent = appliedCouponHiddenInput.value;
-                discountRow.classList.remove('hidden');
-            } else {
-                discountAmountEl.textContent = '0.00';
-                appliedCouponCodeDisplay.textContent = '';
-                discountRow.classList.add('hidden');
-            }
-
-             const subtotalAfterDiscount = Math.max(0, currentSubtotal - currentDiscountAmount);
-             currentShippingCost = subtotalAfterDiscount >= freeShippingThreshold ? 0 : baseShippingCost;
-             summaryShippingEl.innerHTML = currentShippingCost > 0 ? '$' + parseFloat(currentShippingCost).toFixed(2) : '<span class="text-green-600">FREE</span>';
-
-            taxAmountEl.textContent = '$' + parseFloat(currentTaxAmount).toFixed(2);
-
-            const grandTotal = subtotalAfterDiscount + currentShippingCost + currentTaxAmount;
-            summaryTotalEl.textContent = parseFloat(Math.max(0.50, grandTotal)).toFixed(2); // Ensure min $0.50 display
-        }
-
-        // --- Tax Calculation ---
-        async function updateTax() {
-            const country = shippingCountryEl?.value;
-            const state = shippingStateEl?.value;
-
-            if (!country || !taxRateEl || !taxAmountEl) {
-                 if (taxRateEl) taxRateEl.textContent = 'N/A';
-                 currentTaxAmount = 0;
-                 updateOrderSummaryUI();
-                return;
-            }
-
-            try {
-                taxAmountEl.textContent = '...'; // Loading indicator
-                const response = await fetch('index.php?page=checkout&action=calculateTax', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json', 'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                     },
-                    // Pass current subtotal and discount for accurate tax calculation
-                    body: JSON.stringify({ country, state, subtotal: currentSubtotal, discount: currentDiscountAmount })
-                });
-
-                if (!response.ok) throw new Error(`Tax calculation failed (${response.status})`);
-                const data = await response.json();
-
-                if (data.success) {
-                    taxRateEl.textContent = data.tax_rate_formatted || 'N/A';
-                    currentTaxAmount = parseFloat(data.tax_amount) || 0;
-                } else {
-                     console.warn("Tax calculation error:", data.error);
-                     taxRateEl.textContent = 'Error';
-                     currentTaxAmount = 0;
-                }
-            } catch (e) {
-                console.error('Error fetching tax:', e);
-                taxRateEl.textContent = 'Error';
-                currentTaxAmount = 0;
-            } finally {
-                 updateOrderSummaryUI(); // Always update totals after tax calculation attempt
-            }
-        }
-
-        if(shippingCountryEl) shippingCountryEl.addEventListener('change', updateTax);
-        if(shippingStateEl) shippingStateEl.addEventListener('input', updateTax);
-
-        // --- Coupon Application ---
-        if (applyCouponButton && couponCodeInput && appliedCouponHiddenInput) {
-            applyCouponButton.addEventListener('click', async function() {
-                const couponCode = couponCodeInput.value.trim();
-                if (!couponCode) {
-                    showCouponMessage('Please enter a coupon code.', 'error'); return;
-                }
-
-                showCouponMessage('Applying...', 'info');
-                applyCouponButton.disabled = true;
-
-                try {
-                    const response = await fetch('index.php?page=checkout&action=applyCouponAjax', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json', 'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify({
-                            code: couponCode,
-                            subtotal: currentSubtotal, // Send current subtotal
-                            csrf_token: csrfToken // Send CSRF token
-                        })
-                    });
-
-                     if (!response.ok) throw new Error(`Server error applying coupon (${response.status})`);
-                     const data = await response.json();
-
-                    if (data.success) {
-                        showCouponMessage(data.message || 'Coupon applied!', 'success');
-                        currentDiscountAmount = parseFloat(data.discount_amount) || 0;
-                        appliedCouponHiddenInput.value = data.coupon_code || couponCode;
-                        // Recalculate tax and update summary UI after applying discount
-                         updateTax(); // Triggers tax recalc and UI update
-                    } else {
-                        showCouponMessage(data.message || 'Invalid coupon code.', 'error');
-                        currentDiscountAmount = 0; // Reset discount
-                        appliedCouponHiddenInput.value = ''; // Clear applied code
-                        updateTax(); // Re-calculate tax and update summary UI without discount
-                    }
-                } catch (e) {
-                    console.error('Coupon Apply Error:', e);
-                    showCouponMessage('Failed to apply coupon. Please try again.', 'error');
-                    currentDiscountAmount = 0;
-                    appliedCouponHiddenInput.value = '';
-                    updateTax(); // Re-calculate tax and update summary UI
-                } finally {
-                    applyCouponButton.disabled = false;
-                }
-            });
-        } else {
-            console.warn("Coupon elements not found. Coupon functionality disabled.");
-        }
-
-        // --- Checkout Form Submission ---
-        submitButton.addEventListener('click', async function(e) {
-            setLoading(true);
-            showMessage(''); // Clear previous messages
-
-            // 1. Client-side validation
-            let isValid = true;
-            const requiredFields = ['shipping_name', 'shipping_email', 'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip', 'shipping_country'];
-            requiredFields.forEach(id => {
-                const input = document.getElementById(id);
-                if (!input || !input.value.trim()) {
-                    isValid = false; input?.classList.add('input-error');
-                } else { input?.classList.remove('input-error'); }
-            });
-            if (!isValid) {
-                showMessage('Please fill in all required shipping fields.', true); setLoading(false);
-                const firstError = checkoutForm.querySelector('.input-error');
-                 firstError?.focus();
-                 firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
-
-            // 2. Send checkout data to server -> create order, get clientSecret
-            let clientSecret = null;
-            let serverOrderId = null;
-            try {
-                const checkoutFormData = new FormData(checkoutForm);
-                // Ensure applied coupon code is included if set
-                if (appliedCouponHiddenInput && appliedCouponHiddenInput.value) {
-                    checkoutFormData.set('applied_coupon_code', appliedCouponHiddenInput.value); // Ensure it's set correctly
-                } else {
-                    checkoutFormData.delete('applied_coupon_code'); // Remove if empty
-                }
-
-                const response = await fetch('index.php?page=checkout&action=processCheckout', {
-                    method: 'POST',
-                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                    body: checkoutFormData
-                });
-
-                // Log status and try to parse JSON regardless of status code initially
-                console.log("Process Checkout Response Status:", response.status);
-                const data = await response.json(); // Try to parse JSON
-                console.log("Process Checkout Response Data:", data);
-
-                if (response.ok && data.success && data.clientSecret && data.orderId) {
-                    clientSecret = data.clientSecret;
-                    serverOrderId = data.orderId;
-                } else {
-                    // Throw error using message from JSON if available
-                    throw new Error(data.error || `Failed to process order on server (Status: ${response.status}).`);
-                }
-            } catch (serverError) {
-                console.error('Server processing error:', serverError);
-                showMessage(serverError.message, true); setLoading(false); return;
-            }
-
-            // 3. Confirm payment with Stripe using the obtained clientSecret
-            if (clientSecret && stripe && elements) {
-                // Ensure BASE_URL ends with '/' for correct path joining
-                const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
-                const returnUrl = `${window.location.origin}${formattedBaseUrl}index.php?page=checkout&action=confirmation`;
-                console.log("Stripe return_url:", returnUrl); // Log the return URL
-
-                const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-                    elements,
-                    clientSecret: clientSecret,
-                    confirmParams: { return_url: returnUrl },
-                    redirect: 'if_required'
-                });
-
-                if (stripeError) {
-                     console.error("Stripe confirmPayment Error:", stripeError);
-                     showMessage(stripeError.message || "Payment failed. Please check your card details or try another method.", true);
-                     setLoading(false);
-                }
-                // If no error, Stripe handles the redirect on success.
-            } else {
-                if (!clientSecret) showMessage('Failed to get payment details from server.', true);
-                if (!stripe || !elements) showMessage('Payment system not initialized correctly.', true);
-                setLoading(false);
-            }
-        });
-
-        // Initial UI calculations
-        updateOrderSummaryUI();
-        if (shippingCountryEl?.value) {
-            updateTax(); // Initial tax calculation if country pre-filled
-        }
-    }
-
-    // Call initializer if body class matches
-    if (document.body.classList.contains('page-checkout')) {
-        initCheckoutPage();
-    }
-});
-</script>
-
-<style>
-/* Basic styles for loading/error states (same as before) */
-.spinner {
-    width: 1.25em; height: 1.25em; border: 3px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%; border-top-color: #ffffff; animation: spin 1s linear infinite;
-    display: inline-block;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.hidden { display: none; }
-.place-order:disabled { opacity: 0.7; cursor: not-allowed; }
-.input-error { border-color: #dc2626; box-shadow: 0 0 0 1px #dc2626; }
-.form-input, .form-select, .form-textarea {
-     width: 100%; padding: 0.65rem 0.75rem; border: 1px solid #d1d5db;
-     border-radius: 0.375rem; transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
-.form-input:focus, .form-select:focus, .form-textarea:focus {
-     outline: none; border-color: #1A4D5A; box-shadow: 0 0 0 2px rgba(26, 77, 90, 0.3);
-}
-</style>
-
 <?php require_once __DIR__ . '/layout/footer.php'; ?>
-
 ```
 
-# includes/auth.php  
-```php
-<?php
-session_set_cookie_params([
-    'lifetime' => 3600,
-    'secure' => true,
-    'httponly' => true,
-    'samesite' => 'Lax',
-]);
-session_start();
+**Summary of Changes:**
 
-function register($email, $password, $name) {
-    global $pdo;
-    
-    // Check if email already exists
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-    $stmt->execute([$email]);
-    if ($stmt->fetch()) {
-        return false;
-    }
-    
-    // Hash password and create user
-    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?)");
-    return $stmt->execute([$email, $hashedPassword, $name]);
-}
+1.  **Account Views Fixed:** Added `require_once` for `header.php` and `footer.php` to `views/account/dashboard.php`, `views/account/order_details.php`, `views/account/orders.php`, and `views/account/profile.php`. Added defensive checks in `dashboard.php` for `$quizResults`. Improved `order_details.php` progress bar logic and handling of potentially missing item data. Improved `orders.php` styles and item display robustness. Improved `profile.php` form structure, password validation display, and removed unused preference checkboxes.
+2.  **Cart View Fixed:** Updated `views/cart.php` to correctly use `$item['product']['product_id']` instead of `$item['product']['id']` when referencing the product ID within the loop for elements like `data-product-id`, input names (`updates[...]`), and links. Added defensive variable assignments at the start of the loop.
+3.  **Compatibility:** Confirmed compatibility between the latest `AccountController.php`, `index.php`, and `main.js`. No changes were required in `index.php` or `main.js` for compatibility with `AccountController`.
 
-function login($email, $password) {
-    global $pdo;
-    
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->execute([$email]);
-    $user = $stmt->fetch();
-    
-    if ($user && password_verify($password, $user['password'])) {
-        // Store user data in session (except password)
-        unset($user['password']);
-        $_SESSION['user'] = $user;
-        return true;
-    }
-    return false;
-}
+These changes should resolve the messy account dashboard UI and the incorrect "empty cart" display after login, assuming the underlying cart data fetching in `CartController` and `Cart` model is working as intended (and that the `models/Cart.php::addItem` fix is applied).
 
-function isLoggedIn() {
-    return isset($_SESSION['user']);
-}
-
-function isAdmin() {
-    return isset($_SESSION['user']) && $_SESSION['user']['role'] === 'admin';
-}
-
-function logout() {
-    unset($_SESSION['user']);
-    session_destroy();
-}
-
-function getCurrentUser() {
-    return $_SESSION['user'] ?? null;
-}
-```
-
+---
+https://drive.google.com/file/d/11OfG-rcK7tmWneD9GCoFWvGiVZl2ZamO/view?usp=sharing, https://drive.google.com/file/d/17GiFntOkNw-JEERDEj5jE6xQ-bCXOId2/view?usp=sharing, https://drive.google.com/file/d/1ArvFuozu7yiNXzwlTvyMKikT4hbLDCuI/view?usp=sharing, https://drive.google.com/file/d/1CBRVY55Ug_p3acBeq5ntxxgKtN1Bjbtu/view?usp=sharing, https://drive.google.com/file/d/1D4JLu26lE1Ps0PW9DnUq_LnraE3RSQRs/view?usp=sharing, https://drive.google.com/file/d/1J22esPH7Z3K2mkiE1fgiGajksg7ziE30/view?usp=sharing, https://drive.google.com/file/d/1M4sD0S--v0hC10lGEl21_EafcV5h6cjx/view?usp=sharing, https://drive.google.com/file/d/1Oiq6P-ZYe9ZfS0uOW7zccnSCZqhy5pws/view?usp=sharing, https://drive.google.com/file/d/1Thsi_p8mEsNetdH4UbT_7tDOBqatic_a/view?usp=sharing, https://drive.google.com/file/d/1XrL5JJWrZugjJVcQ02Mx2ofmAVW57JKD/view?usp=sharing, https://drive.google.com/file/d/1aGRu85zNm9EhxSzq1MOkZqxW788dsOM1/view?usp=sharing, https://drive.google.com/file/d/1dpAWXqhCZWrsx5Z0BEFRVb30WbsVRYrg/view?usp=sharing, https://drive.google.com/file/d/1g7nBu-25Bw6gcD_5K6_b5ylvTsalBcfH/view?usp=sharing, https://drive.google.com/file/d/1icyHrt72rnGYWyfsg3c94FGUYVEFpoFc/view?usp=sharing, https://drive.google.com/file/d/1k2A9oOGSP-W35TXgYtuH83aWidkYlgBF/view?usp=sharing, https://drive.google.com/file/d/1nYQHstMMX_X_OR5UeByDqBWXHcAppnwk/view?usp=sharing, https://drive.google.com/file/d/1o9QeFrSqSeKOioX0fpgQ-1cnshjDAHq3/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221sY2___gSU3COyZQJw5pd37zf5kACo3Y-%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing

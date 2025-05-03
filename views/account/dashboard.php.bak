@@ -1,9 +1,4 @@
-<?php
-// Updated: views/account/dashboard.php
-// Added header and footer includes
-
-require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
-?>
+<?php require_once __DIR__ . '/../layout/header.php'; ?>
 
 <section class="account-section">
     <div class="container">
@@ -16,7 +11,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                         <h3><?= htmlspecialchars($user['name']) ?></h3>
                         <p><?= htmlspecialchars($user['email']) ?></p>
                     </div>
-
+                    
                     <nav>
                         <ul>
                             <li>
@@ -48,11 +43,11 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                     </nav>
                 </div>
             </aside>
-
+            
             <!-- Main Content -->
             <div class="account-content">
                 <h1 class="page-title" data-aos="fade-up">My Account Dashboard</h1>
-
+                
                 <!-- Account Overview -->
                 <div class="dashboard-grid">
                     <!-- Quick Stats -->
@@ -67,13 +62,12 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                         <div class="stat-item">
                             <i class="fas fa-box"></i>
                             <div class="stat-info">
-                                <?php // Ensure $quizResults is always an array before counting ?>
-                                <span class="stat-value"><?= is_array($quizResults) ? count($quizResults) : 0 ?></span>
+                                <span class="stat-value"><?= count($quizResults) ?></span>
                                 <span class="stat-label">Saved Preferences</span>
                             </div>
                         </div>
                     </div>
-
+                    
                     <!-- Recent Orders -->
                     <div class="dashboard-card orders" data-aos="fade-up">
                         <div class="card-header">
@@ -82,7 +76,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                 View All <i class="fas fa-arrow-right"></i>
                             </a>
                         </div>
-
+                        
                         <?php if (empty($recentOrders)): ?>
                             <div class="empty-state">
                                 <i class="fas fa-shopping-bag"></i>
@@ -102,21 +96,21 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                             </span>
                                         </div>
                                         <div class="order-details">
-                                            <span class="order-status <?= htmlspecialchars($order['status']) ?>">
-                                                <?= ucfirst(htmlspecialchars($order['status'])) ?>
+                                            <span class="order-status <?= $order['status'] ?>">
+                                                <?= ucfirst($order['status']) ?>
                                             </span>
                                             <span class="order-total">
                                                 $<?= number_format($order['total_amount'], 2) ?>
                                             </span>
                                         </div>
-                                        <a href="index.php?page=account&section=orders&id=<?= $order['id'] ?>"
+                                        <a href="index.php?page=account&section=orders&id=<?= $order['id'] ?>" 
                                            class="btn-secondary">View Details</a>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
                     </div>
-
+                    
                     <!-- Scent Quiz Results -->
                     <div class="dashboard-card quiz" data-aos="fade-up">
                         <div class="card-header">
@@ -125,7 +119,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                 View History <i class="fas fa-arrow-right"></i>
                             </a>
                         </div>
-
+                        
                         <?php if (empty($quizResults)): ?>
                             <div class="empty-state">
                                 <i class="fas fa-clipboard-list"></i>
@@ -133,74 +127,46 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                 <a href="index.php?page=quiz" class="btn-primary">Take Quiz</a>
                             </div>
                         <?php else: ?>
-                            <?php
-                                // Ensure $quizResults[0] exists and keys are set before accessing
-                                $latestQuiz = $quizResults[0];
-                                $preferences = isset($latestQuiz['answers']) ? json_decode($latestQuiz['answers'], true) : [];
-                                if (!is_array($preferences)) $preferences = []; // Ensure it's an array
-                                $recommendedIds = isset($latestQuiz['recommended_products']) ? json_decode($latestQuiz['recommended_products'], true) : [];
-                                if (!is_array($recommendedIds)) $recommendedIds = []; // Ensure it's an array
-                            ?>
+                            <?php $latestQuiz = $quizResults[0]; ?>
                             <div class="quiz-results">
                                 <div class="scent-preferences">
                                     <h3>Your Preferences</h3>
-                                    <?php if (!empty($preferences)): ?>
-                                        <ul>
-                                            <?php foreach ($preferences as $key => $pref): // Display key/value from answers ?>
-                                                <li>
-                                                    <i class="fas fa-check"></i>
-                                                    <?= htmlspecialchars(ucfirst(str_replace('_', ' ', $key))) ?>: <strong><?= htmlspecialchars($pref) ?></strong>
-                                                </li>
-                                            <?php endforeach; ?>
-                                        </ul>
-                                     <?php else: ?>
-                                        <p>No preferences recorded for this result.</p>
-                                    <?php endif; ?>
+                                    <ul>
+                                        <?php foreach (json_decode($latestQuiz['preferences'], true) as $pref): ?>
+                                            <li>
+                                                <i class="fas fa-check"></i>
+                                                <?= htmlspecialchars($pref) ?>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
                                 </div>
-
-                                <?php if (!empty($recommendedIds)): ?>
-                                    <div class="recommended-products">
-                                        <h3>Recommended Products</h3>
-                                        <div class="product-recommendations">
-                                            <?php
-                                                // Ensure $pdo is available (should be passed via controller or globally)
-                                                if (isset($pdo)) {
-                                                    $productModel = new Product($pdo);
-                                                    $recommendations = $productModel->getProductsByIds($recommendedIds);
-                                                    if (empty($recommendations)) {
-                                                         echo '<p class="text-gray-500 italic">Could not load recommended products.</p>';
-                                                    } else {
-                                                         foreach ($recommendations as $product):
-                                            ?>
-                                                            <div class="recommended-product">
-                                                                <img src="<?= htmlspecialchars($product['image'] ?? '/images/placeholder.jpg') ?>"
-                                                                     alt="<?= htmlspecialchars($product['name']) ?>">
-                                                                <div class="product-info">
-                                                                    <h4><?= htmlspecialchars($product['name']) ?></h4>
-                                                                    <p class="price">$<?= number_format($product['price'], 2) ?></p>
-                                                                    <a href="index.php?page=product&id=<?= $product['id'] ?>"
-                                                                       class="btn-secondary">View Product</a>
-                                                                </div>
-                                                            </div>
-                                            <?php
-                                                          endforeach;
-                                                    }
-                                                } else {
-                                                    echo '<p class="text-red-500">Error: Database connection not available for product recommendations.</p>';
-                                                }
-                                            ?>
-                                        </div>
+                                
+                                <div class="recommended-products">
+                                    <h3>Recommended Products</h3>
+                                    <div class="product-recommendations">
+                                        <?php 
+                                        $recommendedIds = json_decode($latestQuiz['recommended_products'], true);
+                                        $productModel = new Product($pdo);
+                                        $recommendations = $productModel->getProductsByIds($recommendedIds);
+                                        foreach ($recommendations as $product): 
+                                        ?>
+                                            <div class="recommended-product">
+                                                <img src="<?= htmlspecialchars($product['image_url']) ?>" 
+                                                     alt="<?= htmlspecialchars($product['name']) ?>">
+                                                <div class="product-info">
+                                                    <h4><?= htmlspecialchars($product['name']) ?></h4>
+                                                    <p class="price">$<?= number_format($product['price'], 2) ?></p>
+                                                    <a href="index.php?page=products&id=<?= $product['id'] ?>" 
+                                                       class="btn-secondary">View Product</a>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
                                     </div>
-                                 <?php else: ?>
-                                     <div class="recommended-products">
-                                          <h3>Recommended Products</h3>
-                                          <p>No specific product recommendations available for this result.</p>
-                                     </div>
-                                 <?php endif; ?>
+                                </div>
                             </div>
                         <?php endif; ?>
                     </div>
-
+                    
                     <!-- Quick Actions -->
                     <div class="dashboard-card actions" data-aos="fade-up">
                         <h2>Quick Actions</h2>
@@ -225,4 +191,4 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
     </div>
 </section>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; ?>

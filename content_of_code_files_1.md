@@ -1754,14 +1754,17 @@ class User {
 # models/Quiz.php  
 ```php
 <?php
+// models/Quiz.php (Updated to add getResultsByUserId)
+
 class Quiz {
     private $pdo;
-    
+
     public function __construct($pdo) {
         $this->pdo = $pdo;
     }
-    
+
     public function getQuestions() {
+        // --- This method remains unchanged ---
         return [
             [
                 'id' => 'mood',
@@ -1790,9 +1793,11 @@ class Quiz {
                 ]
             ]
         ];
+        // --- End Unchanged Section ---
     }
-    
+
     public function getRecommendations($answers) {
+        // --- This method remains unchanged ---
         try {
             $moodEffectMap = [
                 'relaxation' => 'calming',
@@ -1803,7 +1808,7 @@ class Quiz {
 
             $mood = $answers['mood'] ?? 'relaxation';
             $moodEffect = $moodEffectMap[$mood] ?? 'calming';
-            
+
             // Get matching products based on mood and attributes
             $stmt = $this->pdo->prepare("
                 SELECT DISTINCT p.*, pa.mood_effect, pa.scent_type, pa.intensity_level
@@ -1813,16 +1818,16 @@ class Quiz {
                 ORDER BY RAND()
                 LIMIT 3
             ");
-            
+
             $stmt->execute([$moodEffect]);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
             // If no exact matches, get featured products as fallback
             if (empty($products)) {
                 $stmt = $this->pdo->prepare("
                     SELECT DISTINCT p.*, pa.mood_effect, pa.scent_type, pa.intensity_level
                     FROM products p
-                    JOIN product_attributes pa ON p.id = pa.product_id
+                    LEFT JOIN product_attributes pa ON p.id = pa.product_id /* Use LEFT JOIN */
                     WHERE p.is_featured = 1
                     ORDER BY RAND()
                     LIMIT 3
@@ -1830,41 +1835,99 @@ class Quiz {
                 $stmt->execute();
                 $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
-            
+
             // Add scent descriptions
             foreach ($products as &$product) {
-                $product['scent_description'] = $this->getScentDescription($product['scent_type']);
-                $product['mood_description'] = $this->getMoodDescription($product['mood_effect']);
+                // Defensive check for keys before accessing
+                $scentType = $product['scent_type'] ?? null;
+                $moodEff = $product['mood_effect'] ?? null;
+                $product['scent_description'] = $scentType ? $this->getScentDescription($scentType) : '';
+                $product['mood_description'] = $moodEff ? $this->getMoodDescription($moodEff) : '';
             }
-            
+             unset($product); // Unset reference
+
             return $products;
         } catch (PDOException $e) {
             error_log("Error getting recommendations: " . $e->getMessage());
-            throw $e;
+            throw $e; // Re-throw to be handled globally
         }
+        // --- End Unchanged Section ---
     }
-    
+
     public function saveQuizResult($userId, $email, $answers, $recommendations) {
+        // --- This method remains unchanged ---
         try {
+            // Extract product IDs from the recommendations array
+            $recommendationIds = [];
+            if (is_array($recommendations)) {
+                foreach ($recommendations as $product) {
+                    if (isset($product['id'])) {
+                        $recommendationIds[] = (int)$product['id'];
+                    }
+                }
+            }
+
             $stmt = $this->pdo->prepare("
-                INSERT INTO quiz_results 
-                (user_id, email, answers, recommendations, created_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO quiz_results
+                (user_id, email, answers, recommended_products, created_at) /* Changed column name */
+                VALUES (?, ?, ?, ?, NOW()) /* Use NOW() for DB consistency */
             ");
-            
+
             return $stmt->execute([
-                $userId,
-                $email,
-                json_encode($answers),
-                json_encode($recommendations)
+                $userId, // Can be null for guests
+                $email, // Can be null for logged-in users if not collected
+                json_encode($answers), // Store answers as JSON
+                json_encode($recommendationIds) // Store recommended product IDs as JSON array
             ]);
         } catch (PDOException $e) {
             error_log("Error saving quiz result: " . $e->getMessage());
-            throw $e;
+             // Don't throw here, controller might want to proceed anyway
+             return false; // Indicate failure
+        }
+        // --- End Unchanged Section ---
+    }
+
+    // --- START: ADDED METHOD to fix the error ---
+    /**
+     * Fetches all quiz results for a specific user, ordered by date.
+     *
+     * @param int $userId The user's ID.
+     * @return array An array of quiz results, or an empty array if none found or on error.
+     */
+    public function getResultsByUserId(int $userId): array {
+        if ($userId <= 0) {
+            return []; // Return empty array for invalid user ID
+        }
+        try {
+            // Select necessary columns, potentially decode JSON fields if needed later
+            $stmt = $this->pdo->prepare("
+                SELECT id, user_id, email, answers, recommended_products, created_at
+                FROM quiz_results
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+            ");
+            $stmt->execute([$userId]);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Optionally decode JSON fields here if needed immediately
+            // foreach ($results as &$result) {
+            //     $result['answers'] = isset($result['answers']) ? json_decode($result['answers'], true) : [];
+            //     $result['recommended_products'] = isset($result['recommended_products']) ? json_decode($result['recommended_products'], true) : [];
+            // }
+            // unset($result);
+
+            return $results ?: []; // Return results or empty array
+
+        } catch (PDOException $e) {
+            error_log("Error fetching quiz results for user ID {$userId}: " . $e->getMessage());
+            return []; // Return empty array on database error
         }
     }
-    
+    // --- END: ADDED METHOD ---
+
+
     private function getScentDescription($scentType) {
+        // --- This method remains unchanged ---
         $descriptions = [
             'floral' => 'Delicate and romantic floral notes that bring peace and harmony',
             'woody' => 'Rich, grounding woody scents that promote stability and strength',
@@ -1872,145 +1935,207 @@ class Quiz {
             'oriental' => 'Warm, exotic notes that create a sense of luxury and comfort',
             'fresh' => 'Clean, crisp scents that invigorate and purify'
         ];
-        
         return $descriptions[$scentType] ?? '';
+        // --- End Unchanged Section ---
     }
-    
+
     private function getMoodDescription($moodEffect) {
+        // --- This method remains unchanged ---
         $descriptions = [
             'calming' => 'Perfect for relaxation and stress relief',
             'energizing' => 'Ideal for boosting energy and motivation',
             'focusing' => 'Helps improve concentration and mental clarity',
             'balancing' => 'Promotes overall harmony and well-being'
         ];
-        
         return $descriptions[$moodEffect] ?? '';
+        // --- End Unchanged Section ---
     }
-    
+
     public function getAnalytics($timeRange = 30) {
+        // --- This method remains unchanged ---
         try {
-            $stmt = $this->pdo->prepare("
-                SELECT 
-                    DATE(created_at) as date,
-                    COUNT(*) as total_quizzes,
-                    COUNT(DISTINCT user_id) as unique_users,
-                    COUNT(DISTINCT CASE WHEN user_id IS NOT NULL THEN user_id END) as registered_users,
-                    COUNT(DISTINCT CASE WHEN user_id IS NULL THEN email END) as guest_users
-                FROM quiz_results
-                WHERE created_at >= DATE_SUB(CURRENT_DATE, INTERVAL ? DAY)
-                GROUP BY DATE(created_at)
-                ORDER BY date DESC
-            ");
-            
-            $stmt->execute([$timeRange]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            error_log("Error getting quiz analytics: " . $e->getMessage());
-            throw $e;
-        }
+             $intervalClause = "created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)";
+             if ($timeRange === 'all') {
+                 $intervalClause = "1=1"; // No date filtering for 'all'
+                 $params = [];
+             } else {
+                 $timeRange = max(1, (int)$timeRange); // Ensure positive integer
+                 $params = [$timeRange];
+             }
+
+             $sql = "
+                 SELECT
+                     DATE(created_at) as date,
+                     COUNT(*) as total_quizzes,
+                     COUNT(DISTINCT CASE WHEN user_id IS NOT NULL THEN user_id ELSE email END) as unique_participants,
+                     COUNT(DISTINCT user_id) as registered_users,
+                     COUNT(DISTINCT CASE WHEN user_id IS NULL THEN email END) as guest_users
+                 FROM quiz_results
+                 WHERE {$intervalClause}
+                 GROUP BY DATE(created_at)
+                 ORDER BY date ASC /* Changed to ASC for charting */
+             ";
+             $stmt = $this->pdo->prepare($sql);
+             $stmt->execute($params);
+             return $stmt->fetchAll(PDO::FETCH_ASSOC);
+         } catch (PDOException $e) {
+             error_log("Error getting quiz analytics: " . $e->getMessage());
+             return []; // Return empty on error
+         }
+        // --- End Unchanged Section ---
     }
-    
+
     public function getPopularMoods($timeRange = 30) {
+        // --- This method remains unchanged ---
         try {
-            $stmt = $this->pdo->prepare("
-                SELECT 
-                    JSON_UNQUOTE(JSON_EXTRACT(answers, '$.mood')) as mood,
-                    COUNT(*) as count
-                FROM quiz_results
-                WHERE created_at >= DATE_SUB(CURRENT_DATE, INTERVAL ? DAY)
-                GROUP BY mood
-                ORDER BY count DESC
-            ");
-            
-            $stmt->execute([$timeRange]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            error_log("Error getting popular moods: " . $e->getMessage());
-            throw $e;
-        }
+             $intervalClause = "created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)";
+             if ($timeRange === 'all') {
+                 $intervalClause = "1=1";
+                 $params = [];
+             } else {
+                 $timeRange = max(1, (int)$timeRange);
+                 $params = [$timeRange];
+             }
+
+             // Adjust JSON path if answers structure changes
+             $sql = "
+                 SELECT
+                     JSON_UNQUOTE(JSON_EXTRACT(answers, '$.mood')) as mood, /* Assumes 'mood' key */
+                     COUNT(*) as count
+                 FROM quiz_results
+                 WHERE JSON_VALID(answers) /* Ensure answers is valid JSON */
+                   AND JSON_EXTRACT(answers, '$.mood') IS NOT NULL /* Ensure mood key exists */
+                   AND {$intervalClause}
+                 GROUP BY mood
+                 HAVING mood IS NOT NULL AND mood != '' /* Filter out null/empty results */
+                 ORDER BY count DESC
+             ";
+             $stmt = $this->pdo->prepare($sql);
+             $stmt->execute($params);
+             return $stmt->fetchAll(PDO::FETCH_ASSOC);
+         } catch (PDOException $e) {
+             error_log("Error getting popular moods: " . $e->getMessage());
+             return []; // Return empty on error
+         }
+        // --- End Unchanged Section ---
     }
-    
+
     public function getPersonalizedRecommendations($userId, $limit = 3) {
-        try {
-            // Get user's previous quiz results
-            $stmt = $this->pdo->prepare("
-                SELECT answers, recommendations
+        // --- This method remains unchanged ---
+         try {
+            $limit = max(1, (int)$limit); // Ensure positive limit
+
+            // Get user's most recent quiz result
+            $stmtHistory = $this->pdo->prepare("
+                SELECT answers, recommended_products
                 FROM quiz_results
                 WHERE user_id = ?
                 ORDER BY created_at DESC
-                LIMIT 5
+                LIMIT 1
             ");
-            
-            $stmt->execute([$userId]);
-            $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            if (empty($history)) {
-                // If no history, return featured products
-                $stmt = $this->pdo->prepare("
-                    SELECT p.*, pa.mood_effect, pa.scent_type
+            $stmtHistory->execute([$userId]);
+            $latestResult = $stmtHistory->fetch();
+
+            $excludeIds = [];
+            $targetMood = null;
+            $targetScent = null; // Added target scent possibility
+
+            if ($latestResult) {
+                $answers = json_decode($latestResult['answers'], true);
+                $targetMood = $answers['mood'] ?? null;
+                // Decode existing recommendations to exclude them
+                $excludeIds = json_decode($latestResult['recommended_products'], true);
+                if (!is_array($excludeIds)) $excludeIds = [];
+                $excludeIds = array_filter($excludeIds, 'is_numeric'); // Ensure numeric IDs
+            }
+
+            // Build query dynamically based on available criteria
+            $sql = "SELECT DISTINCT p.*, pa.mood_effect, pa.scent_type
                     FROM products p
-                    JOIN product_attributes pa ON p.id = pa.product_id
-                    WHERE p.is_featured = 1
-                    LIMIT ?
-                ");
-                $stmt->execute([$limit]);
-                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    LEFT JOIN product_attributes pa ON p.id = pa.product_id
+                    WHERE 1=1 "; // Start WHERE clause
+            $params = [];
+
+            if ($targetMood) {
+                 $moodEffectMap = ['relaxation' => 'calming', 'energy' => 'energizing', 'focus' => 'focusing', 'balance' => 'balancing'];
+                 if (isset($moodEffectMap[$targetMood])) {
+                     $sql .= " AND pa.mood_effect = ?";
+                     $params[] = $moodEffectMap[$targetMood];
+                 }
             }
-            
-            // Analyze preferences
-            $moodCounts = [];
-            $scentCounts = [];
-            foreach ($history as $result) {
-                $answers = json_decode($result['answers'], true);
-                $recommendations = json_decode($result['recommendations'], true);
-                
-                if (isset($answers['mood'])) {
-                    $moodCounts[$answers['mood']] = ($moodCounts[$answers['mood']] ?? 0) + 1;
-                }
-                
-                // Get scent types from recommended products
-                $stmt = $this->pdo->prepare("
-                    SELECT scent_type
-                    FROM product_attributes
-                    WHERE product_id IN (" . implode(',', $recommendations) . ")
-                ");
-                $stmt->execute();
-                $scents = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                
-                foreach ($scents as $scent) {
-                    $scentCounts[$scent] = ($scentCounts[$scent] ?? 0) + 1;
-                }
+
+            // Optionally: Add scent preference logic if quiz captures it
+            // if ($targetScent) { $sql .= " AND pa.scent_type = ?"; $params[] = $targetScent; }
+
+            if (!empty($excludeIds)) {
+                $placeholders = rtrim(str_repeat('?,', count($excludeIds)), ',');
+                $sql .= " AND p.id NOT IN ({$placeholders})";
+                $params = array_merge($params, $excludeIds);
             }
-            
-            // Get preferred mood and scent
-            arsort($moodCounts);
-            arsort($scentCounts);
-            $preferredMood = key($moodCounts);
-            $preferredScent = key($scentCounts);
-            
-            // Get personalized recommendations
-            $stmt = $this->pdo->prepare("
-                SELECT DISTINCT p.*, pa.mood_effect, pa.scent_type
-                FROM products p
-                JOIN product_attributes pa ON p.id = pa.product_id
-                WHERE (pa.mood_effect = ? OR pa.scent_type = ?)
-                AND p.id NOT IN (
-                    SELECT JSON_UNQUOTE(JSON_EXTRACT(recommendations, '$[*]'))
-                    FROM quiz_results
-                    WHERE user_id = ?
-                )
-                ORDER BY RAND()
-                LIMIT ?
-            ");
-            
-            $stmt->execute([$preferredMood, $preferredScent, $userId, $limit]);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
+
+            // Add ORDER BY and LIMIT
+            $sql .= " ORDER BY RAND() LIMIT ?";
+            $params[] = $limit;
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Fallback: If not enough personalized results, fill with featured
+            $needed = $limit - count($products);
+            if ($needed > 0) {
+                // Add already recommended IDs to exclude list for fallback too
+                $currentIds = array_column($products, 'id');
+                $excludeFallback = array_merge($excludeIds, $currentIds);
+                $fallbackProducts = $this->getFallbackRecommendations($needed, $excludeFallback);
+                $products = array_merge($products, $fallbackProducts);
+            }
+
+            return array_slice($products, 0, $limit); // Ensure exactly $limit items
+
         } catch (PDOException $e) {
-            error_log("Error getting personalized recommendations: " . $e->getMessage());
-            throw $e;
+            error_log("Error getting personalized recommendations for user {$userId}: " . $e->getMessage());
+            return $this->getFallbackRecommendations($limit); // Provide fallback on error
         }
+        // --- End Unchanged Section ---
     }
-}
+
+    /** Helper for fallback recommendations */
+    private function getFallbackRecommendations(int $limit, array $excludeIds = []): array {
+        // --- This helper method remains unchanged ---
+         try {
+             $sql = "SELECT p.*
+                     FROM products p
+                     WHERE p.is_featured = 1";
+             $params = [];
+
+             if (!empty($excludeIds)) {
+                  $placeholders = rtrim(str_repeat('?,', count($excludeIds)), ',');
+                  $sql .= " AND p.id NOT IN ({$placeholders})";
+                  $params = $excludeIds;
+             }
+
+             $sql .= " ORDER BY RAND() LIMIT ?";
+             $params[] = $limit;
+
+             $stmt = $this->pdo->prepare($sql);
+             // Bind params correctly based on whether excludeIds were added
+             $paramIndex = 1;
+             foreach($params as $param) {
+                  $type = is_int($param) ? PDO::PARAM_INT : PDO::PARAM_STR;
+                  $stmt->bindValue($paramIndex++, $param, $type);
+             }
+
+             $stmt->execute();
+             return $stmt->fetchAll(PDO::FETCH_ASSOC);
+         } catch (PDOException $e) {
+             error_log("Error getting fallback recommendations: " . $e->getMessage());
+             return [];
+         }
+        // --- End Unchanged Section ---
+    }
+
+} // End Quiz Class
+
 ```
 

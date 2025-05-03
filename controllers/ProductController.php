@@ -4,7 +4,8 @@ require_once __DIR__ . '/../models/Product.php';
 
 class ProductController extends BaseController {
     private Product $productModel; // Use type hint
-    private int $itemsPerPage = 12; // Use type hint
+    private int $itemsPerPage = 12; // Use type hint for public list
+    private int $adminItemsPerPage = 20; // Separate limit for admin
     private array $cache = []; // Use type hint
 
     public function __construct(PDO $pdo) { // Use type hint
@@ -12,8 +13,11 @@ class ProductController extends BaseController {
         $this->productModel = new Product($pdo);
     }
 
+    // --- Public Facing Methods ---
+
     public function showHomePage() {
-        try {
+        // ... (code remains the same as in content_of_code_files_1.md) ...
+         try {
             $featuredProducts = $this->productModel->getFeatured();
             // Log if empty, but don't throw error - view should handle empty state
             if (empty($featuredProducts)) {
@@ -45,7 +49,8 @@ class ProductController extends BaseController {
     }
 
     public function showProductList() {
-        try {
+        // ... (code remains the same as in content_of_code_files_1.md) ...
+         try {
             // Validate input using BaseController helper
             $page = $this->validateInput($_GET['page_num'] ?? 1, 'int', ['min' => 1]) ?: 1;
             $categoryId = $this->validateInput($_GET['category'] ?? null, 'int');
@@ -157,7 +162,8 @@ class ProductController extends BaseController {
     }
 
     public function showProduct($id) {
-        try {
+        // ... (code remains the same as in content_of_code_files_1.md) ...
+         try {
             // Validate input using BaseController helper
             $id = $this->validateInput($id, 'int');
             if (!$id) {
@@ -215,186 +221,250 @@ class ProductController extends BaseController {
         }
     }
 
-    // --- Admin Methods (No changes needed for bodyClass, assuming admin layout handles its own JS init if needed) ---
-    // (Kept existing admin methods from content_of_code_files_2.md)
-    public function createProduct() {
+    // --- Admin Methods ---
+
+    /**
+     * Displays the list of products in the admin panel.
+     */
+    public function listAdminProducts() {
+        // --- START: NEW METHOD ---
         try {
             $this->requireAdmin();
-            $this->validateCSRF();
 
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $data = [
-                    'name' => $this->validateInput($_POST['name'], 'string'),
-                    'description' => $this->validateInput($_POST['description'], 'string'),
-                    'price' => $this->validateInput($_POST['price'], 'float'),
-                    'category_id' => $this->validateInput($_POST['category_id'], 'int'), // Assuming category ID is passed
-                    'image_url' => $this->validateInput($_POST['image_url'], 'url'),
-                    'stock_quantity' => $this->validateInput($_POST['stock_quantity'] ?? 0, 'int'),
-                    'low_stock_threshold' => $this->validateInput($_POST['low_stock_threshold'] ?? 5, 'int'),
-                    'featured' => isset($_POST['featured']) ? 1 : 0,
-                    'created_by' => $this->getUserId() // Use BaseController helper
-                ];
+            // Simple list for now, add pagination later if needed
+            $products = $this->productModel->getAll(); // Fetches all products
 
-                // Validate required fields
-                foreach (['name', 'price', 'category_id'] as $field) {
-                    if (empty($data[$field])) {
-                        throw new Exception("Missing required field: {$field}");
-                    }
-                }
-
-                $this->beginTransaction();
-
-                $productId = $this->productModel->create($data);
-
-                if ($productId) {
-                    $this->clearProductCache(); // Clear cache
-                    $this->logAuditTrail('product_create', $this->getUserId(), [
-                        'product_id' => $productId,
-                        'name' => $data['name'],
-                        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'
-                    ]);
-                    $this->commit();
-                    $this->setFlashMessage('Product created successfully', 'success');
-                    $this->redirect('index.php?page=admin&section=products'); // Adjusted redirect
-                } else {
-                    throw new Exception('Failed to create product in database.');
-                }
-            }
-
-            // Display form on GET request
-            $categories = $this->productModel->getAllCategories();
             $data = [
-                'pageTitle' => 'Create Product',
-                'categories' => $categories,
-                'product' => null, // No product data for create form
-                'csrfToken' => $this->getCsrfToken(),
-                'bodyClass' => 'page-admin-product-form' // Add body class if admin layout uses it
+                'pageTitle' => 'Manage Products',
+                'products' => $products,
+                'csrfToken' => $this->getCsrfToken(), // Needed for delete forms
+                'bodyClass' => 'page-admin-products' // Optional: for admin-specific JS/CSS
             ];
-            echo $this->renderView('admin/product_form', $data); // Use renderView
+            echo $this->renderView('admin/products', $data);
 
         } catch (Exception $e) {
-            $this->rollback();
-            error_log("Error creating product: " . $e->getMessage());
-            $this->setFlashMessage('Failed to create product: ' . $e->getMessage(), 'error');
-            $this->redirect('index.php?page=admin&section=products&task=create'); // Redirect back to create form
+            error_log("Error listing admin products: " . $e->getMessage());
+            $this->setFlashMessage('Failed to load products list.', 'error');
+            $this->redirect('index.php?page=admin'); // Redirect to admin dashboard
         }
+        // --- END: NEW METHOD ---
     }
 
+
+    /**
+     * Handles displaying the form for creating/editing a product (GET)
+     * and processing the form submission (POST).
+     * This method combines the logic for create/update based on presence of $id.
+     */
+    public function showAdminProductForm(?int $id = null) {
+         // --- START: NEW METHOD TO HANDLE GET FOR CREATE/EDIT ---
+         try {
+             $this->requireAdmin();
+
+             $product = null;
+             if ($id) {
+                 $id = $this->validateInput($id, 'int');
+                 if (!$id) throw new Exception('Invalid product ID for editing.');
+                 $product = $this->productModel->getById($id);
+                 if (!$product) throw new Exception('Product not found for editing.');
+                 $pageTitle = 'Edit Product: ' . htmlspecialchars($product['name']);
+             } else {
+                 $pageTitle = 'Create New Product';
+             }
+
+             $categories = $this->productModel->getAllCategories();
+
+             $data = [
+                 'pageTitle' => $pageTitle,
+                 'categories' => $categories,
+                 'product' => $product, // Will be null for create, populated for edit
+                 'csrfToken' => $this->getCsrfToken(),
+                 'bodyClass' => 'page-admin-product-form'
+             ];
+             echo $this->renderView('admin/product_form', $data);
+
+         } catch (Exception $e) {
+             error_log("Error showing admin product form: " . $e->getMessage());
+             $this->setFlashMessage('Error loading product form: ' . $e->getMessage(), 'error');
+             $this->redirect('index.php?page=admin&section=products');
+         }
+         // --- END: NEW METHOD TO HANDLE GET FOR CREATE/EDIT ---
+     }
+
+    /**
+      * Handles saving (create or update) product data submitted via POST.
+      */
+     public function saveAdminProduct() {
+         // --- START: NEW METHOD TO HANDLE POST FOR CREATE/EDIT ---
+         $productId = null; // Initialize for logging/redirect
+         try {
+             $this->requireAdmin();
+             $this->validateCSRF(); // Validates POST
+
+             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                 throw new Exception('Invalid request method.');
+             }
+
+             $productId = $this->validateInput($_POST['product_id'] ?? null, 'int'); // Check if it's an update
+
+             // --- Consolidate data extraction and validation ---
+             $data = [
+                 'name' => $this->validateInput($_POST['name'] ?? null, 'string', ['min' => 1, 'max' => 150]),
+                 'description' => $this->validateInput($_POST['description'] ?? null, 'string', ['max' => 65535]),
+                 'short_description' => $this->validateInput($_POST['short_description'] ?? null, 'string', ['max' => 500]),
+                 'price' => $this->validateInput($_POST['price'] ?? null, 'float', ['min' => 0]),
+                 'category_id' => $this->validateInput($_POST['category_id'] ?? null, 'int', ['min' => 1]),
+                 'image_url' => $this->validateInput($_POST['image_url'] ?? null, 'string'), // Basic validation, maybe URL later
+                 'sku' => $this->validateInput($_POST['sku'] ?? null, 'string', ['max' => 100]),
+                 'stock_quantity' => $this->validateInput($_POST['stock_quantity'] ?? 0, 'int', ['min' => 0]),
+                 'initial_stock' => $this->validateInput($_POST['initial_stock'] ?? null, 'int', ['min' => 0]), // Allow null initially
+                 'low_stock_threshold' => $this->validateInput($_POST['low_stock_threshold'] ?? 5, 'int', ['min' => 0]),
+                 'backorder_allowed' => isset($_POST['backorder_allowed']) ? 1 : 0, // Checkbox
+                 'featured' => isset($_POST['is_featured']) ? 1 : 0, // Checkbox (name matches DB)
+                 'size' => $this->validateInput($_POST['size'] ?? null, 'string', ['max' => 50]),
+                 'scent_profile' => $this->validateInput($_POST['scent_profile'] ?? null, 'string', ['max' => 255]),
+                 'origin' => $this->validateInput($_POST['origin'] ?? null, 'string', ['max' => 100]),
+                 'ingredients' => $this->validateInput($_POST['ingredients'] ?? null, 'string'), // Allow longer text
+                 'usage_instructions' => $this->validateInput($_POST['usage_instructions'] ?? null, 'string') // Allow longer text
+                 // JSON fields need special handling if not simple textareas
+                 // 'benefits' => ...,
+                 // 'gallery_images' => ...,
+             ];
+
+             // Assign initial stock if not explicitly set during creation
+             if (!$productId && $data['initial_stock'] === null) {
+                 $data['initial_stock'] = $data['stock_quantity'];
+             }
+
+             // Validate required fields
+             if ($data['name'] === false || $data['price'] === false || $data['category_id'] === false) {
+                 throw new Exception('Missing or invalid required fields: Name, Price, Category.');
+             }
+             if ($data['stock_quantity'] === false || $data['low_stock_threshold'] === false) {
+                  throw new Exception('Stock quantity and low stock threshold must be valid numbers.');
+             }
+
+
+             $this->beginTransaction();
+
+             if ($productId) { // Update existing product
+                 $data['updated_by'] = $this->getUserId();
+                 $success = $this->productModel->update($productId, $data);
+                 $logAction = 'product_update';
+                 $flashMessage = 'Product updated successfully.';
+             } else { // Create new product
+                 $data['created_by'] = $this->getUserId();
+                 $data['updated_by'] = $this->getUserId(); // Set updated_by on create too
+                 $newProductId = $this->productModel->create($data);
+                 $success = ($newProductId !== false);
+                 if ($success) $productId = $newProductId; // Use new ID for logging
+                 $logAction = 'product_create';
+                 $flashMessage = 'Product created successfully.';
+             }
+
+             if ($success) {
+                 $this->clearProductCache();
+                 $this->logAuditTrail($logAction, $this->getUserId(), [
+                     'product_id' => $productId,
+                     'name' => $data['name'], // Log name for easier identification
+                     'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'
+                 ]);
+                 $this->commit();
+                 $this->setFlashMessage($flashMessage, 'success');
+                 $this->redirect('index.php?page=admin&section=products');
+             } else {
+                 throw new Exception('Database operation failed.');
+             }
+
+         } catch (Exception $e) {
+             $this->rollback();
+             error_log("Admin product save error (ID: {$productId}): " . $e->getMessage());
+             $this->setFlashMessage('Failed to save product: ' . $e->getMessage(), 'error');
+             // Redirect back to the correct form (create or edit)
+             $redirectUrl = 'index.php?page=admin&section=products' . ($productId ? '&task=edit&id='.$productId : '&task=create');
+             $this->redirect($redirectUrl);
+         }
+          // --- END: NEW METHOD TO HANDLE POST FOR CREATE/EDIT ---
+     }
+
+    /**
+     * Handles deleting a product via POST request.
+     */
+    public function deleteAdminProduct(?int $id = null) {
+         // --- START: NEW METHOD TO HANDLE DELETE ---
+         try {
+             $this->requireAdmin();
+             $this->validateCSRF(); // Validates POST CSRF
+
+             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                 throw new Exception('Invalid request method for delete.');
+             }
+
+             $id = $this->validateInput($id ?? $_POST['product_id'] ?? null, 'int'); // Get ID from URL or POST
+             if (!$id) {
+                 throw new Exception('Invalid product ID for deletion.');
+             }
+
+             $product = $this->productModel->getById($id); // Get name for logging before delete
+             $productName = $product['name'] ?? "ID {$id}";
+
+             $this->beginTransaction();
+
+             if ($this->productModel->delete($id)) { // delete method now throws exception on failure
+                 $this->clearProductCache();
+                 $this->logAuditTrail('product_delete', $this->getUserId(), [
+                     'product_id' => $id,
+                     'product_name' => $productName, // Log name
+                     'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'
+                 ]);
+                 $this->commit();
+                 $this->setFlashMessage('Product "' . htmlspecialchars($productName) . '" deleted successfully.', 'success');
+             } else {
+                  // This part might not be reached if delete throws exception on failure
+                 throw new Exception('Failed to delete product or product not found.');
+             }
+
+             $this->redirect('index.php?page=admin&section=products');
+
+         } catch (Exception $e) {
+             $this->rollback();
+             error_log("Error deleting product ID {$id}: " . $e->getMessage());
+             // Display specific error message if possible (e.g., "Cannot delete product: It exists in past orders.")
+             $this->setFlashMessage('Failed to delete product: ' . $e->getMessage(), 'error');
+             $this->redirect('index.php?page=admin&section=products');
+         }
+         // --- END: NEW METHOD TO HANDLE DELETE ---
+    }
+
+
+    // --- Deprecating old admin methods (keep for reference, redirect calls to new methods) ---
+    // These might be called if old routing isn't updated yet.
+    public function createProduct() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->saveAdminProduct();
+        } else {
+            $this->showAdminProductForm();
+        }
+    }
     public function updateProduct($id) {
-        try {
-            $this->requireAdmin();
-
-            $id = $this->validateInput($id, 'int');
-            if (!$id) {
-                throw new Exception('Invalid product ID');
-            }
-
-            $product = $this->productModel->getById($id);
-            if (!$product) {
-                throw new Exception('Product not found');
-            }
-
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $this->validateCSRF(); // Validate CSRF only on POST
-
-                $data = [
-                    'name' => $this->validateInput($_POST['name'], 'string'),
-                    'description' => $this->validateInput($_POST['description'], 'string'),
-                    'price' => $this->validateInput($_POST['price'], 'float'),
-                    'category_id' => $this->validateInput($_POST['category_id'], 'int'), // Assuming category ID is passed
-                    'image_url' => $this->validateInput($_POST['image_url'], 'url'),
-                    'stock_quantity' => $this->validateInput($_POST['stock_quantity'] ?? 0, 'int'),
-                    'low_stock_threshold' => $this->validateInput($_POST['low_stock_threshold'] ?? 5, 'int'),
-                    'featured' => isset($_POST['featured']) ? 1 : 0,
-                    'updated_by' => $this->getUserId() // Use BaseController helper
-                ];
-
-                 // Validate required fields
-                foreach (['name', 'price', 'category_id'] as $field) {
-                     if (empty($data[$field])) {
-                         throw new Exception("Missing required field: {$field}");
-                     }
-                }
-
-                $this->beginTransaction();
-
-                if ($this->productModel->update($id, $data)) {
-                    $this->clearProductCache(); // Clear cache
-                    $this->logAuditTrail('product_update', $this->getUserId(), [
-                        'product_id' => $id,
-                        'name' => $data['name'],
-                        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'
-                    ]);
-                    $this->commit();
-                    $this->setFlashMessage('Product updated successfully', 'success');
-                    $this->redirect('index.php?page=admin&section=products'); // Adjusted redirect
-                } else {
-                     throw new Exception('Failed to update product in database.');
-                }
-            }
-
-            // Display form on GET request
-            $categories = $this->productModel->getAllCategories();
-            $viewData = [
-                'pageTitle' => 'Edit Product',
-                'categories' => $categories,
-                'product' => $product, // Pass existing product data
-                'csrfToken' => $this->getCsrfToken(),
-                'bodyClass' => 'page-admin-product-form' // Add body class if admin layout uses it
-            ];
-            echo $this->renderView('admin/product_form', $viewData); // Use renderView
-
-        } catch (Exception $e) {
-            $this->rollback();
-            error_log("Error updating product ID {$id}: " . $e->getMessage());
-            $this->setFlashMessage('Failed to update product: ' . $e->getMessage(), 'error');
-            $this->redirect("index.php?page=admin&section=products&task=edit&id={$id}"); // Redirect back to edit form
-        }
+         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+             $this->saveAdminProduct(); // Assumes product_id is in POST data
+         } else {
+             $this->showAdminProductForm($id);
+         }
     }
-
     public function deleteProduct($id) {
-        try {
-            $this->requireAdmin();
-            // Assuming delete is triggered by POST for safety
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-                throw new Exception('Invalid request method for delete.');
-            }
-            $this->validateCSRF();
-
-            $id = $this->validateInput($id, 'int');
-            if (!$id) {
-                throw new Exception('Invalid product ID');
-            }
-
-            $this->beginTransaction();
-
-            if ($this->productModel->delete($id)) {
-                $this->clearProductCache(); // Clear cache
-                $this->logAuditTrail('product_delete', $this->getUserId(), [
-                    'product_id' => $id,
-                    'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'
-                ]);
-                $this->commit();
-                $this->setFlashMessage('Product deleted successfully', 'success');
-            } else {
-                throw new Exception('Failed to delete product or product not found.');
-            }
-
-            $this->redirect('index.php?page=admin&section=products'); // Adjusted redirect
-
-        } catch (Exception $e) {
-            $this->rollback();
-            error_log("Error deleting product ID {$id}: " . $e->getMessage());
-            $this->setFlashMessage('Failed to delete product: ' . $e->getMessage(), 'error');
-            $this->redirect('index.php?page=admin&section=products'); // Adjusted redirect
-        }
+         // Direct call to new delete handler, assuming ID comes from URL param here
+         $this->deleteAdminProduct($id);
     }
+    // --- End Deprecated ---
 
     private function clearProductCache() {
         $this->cache = []; // Simple cache clearing
     }
 
-    // --- Search and Getters (No changes needed for bodyClass) ---
+    // --- Search and Getters (No changes needed) ---
+    // ... (searchProducts, getProduct, getAllProducts remain the same as in content_of_code_files_1.md) ...
      public function searchProducts() {
          try {
              $query = $this->validateInput($_GET['q'] ?? '', 'string');
@@ -440,4 +510,5 @@ class ProductController extends BaseController {
              throw $e; // Re-throw for central handling
          }
      }
-}
+
+} // End ProductController

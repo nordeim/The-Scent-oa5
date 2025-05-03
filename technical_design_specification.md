@@ -1,4 +1,4 @@
-# The Scent – Technical Design Specification (v12.0)
+# The Scent – Technical Design Specification (v13.0)
 
 ## Table of Contents
 
@@ -6,7 +6,7 @@
 2.  [Project Philosophy & Goals](#project-philosophy--goals)
 3.  [System Architecture Overview](#system-architecture-overview)
     *   3.1 [High-Level Workflow](#high-level-workflow)
-    *   3.2 [Request-Response Life Cycle (Recommended Confirmation Flow)](#request-response-life-cycle-recommended-confirmation-flow)
+    *   3.2 [Request-Response Life Cycle (Implemented Confirmation Flow)](#request-response-life-cycle-implemented-confirmation-flow)
 4.  [Directory & File Structure](#directory--file-structure)
     *   4.1 [Folder Map](#folder-map)
     *   4.2 [Key Files Explained](#key-files-explained)
@@ -62,19 +62,30 @@
 13. [Appendices](#appendices)
     *   A. [Key File Summaries](#a-key-file-summaries)
     *   B. [Glossary](#b-glossary)
-    *   C. [Code Snippets and Patterns (CSRF, Recommended Confirmation Flow)](#c-code-snippets-and-patterns-csrf-recommended-confirmation-flow)
+    *   C. [Code Snippets and Patterns (CSRF, Implemented Confirmation Flow)](#c-code-snippets-and-patterns-csrf-implemented-confirmation-flow)
 
 ---
 
 ## 1. Introduction
 
-The Scent is a modular, secure, and extensible e-commerce platform focused on delivering premium aromatherapy products. It’s engineered with a custom PHP MVC-inspired architecture without reliance on heavy frameworks, maximizing transparency and developer control. This document (**v12.0**) serves as the updated technical design specification, reflecting the project's current state after incorporating the latest code reviews, fixes, and analysis.
+The Scent is a modular, secure, and extensible e-commerce platform focused on delivering premium aromatherapy products. It’s engineered with a custom PHP MVC-inspired architecture without reliance on heavy frameworks, maximizing transparency and developer control. This document (**v13.0**) serves as the updated technical design specification, reflecting the project's current state after incorporating the latest code reviews, fixes, and analysis.
 
-This version documents the **correct implementation of `User::getAddress()`** in `models/User.php`, which successfully resolves the fatal error previously preventing the checkout page (`views/checkout.php`) from loading. The `users` table schema has been updated via the `the_scent_update_users_table.sql` script to support this and other user management features. Consequently, the **Checkout page now loads correctly**, and **User Profile Management** (Name, Email, Password, Newsletter Preferences) and **Password Reset** flows are fully functional via `AccountController.php`, which relies on the updated `User` model.
+This version documents **significant improvements**:
 
-Core functionalities like Product Listing (with pagination), Add-to-Cart (AJAX), and Cart Management (AJAX with updated UI) remain functional. However, this review identified a **critical flaw in the Order Confirmation flow**, which unreliably depends on session data being set by the asynchronous Stripe webhook. Additionally, **inconsistent cart storage** (Session vs. DB) and **inconsistent rate limiting** usage are noted areas requiring standardization for production readiness.
+1.  **Resolved Checkout Page Load Error:** The fatal error preventing `views/checkout.php` from loading has been fixed by implementing the `getAddress()` method in `models/User.php` and applying the required database schema patch (`db/the_scent_update_users_table.sql`). **The checkout page now loads correctly after user login.**
+2.  **Robust Order Confirmation Flow:** The critically flawed session-based order confirmation logic in `CheckoutController::showOrderConfirmation` has been **completely replaced**. The new implementation correctly uses the `payment_intent` ID from the Stripe redirect URL, verifies the payment status directly with the Stripe API, validates order ownership, and fetches complete order details before rendering the confirmation view (`views/order_confirmation.php`).
+3.  **Enhanced View Robustness:** Defensive coding (`??` null coalescing operator) has been added to `views/checkout.php` to prevent potential PHP Notices/Warnings during rendering, which likely caused the generic "Oops" error page previously displayed after login.
+4.  **Functional User Management:** User Registration, Login (AJAX), Profile Update (Name, Email, Password, Newsletter), and Password Reset flows are confirmed functional via the refactored `AccountController.php` and the updated `User` model.
+5.  **Core E-commerce Functionality:** Product Listing (with pagination), AJAX Add-to-Cart, and AJAX Cart Management remain functional.
 
-This document aims to offer deep insight into the system’s structure, logic, and flow, serving as a comprehensive onboarding and reference guide for the current state of the application, including known issues and prioritized recommendations for achieving production quality.
+**Remaining Known Issues / Areas for Improvement:**
+
+*   **Cart Storage Inconsistency:** The system uses Session storage for guest carts and Database storage (`cart_items` table) for logged-in users. This needs standardization for better reliability and user experience.
+*   **Rate Limiting Inconsistency:** The rate limiting mechanism exists in `BaseController` but is not applied consistently across all relevant sensitive endpoints (e.g., profile updates, checkout submission).
+*   **Address Saving:** While `User::getAddress()` fetches addresses, the logic to *save* addresses during profile updates or checkout is not yet implemented.
+*   **Error Handling:** The "Headers Already Sent" warning noted in `ErrorHandler.php` suggests potential issues if errors occur late in the request lifecycle.
+
+This document provides a comprehensive overview of the current architecture, logic, and flow, serving as an onboarding guide and reference for ongoing development.
 
 ---
 
@@ -84,7 +95,7 @@ This document aims to offer deep insight into the system’s structure, logic, a
 *   **Simplicity & Maintainability:** Modular structure, clear includes in `index.php`. Consistent coding patterns enforced, especially for CSRF.
 *   **Extensibility:** Architecture allows adding new features/pages, requiring manual includes but providing clear extension points. New POST features must follow the CSRF pattern.
 *   **Performance:** Direct routing, PDO prepared statements. CDN for frontend libs. Caching (APCu for rate limiting) used but needs standardization.
-*   **Modern User Experience:** Responsive design (Tailwind), subtle animations (AOS, Particles), AJAX interactions (Cart, Newsletter, Login/Register). **Core user flows (Auth, Cart, Checkout Load) are functional.**
+*   **Modern User Experience:** Responsive design (Tailwind), subtle animations (AOS, Particles), AJAX interactions (Cart, Newsletter, Login/Register). **Core user flows (Auth, Cart, Checkout Load, Order Confirmation) are now functional.**
 *   **Transparency:** Explicit routing and includes in `index.php`.
 *   **Accessibility & SEO:** Semantic HTML, `aria-label` usage. Basic practices followed.
 
@@ -149,24 +160,25 @@ graph LR
 
 *   **Key Principles:** Centralized routing (`index.php`), separation of concerns (Controller logic, Model data access, View presentation), secure database interaction (PDO Prepared Statements), global CSRF validation on POST.
 
-### 3.2 Request-Response Life Cycle (Recommended Confirmation Flow)
+### 3.2 Request-Response Life Cycle (Implemented Confirmation Flow)
 
 *(Example: User completes payment and is redirected back)*
 
-1.  **Redirect from Stripe:** User lands on `index.php?page=checkout&action=confirmation&payment_intent=pi_...&payment_intent_client_secret=cs_...`
-2.  **Initialization (`/index.php`):** Core files loaded, DB connected, security middleware applied.
-3.  **Routing (`/index.php`):** `$page='checkout'`, `$action='confirmation'`. CSRF check skipped (GET request). Routes to `CheckoutController::showOrderConfirmation`.
-4.  **Controller Action (`CheckoutController::showOrderConfirmation` - Recommended Logic):**
-    *   `requireLogin()` validates user session.
-    *   Retrieves `payment_intent` ID (`$pi_id`) from `$_GET`. **Validates input.**
-    *   **Crucially, calls Stripe API:** `$paymentIntent = $stripe->paymentIntents->retrieve($pi_id);` (Requires Stripe SDK/Client).
-    *   **Verifies PI status:** Checks if `$paymentIntent->status === 'succeeded'`.
-    *   **Fetches Order from DB:** `$order = $this->orderModel->getByPaymentIntentId($pi_id);`.
-    *   **Validates Order:** Checks if `$order` exists, if `$order['user_id']` matches logged-in user, and if `$order['status']` is appropriate (e.g., 'processing', 'paid').
-    *   If all checks pass: Fetches full order details (with items) using `$order['id']`. Renders `views/order_confirmation.php` with order data.
-    *   If any check fails: Redirects to account/orders page with an appropriate flash message.
-5.  **View Rendering (`views/order_confirmation.php`):** Displays order details passed from the controller.
-6.  **Response Transmission:** Server sends HTML page.
+1.  **Redirect from Stripe:** User lands on `index.php?page=checkout&action=confirmation&payment_intent=pi_...&payment_intent_client_secret=cs_...` (Actual URL structure may vary slightly based on Stripe settings).
+2.  **Initialization (`/index.php`):** Core files loaded (`db.php`, `SecurityMiddleware`, `ErrorHandler`, etc.), DB connected, security middleware applied. Session started.
+3.  **Routing (`/index.php`):** `$page='checkout'`, `$action='confirmation'`. CSRF check skipped (GET request). Routes to `CheckoutController::showOrderConfirmation()`.
+4.  **Controller Action (`CheckoutController::showOrderConfirmation` - Implemented Logic):**
+    *   `$this->requireLogin()`: Verifies user session is active and valid.
+    *   Extracts `payment_intent` ID (`$paymentIntentId`) from `$_GET`. Validates it using `$this->validateInput()`. Redirects if invalid.
+    *   Retrieves the `StripeClient` instance via `$this->paymentController->getStripeClient()`. Handles potential errors if client is unavailable.
+    *   **Calls Stripe API:** `$paymentIntent = $stripeClient->paymentIntents->retrieve($paymentIntentId, []);`. Catches `\Stripe\Exception\ApiErrorException`.
+    *   **Verifies PI Status:** Checks `$paymentIntent->status === 'succeeded'`. Redirects with flash message if not succeeded (e.g., pending, failed).
+    *   **Fetches Order from DB:** `$order = $this->orderModel->getByPaymentIntentId($paymentIntentId);`.
+    *   **Validates Order & Ownership:** Checks if `$order` exists and if `$order['user_id']` matches the currently logged-in user's ID (`$this->getUserId()`). Logs security event and redirects if mismatch.
+    *   **Fetches Full Order Details:** Calls `$fullOrder = $this->orderModel->getByIdAndUserId($order['id'], $userId);` to get order details including items. Redirects if fetching fails.
+    *   **Renders View:** Calls `$this->renderView('order_confirmation', ['order' => $fullOrder, ...]);` passing the verified order data.
+5.  **View Rendering (`views/order_confirmation.php`):** Displays order details received from the controller.
+6.  **Response Transmission:** Server sends the rendered HTML confirmation page to the browser.
 
 ---
 
@@ -185,7 +197,7 @@ graph LR
 |-- particles.json         # Particles.js configuration
 |-- .htaccess              # Apache URL rewrite rules & config
 |-- includes/              # Shared PHP utility/core files
-|   |-- auth.php           # Helpers: isLoggedIn(), isAdmin() (login/register functions deprecated)
+|   |-- auth.php           # Helpers: isLoggedIn(), isAdmin() (partially redundant)
 |   |-- db.php             # PDO connection setup (makes $pdo available)
 |   |-- SecurityMiddleware.php # Security helpers (apply headers/session, validation, CSRF gen/validation)
 |   |-- ErrorHandler.php   # Error/exception handling setup (Headers issue noted)
@@ -195,8 +207,8 @@ graph LR
 |   |-- AccountController.php # User auth, profile (Functional)
 |   |-- ProductController.php # Product listing/detail (Pagination OK)
 |   |-- CartController.php    # Cart logic, AJAX handlers (Storage inconsistency noted)
-|   |-- CheckoutController.php # Checkout process (Loads, Confirmation Flow needs rework)
-|   |-- PaymentController.php # Payment Intent creation, Webhook handling (Session issue in webhook)
+|   |-- CheckoutController.php # Checkout process (Loads OK, Confirmation OK)
+|   |-- PaymentController.php # Payment Intent creation, Webhook handling (Webhook OK)
 |   |-- NewsletterController.php # Newsletter subscription
 |   |-- QuizController.php    # Quiz logic
 |   |-- CouponController.php  # Coupon admin logic
@@ -213,6 +225,8 @@ graph LR
 |   |-- account/             # User account specific views (Functional)
 |   |-- admin/             # Admin-specific views (Coupons, Quiz Analytics functional)
 |   |-- layout/            # Reusable layout partials (header, footer)
+|   |-- order_confirmation.php # View for confirmation page (Logic fixed in controller)
+|   |-- checkout.php         # View for checkout (Loads OK, defensive coding added)
 |-- logs/                  # Directory for log files (requires write permissions)
 |   |-- security.log
 |   |-- error.log
@@ -221,9 +235,9 @@ graph LR
 |   |-- the_scent_schema.sql.txt # Base schema definition
 |   |-- the_scent_update_users_table.sql # REQUIRED patch for 'users' table
 |-- js/                    # Custom JavaScript
-|   |-- main.js            # Global handlers (AJAX, UI), page initializers
-|-- README.md              # Project documentation (v2.0)
-|-- technical_design_specification.md # (This document v12.0)
+|   |-- main.js            # Global handlers (AJAX, UI), page initializers (CSRF OK)
+|-- README.md              # Project documentation (v3.0)
+|-- technical_design_specification.md # (This document v13.0)
 |-- composer.json, composer.lock, vendor/ # Added if Composer is used
 |-- LICENSE                # MIT License file (Assumed)
 |-- ... (other docs, HTML output files)
@@ -231,35 +245,33 @@ graph LR
 
 ### 4.2 Key Files Explained
 
-*(Reflecting current state and known issues)*
-
-*   **index.php**: Central router. **Auto POST CSRF validation robust.** Dispatches correctly.
-*   **config.php**: Central config. **CSP needs review.** Rate limit config exists but usage inconsistent. Secrets should ideally move to `.env`.
-*   **includes/SecurityMiddleware.php**: Provides core security functions (validation, CSRF).
-*   **controllers/BaseController.php**: Abstract base. Provides essential helpers. **`validateRateLimit` usage needs standardization.**
-*   **controllers/AccountController.php**: Handles user auth/profile. **Functional.** Relies on updated `User` model.
-*   **controllers/CheckoutController.php**: Handles checkout. **Loads correctly.** Relies on implemented `User::getAddress`. **`showOrderConfirmation` logic is flawed (session dependency).**
-*   **controllers/PaymentController.php**: Handles Stripe PI creation and webhooks. **Webhook handler's reliance on `$_SESSION` for confirmation page is unreliable.**
-*   **controllers/CartController.php**: Handles cart logic. AJAX functional. **Cart storage inconsistency (Session/DB) needs resolution.**
-*   **models/User.php**: **Updated and Functional.** `getAddress()` implemented. Meets `AccountController` needs. Requires schema patch applied.
-*   **models/Order.php**: Order DB logic. Compatible.
-*   **models/Product.php**: Product DB logic. Pagination functional.
-*   **models/Cart.php**: DB cart logic. Usage inconsistent (see `CartController`).
-*   **views/layout/header.php**: Outputs global CSRF token (`#csrf-token-value`). Reflects login state.
-*   **views/layout/footer.php**: Includes `main.js`, which reads `#csrf-token-value` for AJAX CSRF.
-*   **views/*.php**: Templates. Must output CSRF token correctly. Use `htmlspecialchars()`.
-*   **views/checkout.php**: **Loads correctly.** Uses `$userAddress` data. AJAX/Stripe JS functional.
-*   **views/cart.php**: Functional with updated UI. Relies on AJAX.
-*   **views/order_confirmation.php**: View itself is fine, but the logic to *reach* it (`CheckoutController::showOrderConfirmation`) is flawed.
-*   **js/main.js**: Handles AJAX (Add-to-Cart, Cart updates, Login/Register, Newsletter, Checkout Coupon/Tax). **Correctly reads CSRF token from `#csrf-token-value`.** Page initializers based on `body` class.
-*   **includes/ErrorHandler.php**: Global error handling. **"Headers Already Sent" issue identified.**
+*   **index.php**: Central router. **Auto POST CSRF validation robust.** Dispatches correctly. **Correctly instantiates `CheckoutController` with `PaymentController` dependency.**
+*   **config.php**: Central config. **CSP needs review.** Rate limit config exists but usage inconsistent. Secrets exposure risk.
+*   **includes/SecurityMiddleware.php**: Provides core security functions. OK.
+*   **controllers/BaseController.php**: Abstract base. Provides essential helpers. Rate limiting usage inconsistent. OK.
+*   **controllers/AccountController.php**: Handles user auth/profile. **Functional.**
+*   **controllers/CheckoutController.php**: Handles checkout. **Page Loads Correctly.** **`showOrderConfirmation` logic fixed and robust.**
+*   **controllers/PaymentController.php**: Handles Stripe PI creation and webhooks. **Webhook handler confirmed free of session dependency for confirmation flow.** `getStripeClient()` added. OK.
+*   **controllers/CartController.php**: Handles cart logic. AJAX functional. **Cart storage inconsistency noted.**
+*   **models/User.php**: **Updated & Functional.** `getAddress()` implemented. Meets `AccountController` needs. Requires schema patch applied.
+*   **models/Order.php**: Order DB logic. Compatible. OK.
+*   **models/Product.php**: Product DB logic. Pagination functional. OK.
+*   **models/Cart.php**: DB cart logic. Usage inconsistent. OK.
+*   **views/layout/header.php**: Outputs global CSRF token (`#csrf-token-value`). Reflects login state. OK.
+*   **views/layout/footer.php**: Includes `main.js`. OK.
+*   **views/*.php**: Templates. Use `htmlspecialchars()`. Must output CSRF token correctly if needed. OK.
+*   **views/checkout.php**: **Loads correctly.** Uses `$userAddress`. AJAX/Stripe JS functional. **Defensive coding added.** OK.
+*   **views/cart.php**: Functional with updated UI. Relies on AJAX. OK.
+*   **views/order_confirmation.php**: View OK. **Controller logic fixed.** OK.
+*   **js/main.js**: Handles AJAX. **Correctly reads/sends CSRF token.** Page initializers OK.
+*   **includes/ErrorHandler.php**: Global error handling. **"Headers Already Sent" issue noted.**
 *   **db/the_scent_update_users_table.sql**: **Mandatory patch script** for database schema.
 
 ---
 
 ## 5. Routing and Application Flow
 
-*(No fundamental changes needed, emphasis on CSRF)*
+*(No fundamental changes needed, emphasis on CSRF & Controller Instantiation)*
 
 ### 5.1 URL Routing via .htaccess
 
@@ -267,7 +279,7 @@ graph LR
 
 ### 5.2 index.php: The Application Entry Point
 
-*   Single entry point. Initializes core systems. Determines `$page`, `$action`. **Crucially, validates CSRF token globally for all POST requests before routing (except Stripe webhook).** Dispatches based on `$page`.
+*   Single entry point. Initializes core systems. Determines `$page`, `$action`. **Crucially, validates CSRF token globally for all POST requests before routing (except Stripe webhook).** Dispatches based on `$page`. **Correctly handles `CheckoutController` dependency injection.**
 
 ### 5.3 Controller Dispatch & Action Flow
 
@@ -286,13 +298,13 @@ graph LR
 
 ## 6. Frontend Architecture
 
-*(Emphasis on CSRF handling)*
+*(CSRF handling confirmed correct)*
 
 ### 6.1 CSS (css/style.css), Tailwind (CDN), and Other Libraries
 
 *   Styling via Tailwind CDN + custom CSS.
 *   Libraries: Google Fonts, Font Awesome 6, AOS.js, Particles.js (CDNs/local).
-*   **Mobile Nav CSS:** Fixed by removing `display: none` for `.main-nav`.
+*   Mobile Nav CSS fixed.
 
 ### 6.2 Responsive Design and Accessibility
 
@@ -302,23 +314,21 @@ graph LR
 
 *   **`js/main.js`:** Core script included in footer. Handles global UI (flash messages, mobile menu) and AJAX interactions.
 *   **Page Initializers:** Use `body` class to trigger specific JS setup (e.g., `initCartPage`, `initCheckoutPage`).
-*   **AJAX CSRF:** All AJAX POST requests (Add-to-Cart, Cart Update/Remove, Login, Register, Newsletter, Checkout Coupon/Tax) correctly read the CSRF token from the global `#csrf-token-value` hidden input and include it in the request body/payload. This aligns with the server-side validation in `index.php`.
+*   **AJAX CSRF:** All AJAX POST requests (Add-to-Cart, Cart Update/Remove, Login, Register, Newsletter, Checkout Coupon/Tax) correctly read the CSRF token from the global `#csrf-token-value` hidden input and include it in the request body/payload. This aligns with the server-side validation in `index.php`. **Correct.**
 
 ---
 
 ## 7. Key Pages & Components
 
-*(Updated status)*
-
-*   **Home/Landing Page:** Functional. Add-to-Cart works.
-*   **Header/Navigation:** Functional. Mobile menu fixed. CSRF token output correct.
-*   **Footer/Newsletter:** Functional. AJAX newsletter signup works.
-*   **Product Grid/Cards:** Functional. Add-to-Cart works.
-*   **Shopping Cart:** Functional with updated UI. AJAX updates/removals work. **Cart storage inconsistency noted.**
-*   **Product Detail Page:** Functional. AJAX Add-to-Cart works.
-*   **Products Page:** Functional. Filters/Sorting/Pagination work. Add-to-Cart works.
-*   **Checkout Process:** **Loads correctly.** Address pre-filling works (uses `users` table fields). AJAX for Tax/Coupon functional. Payment Intent creation functional. **Confirmation flow after payment redirect is flawed.**
-*   **Order Confirmation:** View exists. Logic to display it (`CheckoutController::showOrderConfirmation`) is **unreliable due to session dependency.** Needs rework (See Recommendation 2).
+*   **Home/Landing Page:** Functional.
+*   **Header/Navigation:** Functional. CSRF output OK.
+*   **Footer/Newsletter:** Functional.
+*   **Product Grid/Cards:** Functional.
+*   **Shopping Cart:** Functional with updated UI. AJAX OK. **Cart storage inconsistency noted.**
+*   **Product Detail Page:** Functional.
+*   **Products Page:** Functional. Filters/Sorting/Pagination work.
+*   **Checkout Process:** **Loads correctly.** Address pre-filling works. AJAX OK. Payment Intent creation OK.
+*   **Order Confirmation:** **Functional.** Controller logic now robustly verifies payment via Stripe API.
 *   **User Account Pages:** Functional (Dashboard, Orders List/Details, Profile View/Update).
 *   **Quiz Flow:** Functional.
 
@@ -326,22 +336,20 @@ graph LR
 
 ## 8. Backend Logic & Core PHP Components
 
-*(Updated status/notes)*
-
-*   **Includes:** Core utilities function as expected. `auth.php` login/register likely deprecated.
+*   **Includes:** Core utilities function as expected. `auth.php` partially redundant.
 *   **Controllers:** Logic separated. `BaseController` provides shared functionality.
-    *   `AccountController`: Functional post-refactor and `User` model update.
-    *   `CheckoutController`: Loads, AJAX functional. Confirmation flow needs rework.
-    *   `PaymentController`: PI creation OK. Webhook session logic flawed.
-    *   `CartController`: Functional AJAX. Cart storage inconsistency.
+    *   `AccountController`: Functional.
+    *   `CheckoutController`: **Loads & Confirmation Flow Fixed.**
+    *   `PaymentController`: PI creation OK. **Webhook session dependency removed.** `getStripeClient()` available.
+    *   `CartController`: Functional AJAX. **Cart storage inconsistency.**
     *   Rate limiting usage inconsistent.
 *   **Database Abstraction:** PDO Prepared Statements used throughout Models. **Secure.**
 *   **Models:**
     *   `User.php`: **Updated & Functional.** `getAddress` implemented.
-    *   Others (`Product`, `Order`, `Cart`, `Quiz`) compatible with controllers.
+    *   Others (`Product`, `Order`, `Cart`, `Quiz`) compatible.
 *   **Security Middleware & Error Handling:** `SecurityMiddleware` enforces headers, session rules, CSRF. `ErrorHandler` handles errors globally, but "Headers Already Sent" issue exists.
 *   **Session, Auth, User Flow:** Secure session handling implemented. Auth flows functional.
-*   **Payment Processing & Webhook:** Stripe PI flow implemented. **Webhook's session usage for confirmation is the main flaw.**
+*   **Payment Processing & Webhook:** Stripe PI flow implemented. **Webhook confirmation flow dependency removed.** Signature verification OK.
 
 ---
 
@@ -368,8 +376,8 @@ Standard e-commerce relationships.
 *   **Add to Cart:** Works via AJAX, updates session/DB depending on login.
 *   **Checkout Page Load:** Works. Fetches cart, user address, renders form.
 *   **Checkout Submit:** Works. Server validates, creates order/PI, returns clientSecret.
-*   **Payment Success -> Redirect:** Works. Stripe redirects to confirmation URL.
-*   **Confirmation Page Load:** **Fails intermittently/unreliably** because it depends on `$_SESSION['last_order_id']` which the webhook often cannot set correctly.
+*   **Payment Success -> Redirect:** Works. Stripe redirects to confirmation URL with `payment_intent` parameter.
+*   **Confirmation Page Load:** **Works.** `CheckoutController` uses `payment_intent` ID to verify via Stripe API, checks ownership, fetches order, renders view.
 
 ---
 
@@ -377,7 +385,7 @@ Standard e-commerce relationships.
 
 *   **Input Sanitization & Validation:** **Implemented** via `SecurityMiddleware`.
 *   **Session Management:** **Implemented** (Secure flags, regeneration, integrity checks).
-*   **CSRF Protection:** **Implemented** (Synchronizer Token Pattern, global POST validation).
+*   **CSRF Protection:** **Implemented** (Synchronizer Token Pattern, global POST validation). Correct JS handling.
 *   **Security Headers & CSP:** **Implemented.** CSP needs review/tightening.
 *   **Rate Limiting:** **Partially Implemented.** Mechanism exists (`BaseController`), but usage needs standardization. Relies on APCu.
 *   **File Uploads & Permissions:** Validation logic exists. Secure handling needed if used. `logs/` needs correct permissions.
@@ -406,41 +414,42 @@ Standard e-commerce relationships.
 5.  Configure `config.php`.
 6.  Set file permissions (`logs/` writable).
 7.  Configure Apache VirtualHost.
-8.  Browse site, check logs.
-9.  **Verify CSRF flow** (inspect views/JS, test POST actions).
-10. **Verify Core Functionality:** Add-to-Cart, Cart View/Update, Product List/Pagination, Login/Register, Profile Update, Password Reset. **Verify Checkout page loads**.
-11. **Note Known Issues:** Understand the flawed confirmation flow, cart inconsistency, rate limiting gaps.
+8.  **(Optional but Recommended):** If using Composer dependencies (PHPMailer, Stripe SDK), run `composer install`.
+9.  Browse site, check logs (`error.log`, `security.log`).
+10. **Verify CSRF flow** (inspect views/JS, test POST actions).
+11. **Verify Core Functionality:** Add-to-Cart, Cart View/Update, Product List/Pagination, Login/Register, Profile Update, Password Reset. Verify Checkout page loads. **Verify successful payment leads to the Order Confirmation page.**
+12. **Note Known Issues:** Understand cart inconsistency and rate limiting gaps.
 
 ### 11.4 Testing & Debugging Notes
 
-*   Use browser dev tools, application logs, server logs.
-*   Test Checkout page load specifically.
+*   Use browser dev tools, application logs (`logs/`), server logs (`apache_logs/`).
+*   Test Checkout page load.
 *   Test User Profile/Password flows.
-*   Observe behavior of Order Confirmation page (likely fails or redirects).
+*   **Test the full payment flow through to the Order Confirmation page.**
 *   Test cart behavior when logging in/out.
 *   Manually trigger rate limits if testing that feature.
+*   Enable `ENVIRONMENT = 'development'` in `config.php` for detailed PHP errors during debugging (disable for production).
 
 ---
 
 ## 12. Future Enhancements & Recommendations
 
-*(Prioritized List)*
+*(Prioritized List - Order Confirmation fixed)*
 
-1.  **Rework Order Confirmation Flow (Critical Priority):** Remove session dependency. Use URL parameters (`payment_intent` ID) from Stripe redirect and verify status/ownership server-side before displaying confirmation. (See Appendix C for recommended logic).
-2.  **Standardize Cart Storage (High Priority):** Choose DB-only (for logged-in) or Session-only (until checkout) and enforce consistently in `CartController`. DB-only is generally preferred for logged-in persistence.
-3.  **Standardize Rate Limiting (Medium Priority):** Apply `BaseController::validateRateLimit()` consistently to sensitive controller actions (Login, Register, Password Reset, Checkout Submit, Coupon Apply). Ensure APCu reliability or implement fallback.
-4.  **Review & Tighten Content Security Policy (Medium Priority):** Update CSP in `config.php` based on actual needs (Stripe, fonts, etc.). Avoid `'unsafe-inline'` if possible.
-5.  **Fix Error Handling ("Headers Already Sent") (Medium Priority):** Make `views/error.php` self-contained or use output buffering in `ErrorHandler`.
-6.  **Implement `User::getAddress` Fully (Medium Priority):** Although the method exists and prevents errors, implement the logic to actually *store* address info when user profiles are updated or during checkout if saving addresses is desired. Update `views/checkout.php` to use this stored data if available.
-7.  **Code Quality & Refactoring (Ongoing/Future):**
+1.  **Standardize Cart Storage (High Priority):** Choose DB-only (for logged-in) or Session-only (until checkout) and enforce consistently in `CartController`. DB-only is generally preferred for logged-in persistence.
+2.  **Standardize Rate Limiting (Medium Priority):** Apply `BaseController::validateRateLimit()` consistently to sensitive controller actions (Login, Register, Password Reset, Checkout Submit, Coupon Apply, Profile Update). Ensure APCu reliability or implement fallback.
+3.  **Review & Tighten Content Security Policy (Medium Priority):** Update CSP in `config.php` based on actual needs (Stripe, fonts, etc.). Avoid `'unsafe-inline'` if possible.
+4.  **Fix Error Handling ("Headers Already Sent") (Medium Priority):** Make `views/error.php` self-contained or use output buffering in `ErrorHandler`.
+5.  **Implement Address Saving (Medium Priority):** Add logic to save user addresses (profile/checkout). Update `views/checkout.php` to use this stored data if available.
+6.  **Code Quality & Refactoring (Ongoing/Future):**
     *   Implement Composer for autoloading and managing dependencies (PHPMailer, Stripe SDK).
     *   Refactor `index.php` routing to a dedicated Router class.
     *   Consider a simple templating engine (e.g., Twig, Plates) for cleaner views.
     *   Use `.env` files for configuration/secrets.
     *   Implement database migrations.
     *   Add unit/integration tests.
-8.  **Full Admin Panel (Future):** Develop CRUD interfaces for Products, Orders, Users, etc.
-9.  **Advanced Features (Future):** Search improvements, user reviews, wishlists, etc.
+7.  **Full Admin Panel (Future):** Develop CRUD interfaces for Products, Orders, Users, etc.
+8.  **Advanced Features (Future):** Search improvements, user reviews, wishlists, etc.
 
 ---
 
@@ -448,35 +457,35 @@ Standard e-commerce relationships.
 
 ### A. Key File Summaries
 
-| File/Folder                 | Purpose                                                        | Status Notes                                                                                                   |
-| :-------------------------- | :------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------- |
-| `index.php`                 | Entry point, routing, core includes, auto POST CSRF validation | OK                                                                                                             |
-| `config.php`                | DB credentials, App/Security settings, API keys              | OK. CSP/Rate Limit review needed. Secrets exposure.                                                          |
-| `includes/SecurityMiddleware.php` | Static security helpers (validation, CSRF)                   | OK                                                                                                             |
-| `controllers/BaseController.php` | Abstract base helpers (DB, JSON, auth, CSRF, Rate Limit)     | OK. Rate limiting usage inconsistent.                                                                        |
-| `controllers/AccountController.php` | User auth/profile logic. AJAX/standard POST.                 | **Functional.**                                                                                              |
-| `controllers/CheckoutController.php`| Handles checkout. AJAX interaction.                            | **Loads.** Confirmation flow logic flawed.                                                                 |
-| `controllers/PaymentController.php` | Stripe PI creation, Webhook handling                         | OK, but Webhook session dependency flawed.                                                                   |
-| `controllers/CartController.php`| Handles cart logic via AJAX.                                   | Functional. **Cart storage inconsistent.**                                                                 |
-| `models/User.php`           | User DB logic (**PDO Prepared Statements**).                   | **Updated & Functional.** `getAddress` implemented. Requires schema patch.                                   |
-| `models/Order.php`          | Order DB logic (**PDO Prepared Statements**).                  | OK.                                                                                                            |
-| `models/Product.php`        | Product DB logic (**PDO Prepared Statements**).                | OK. Pagination functional.                                                                                   |
-| `models/Cart.php`           | DB cart logic (**PDO Prepared Statements**).                   | OK. Usage inconsistent.                                                                                      |
-| `views/layout/header.php`   | Header, nav, assets, outputs global CSRF token.              | OK.                                                                                                            |
-| `views/*.php`               | HTML/PHP templates, must output CSRF token correctly.          | OK. Requires correct CSRF token output.                                                                      |
-| `views/layout/footer.php`   | Footer, JS init, global AJAX handlers read CSRF token.       | OK.                                                                                                            |
-| `views/checkout.php`        | Checkout form view.                                            | **Loads.** Uses `$userAddress`. Needs working confirmation flow post-payment.                                  |
-| `views/cart.php`            | Cart view.                                                     | Functional, updated UI.                                                                                      |
-| `views/order_confirmation.php`| Confirmation view.                                             | View OK, logic to display it is flawed.                                                                    |
-| `js/main.js`                | Frontend logic, AJAX handlers, CSRF handling via hidden input. | OK. Correctly handles CSRF for AJAX.                                                                         |
-| `includes/ErrorHandler.php` | Global error handling.                                         | OK. "Headers Already Sent" issue noted.                                                                      |
-| `db/*`                      | Schema files.                                                  | **Update script is mandatory.**                                                                              |
+| File/Folder                 | Purpose                                                        | Status Notes                                                                     |
+| :-------------------------- | :------------------------------------------------------------- | :------------------------------------------------------------------------------- |
+| `index.php`                 | Entry point, routing, core includes, auto POST CSRF validation | OK. Correct DI for CheckoutController.                                           |
+| `config.php`                | DB credentials, App/Security settings, API keys              | OK. CSP/Rate Limit review needed. Secrets exposure.                            |
+| `includes/SecurityMiddleware.php` | Static security helpers (validation, CSRF)                   | OK.                                                                              |
+| `controllers/BaseController.php` | Abstract base helpers (DB, JSON, auth, CSRF, Rate Limit)     | OK. Rate limiting usage inconsistent.                                            |
+| `controllers/AccountController.php` | User auth/profile logic. AJAX/standard POST.                 | **Functional.**                                                                |
+| `controllers/CheckoutController.php`| Handles checkout. AJAX interaction.                            | **Loads OK. Confirmation Flow Fixed.**                                         |
+| `controllers/PaymentController.php` | Stripe PI creation, Webhook handling                         | OK. **Webhook session dependency removed.** `getStripeClient()` available.      |
+| `controllers/CartController.php`| Handles cart logic via AJAX.                                   | Functional. **Cart storage inconsistent.**                                     |
+| `models/User.php`           | User DB logic (**PDO Prepared Statements**).                   | **Updated & Functional.** `getAddress` implemented. Requires schema patch.     |
+| `models/Order.php`          | Order DB logic (**PDO Prepared Statements**).                  | OK.                                                                              |
+| `models/Product.php`        | Product DB logic (**PDO Prepared Statements**).                | OK. Pagination functional.                                                     |
+| `models/Cart.php`           | DB cart logic (**PDO Prepared Statements**).                   | OK. Usage inconsistent.                                                        |
+| `views/layout/header.php`   | Header, nav, assets, outputs global CSRF token.              | OK.                                                                              |
+| `views/*.php`               | HTML/PHP templates, must output CSRF token correctly.          | OK. Requires correct CSRF token output.                                        |
+| `views/layout/footer.php`   | Footer, JS init, global AJAX handlers read CSRF token.       | OK.                                                                              |
+| `views/checkout.php`        | Checkout form view.                                            | **Loads OK.** Uses `$userAddress`. **Defensive coding added.** AJAX/Stripe OK. |
+| `views/cart.php`            | Cart view.                                                     | Functional, updated UI.                                                        |
+| `views/order_confirmation.php`| Confirmation view.                                             | **Functional.** Controller logic fixed.                                        |
+| `js/main.js`                | Frontend logic, AJAX handlers, CSRF handling via hidden input. | OK. Correctly handles CSRF for AJAX.                                           |
+| `includes/ErrorHandler.php` | Global error handling.                                         | OK. "Headers Already Sent" issue noted.                                        |
+| `db/*`                      | Schema files.                                                  | **Update script is mandatory.**                                                |
 
 ### B. Glossary
 
 (Standard terms: MVC, CSRF, XSS, SQLi, PDO, AJAX, CDN, CSP, Rate Limiting, Prepared Statements, Synchronizer Token Pattern, APCu, Payment Intent (PI), Webhook, Idempotency)
 
-### C. Code Snippets and Patterns (CSRF, Recommended Confirmation Flow)
+### C. Code Snippets and Patterns (CSRF, Implemented Confirmation Flow)
 
 #### 1. Correct & Required CSRF Token Implementation Pattern
 
@@ -515,77 +524,98 @@ Standard e-commerce relationships.
     ```php
     // ... near top of index.php
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Ensure session is active before accessing/setting CSRF token
+        if (session_status() === PHP_SESSION_NONE) { session_start(); }
         SecurityMiddleware::generateCSRFToken(); // Ensure token exists in session if first POST
         SecurityMiddleware::validateCSRF(); // Validates against $_POST['csrf_token']
     }
     ```
 
-#### 2. Recommended Order Confirmation Flow (`CheckoutController::showOrderConfirmation`)
+#### 2. Implemented Order Confirmation Flow (`CheckoutController::showOrderConfirmation`)
 
-*   **Problem:** Current flow relies on `$_SESSION['last_order_id']` set by the webhook, which is unreliable.
-*   **Solution:** Use Payment Intent ID from Stripe's redirect URL, verify status and ownership server-side.
+*   **Improvement:** Uses Payment Intent ID from Stripe's redirect URL, verifies status/ownership server-side via Stripe API.
 
 ```php
     // controllers/CheckoutController.php
 
     /**
-     * Displays the order confirmation page. (RECOMMENDED IMPLEMENTATION)
+     * Displays the order confirmation page. (ROBUST IMPLEMENTATION)
      * Verifies payment success using Stripe Payment Intent ID from URL.
+     * REMOVED reliance on session variables.
      */
     public function showOrderConfirmation() {
          $this->requireLogin(); // Ensure user is logged in
          $userId = $this->getUserId();
 
          // 1. Get Payment Intent ID from URL
-         $paymentIntentId = $this->validateInput($_GET['payment_intent'] ?? null, 'string'); // Example: pi_...
-         // $clientSecret = $this->validateInput($_GET['payment_intent_client_secret'] ?? null, 'string'); // Might also be present
+         $paymentIntentId = $this->validateInput($_GET['payment_intent'] ?? null, 'string');
 
-         if (!$paymentIntentId) {
-             $this->setFlashMessage('Invalid confirmation link.', 'error');
-             $this->redirect('index.php?page=account&section=orders');
+         if (!$paymentIntentId || !str_starts_with($paymentIntentId, 'pi_')) { // Basic format check
+             $this->setFlashMessage('Invalid or missing payment confirmation identifier.', 'error');
+             $this->redirect('index.php?page=account&action=orders'); // Use action=orders for consistency
              return;
          }
 
          try {
-             // 2. Retrieve Payment Intent from Stripe (Requires StripeClient instance)
-             // Assuming $this->paymentController holds the PaymentController instance
-             if (!isset($this->paymentController) || !$this->paymentController->getStripeClient()) { // Add a getter in PaymentController
-                  error_log("Stripe client not available in CheckoutController.");
-                  throw new Exception("Payment verification service unavailable.");
+             // 2. Retrieve Payment Intent from Stripe
+             // Ensure PaymentController and its Stripe client are available
+             if (!$this->paymentController || !($stripeClient = $this->paymentController->getStripeClient())) {
+                  error_log("Stripe client not available in CheckoutController::showOrderConfirmation.");
+                  throw new Exception("Payment verification service temporarily unavailable. Please check your order history later.");
              }
-             $stripeClient = $this->paymentController->getStripeClient(); // Add getStripeClient() to PaymentController
+
+             // Use Stripe SDK to fetch the Payment Intent
+             // Assumes Stripe SDK is loaded via Composer autoload in index.php
              $paymentIntent = $stripeClient->paymentIntents->retrieve($paymentIntentId, []);
 
              // 3. Verify Payment Intent Status
              if ($paymentIntent->status !== 'succeeded') {
                   error_log("Confirmation page accessed for non-succeeded PI: {$paymentIntentId}, Status: {$paymentIntent->status}");
-                  $this->setFlashMessage('Payment confirmation is pending or failed. Please check your orders.', 'warning');
-                  $this->redirect('index.php?page=account&section=orders');
+                  // Provide helpful message based on status if possible
+                  $message = match ($paymentIntent->status) {
+                      'processing' => 'Your payment is still processing. We will notify you upon completion.',
+                      'requires_payment_method', 'requires_action', 'requires_capture', 'requires_confirmation' => 'Payment was not completed successfully. Please check your orders or contact support.',
+                      'canceled' => 'The payment was cancelled.',
+                      default => 'Payment confirmation is pending or failed. Please check your orders.',
+                  };
+                  $this->setFlashMessage($message, 'warning');
+                  $this->redirect('index.php?page=account&action=orders');
                   return;
              }
 
              // 4. Fetch Corresponding Order from DB using PI ID
-             // OrderModel needs getByPaymentIntentId method (already exists)
              $order = $this->orderModel->getByPaymentIntentId($paymentIntentId);
 
              // 5. Validate Order Ownership and Existence
              if (!$order || $order['user_id'] !== $userId) {
                   error_log("Order not found or user mismatch for PI: {$paymentIntentId}, Order ID: " . ($order['id'] ?? 'N/A') . ", User ID: {$userId}");
+                  // Log security event for potential access violation attempt
+                  $this->logSecurityEvent('confirmation_access_denied', ['payment_intent_id' => $paymentIntentId, 'logged_in_user' => $userId, 'order_user' => $order['user_id'] ?? null]);
                   $this->setFlashMessage('Order details not found or access denied.', 'error');
-                  $this->redirect('index.php?page=account&section=orders');
+                  $this->redirect('index.php?page=account&action=orders');
                   return;
              }
 
-             // 6. Fetch full order details (with items) using the verified Order ID
+             // 6. (Optional but Recommended) Verify Order Status in DB is suitable
+             // Allow for webhook delay - accept states the webhook would set on success
+             $acceptableStatuses = ['processing', 'paid', 'shipped', 'delivered', 'completed']; // Add 'paid' if it's a valid post-payment status
+             if (!in_array($order['status'], $acceptableStatuses)) {
+                   // If status is still 'pending_payment', it means webhook might be delayed.
+                   // Show confirmation anyway since Stripe confirmed success, but log it.
+                   error_log("Confirmation Warning: PI {$paymentIntentId} succeeded, but order {$order['id']} status is '{$order['status']}'. Showing confirmation page, webhook may be delayed.");
+             }
+
+             // 7. Fetch full order details (with items) using the verified Order ID
              $fullOrder = $this->orderModel->getByIdAndUserId($order['id'], $userId); // Fetches items
              if (!$fullOrder || empty($fullOrder['items'])) {
+                  // This shouldn't happen if order was found, but check anyway
                   error_log("Could not fetch full order details for confirmed order ID: {$order['id']}");
-                  $this->setFlashMessage('Could not display full order details.', 'error');
-                  $this->redirect('index.php?page=account&section=orders');
+                  $this->setFlashMessage('Could not display full order details. Please check your order history.', 'error');
+                  $this->redirect('index.php?page=account&action=orders');
                   return;
              }
 
-             // 7. Render Confirmation View
+             // 8. Render Confirmation View
              $csrfToken = $this->getCsrfToken();
              $bodyClass = 'page-order-confirmation';
              $pageTitle = 'Order Confirmation - The Scent';
@@ -598,16 +628,18 @@ Standard e-commerce relationships.
              ]);
 
          } catch (\Stripe\Exception\ApiErrorException $e) {
+             // Handle specific Stripe API errors (e.g., invalid PI ID, network issue)
              error_log("Stripe API error fetching Payment Intent {$paymentIntentId}: " . $e->getMessage());
-             $this->setFlashMessage('Error verifying payment status.', 'error');
-             $this->redirect('index.php?page=account&section=orders');
+             $this->setFlashMessage('Error verifying payment status. Please try again later or check your order history.', 'error');
+             $this->redirect('index.php?page=account&action=orders');
          } catch (Exception $e) {
+             // Handle other errors (DB issues, missing Stripe client, etc.)
              error_log("Error showing order confirmation for PI {$paymentIntentId}: " . $e->getMessage());
-             $this->setFlashMessage('An unexpected error occurred.', 'error');
-             $this->redirect('index.php?page=account&section=orders');
+             $this->setFlashMessage('An unexpected error occurred while confirming your order. Please check your order history.', 'error');
+             $this->redirect('index.php?page=account&action=orders');
          }
      }
 ```
 
-*(Note: This recommended controller logic requires adding a method like `getStripeClient()` to `PaymentController` to allow `CheckoutController` access to the initialized Stripe client, or passing the client instance during `CheckoutController`'s construction).*
-
+---
+https://drive.google.com/file/d/1-sUAoBUl6pA64buwufYHBSSi5yZ62Raj/view?usp=sharing, https://drive.google.com/file/d/15bitqhWNq2U0oVwLAq5XykB5yTo0Xjyh/view?usp=sharing, https://drive.google.com/file/d/16HHyF3fUpldmiLxlpEE8NkjgAsjVRkWR/view?usp=sharing, https://drive.google.com/file/d/1A8TTC_ybZjQQV7Twy55kS73hvmPjAbdN/view?usp=sharing, https://drive.google.com/file/d/1Ch0NuZ3uSrLmZQVw9HA32lIpGpJJjde6/view?usp=sharing, https://drive.google.com/file/d/1CqlP3iZUNeT-Iz2HZte3dAVlZ3EE6AU9/view?usp=sharing, https://drive.google.com/file/d/1D54uflzlmAE5tS77KFtf50m3cfIDnMmU/view?usp=sharing, https://drive.google.com/file/d/1FeYPFvldnvjsirrFh5DF9M8WJwU4gqFf/view?usp=sharing, https://drive.google.com/file/d/1VL-sFQfsQba_oE3Qicmgr9nFd9gVe0jX/view?usp=sharing, https://drive.google.com/file/d/1bIM1MPPoku21T6LdQ92gj0H2KPoebDtJ/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221bdZUHlK9NGrEbspVNgspBdWk9Qnaz5jH%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1cE1TiQhqSq2l-5C9SnTS9GM2QKl74j2x/view?usp=sharing, https://drive.google.com/file/d/1gzmYOqQ_bMhQzcuMpipWfN591B9audJl/view?usp=sharing, https://drive.google.com/file/d/1kP97pYJWb-za26V7uitOe78EnSKN07uc/view?usp=sharing, https://drive.google.com/file/d/1kPkUVoSRrZ4gVXc5J5ohl4mW9MA9VB8E/view?usp=sharing, https://drive.google.com/file/d/1lxZ6G3BnCriOybsHE2Iq9cN8NMDAX26G/view?usp=sharing, https://drive.google.com/file/d/1pTUpeOtzldtz3zla_75B1fxEsc_N9Qku/view?usp=sharing, https://drive.google.com/file/d/1u4CMSYpcpxsNO1oYmN_AmAw4SgyB8Pxz/view?usp=sharing

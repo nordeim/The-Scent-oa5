@@ -1,4 +1,4 @@
-# 🌿 The Scent - Premium Aromatherapy E-commerce Platform (v3.1 - Core Fixes Applied)
+# 🌿 The Scent - Premium Aromatherapy E-commerce Platform (v3.0)
 
 Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-commerce platform built to showcase and sell premium natural aromatherapy products. This project is designed from the ground up for extensibility, security, and seamless user experience, featuring a custom MVC-inspired PHP architecture.
 
@@ -12,19 +12,14 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
 
 ---
 
-## ✨ Current Status (v3.1 - Core Flows Functional, Standardization Needed)
+## ✨ Current Status (v3.0 - Functional Core, Needs Polish for Production)
 
-*   ✅ **Core Functionality:** Product Browsing (with Pagination), Add-to-Cart (AJAX), Cart Management (AJAX), User Login/Registration (AJAX), Password Reset, Profile Update (Name, Email, Password, Newsletter), Scent Quiz & Results Display.
-*   ✅ **Key Fixes Implemented:**
-    *   Resolved **critical fatal error preventing checkout page load** (`User::getAddress` implemented, DB patch applied). Checkout page now loads correctly after login.
-    *   Resolved **critical flaw in Order Confirmation flow**. The logic now correctly uses the Stripe Payment Intent ID from the redirect URL, verifies payment status via Stripe API, and checks order ownership, ensuring a reliable confirmation display post-payment.
-    *   Improved robustness of checkout view rendering (`views/checkout.php`) to prevent potential PHP notices/warnings.
-    *   Confirmed removal of session dependency in payment webhook handler (`PaymentController`).
-    *   Resolved critical compatibility issues between `AccountController` and `User` model. User management flows are functional.
-    *   Mobile navigation CSS bug fixed.
-*   ⚠️ **Critical Issues Requiring Action for Production Readiness:**
-    *   **Inconsistent Cart Storage:** Uses Session for guests and Database (`cart_items`) for logged-in users. **Standardization is highly recommended** for reliability and user experience (See Recommendation #1).
-    *   **Inconsistent Rate Limiting:** Security mechanism exists (`BaseController::validateRateLimit`) but is not applied consistently across all sensitive endpoints (e.g., profile updates, checkout submission). **Standardization is highly recommended** (See Recommendation #2).
+*   ✅ **Core Functionality:** Product Browsing (with Pagination), Add-to-Cart (AJAX), Cart Management (AJAX with Updated UI), User Login/Registration (AJAX), Password Reset, Profile Update (Name, Email, Password, Newsletter), Scent Quiz & Results Display.
+*   ✅ **Key Fixes Implemented:** Resolved fatal error preventing checkout page load (`User::getAddress` implemented). Resolved critical compatibility issues between `AccountController` and `User` model. Mobile navigation CSS bug fixed. Database schema patch provided for `users` table.
+*   ⚠️ **Critical Issues Requiring Action for Production:**
+    *   **Order Confirmation Flow:** Current reliance on session data set by asynchronous webhooks is **unreliable** and **must be reworked** (See Recommendation #1 in Future Enhancements).
+    *   **Inconsistent Cart Storage:** Uses Session for guests and Database for logged-in users. **Standardization recommended** (See Recommendation #2).
+    *   **Inconsistent Rate Limiting:** Security mechanism exists but is not applied consistently across all sensitive endpoints. **Standardization recommended** (See Recommendation #3).
 *   ⚠️ **Other Known Issues/TODOs:**
     *   `User::getAddress()` fetches address data, but logic to *save* user addresses during profile update or checkout is not yet implemented. Pre-filling checkout depends on data existing in the DB.
     *   Content Security Policy (CSP) needs review/tightening.
@@ -41,7 +36,7 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
 ![Apache](https://img.shields.io/badge/Apache-2.4+-red?logo=apache)
 ![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-CDN-blue?logo=tailwindcss)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Core%20Functional/Dev-yellowgreen)
+![Status](https://img.shields.io/badge/Status-Functional/Dev-yellowgreen)
 
 ---
 
@@ -72,12 +67,12 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
 *   A clean, modern, responsive UI/UX powered by Tailwind CSS and subtle animations (AOS.js, Particles.js).
 *   Personalized shopping via an interactive scent finder quiz.
 *   Dynamic product catalog with categories, filtering, sorting, and functional pagination.
-*   A functional shopping cart with AJAX updates, item removal, and an updated grid UI. *(Storage inconsistency needs review)*.
-*   Secure user authentication (Login/Registration/Password Reset/Profile Update) with robust validation, utilizing AJAX where appropriate. **Functional.**
+*   A functional shopping cart with AJAX updates, item removal, and an updated grid UI.
+*   Secure user authentication (Login/Registration/Password Reset/Profile Update) with robust validation, utilizing AJAX where appropriate.
 *   A modular PHP codebase (MVC-inspired) for easy customization and future growth.
-*   A **functional core checkout process**, including page load, AJAX interactions, payment intent creation, and **reliable order confirmation display** after successful payment.
+*   Core checkout process flow up to payment initiation.
 
-Designed for extensibility, performance, and user-centric experience, The Scent provides a solid foundation for wellness or natural product businesses. This README reflects the current state (**v3.1**), including recent critical fixes for checkout and order confirmation flows, while highlighting areas like cart storage and rate limiting that require standardization for production deployment.
+Designed for extensibility, performance, and user-centric experience, The Scent provides a solid foundation for wellness or natural product businesses. This README reflects the current state (**v3.0**), including recent critical fixes and identified areas needing improvement for production deployment.
 
 ---
 
@@ -108,13 +103,13 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 *   ✅ **Checkout Page Load:** Requires login, collects shipping info, **loads correctly**, pre-fills address if available in DB.
 *   ✅ **Checkout AJAX:** Coupon application and tax calculation estimates functional via AJAX.
 *   ✅ **Checkout Submission:** Server-side logic correctly validates stock/coupons, creates order, decrements inventory, creates Stripe Payment Intent within a transaction.
-*   ✅ **Order Confirmation Page:** View exists, **logic is now reliable**, verifying payment via Stripe API before display.
+*   🚧 **Order Confirmation Page:** View exists, but the mechanism to display it after successful payment is **unreliable** and **needs rework**.
 
 ### 💼 Business Features *(Partially Implemented / Needs Integration)*
 *   ✅ **Inventory Management:** Basic stock tracking fields (`products` table) and DB update logic (`InventoryController::updateStock`) exist.
 *   ✅ **Tax System:** Basic tax calculation logic via `TaxController` functional for AJAX estimates.
 *   ✅ **Coupon System:** Admin CRUD interface functional. Validation logic (`CouponController`) functional. Applied via AJAX in checkout. Server-side re-validation during final submission implemented.
-*   ✅ **Email Notifications:** Functional system (`EmailService`) for Welcome, Password Reset. Order Confirmation sending via webhook functional. *(Shipping Update sending logic exists but depends on admin action)*. Requires SMTP configuration.
+*   ✅ **Email Notifications:** Functional system (`EmailService`) for Welcome, Password Reset. *(Order Confirmation/Shipping Update sending relies on successful payment completion & webhook handling)*. Requires SMTP configuration.
 
 ### 👑 Admin Features *(Modular, Basic)*
 *   ✅ Requires 'admin' role. Basic RBAC checks in place.
@@ -135,7 +130,6 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 *   *Login Page:* `[Insert Screenshot: views/login.php]`
 *   *Register Page:* `[Insert Screenshot: views/register.php]`
 *   *Checkout Page (Loading Correctly):* `[Insert Screenshot: views/checkout.php]`
-*   *Order Confirmation Page (Functional):* `[Insert Screenshot: views/order_confirmation.php]`
 *   *Account Dashboard:* `[Insert Screenshot: views/account/dashboard.php]`
 *   *Admin Coupons:* `[Insert Screenshot: views/admin/coupons.php]`
 
@@ -147,10 +141,10 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 
 *(Mermaid diagram remains the same as in TDS v12 - showing Client -> Apache -> index.php -> Core Includes -> Controllers -> Models -> DB and back through Views/JSON/Redirect)*
 
-*   **`index.php`:** Central entry point, routing via `switch`, core includes, **global POST CSRF validation**. Correctly handles `CheckoutController` dependency injection.
+*   **`index.php`:** Central entry point, routing via `switch`, core includes, **global POST CSRF validation**.
 *   **`Controllers`:** Business logic, extend `BaseController`, interact with Models (PDO), select View/Response. **Must pass CSRF token to views needing it.**
 *   **`Models`:** Database interaction via **PDO Prepared Statements**. `User` model updated.
-*   **`Views`:** PHP templates, HTML output, receive data from Controllers. **Must output CSRF token to `#csrf-token-value` for JS.** Defensive coding added to `checkout.php`.
+*   **`Views`:** PHP templates, HTML output, receive data from Controllers. **Must output CSRF token to `#csrf-token-value` for JS.**
 *   **`Includes`:** Core utilities (DB, Auth, Security, Error Handling, Email).
 *   **`config.php`:** Configuration (DB, Security, API Keys).
 *   **`js/main.js`:** Frontend interactivity, AJAX calls, **reads CSRF token from `#csrf-token-value`**.
@@ -159,21 +153,21 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 
 ## ⚙️ Technology Stack
 
-| Layer            | Technology                                                                                                | Notes                                                                         |
-| :--------------- | :-------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
-| Frontend         | HTML5, Tailwind CSS (CDN), Custom CSS (`css/style.css`), JavaScript (Vanilla), Font Awesome 6 (CDN)           | Uses AOS.js & Particles.js. Mobile nav fixed.                               |
-| Backend          | PHP 8.0+                                                                                                  | Core logic, MVC-inspired structure.                                         |
-| Web Server       | Apache 2.4+                                                                                               | Requires `mod_rewrite`.                                                     |
-| Database         | MySQL 5.7+ / 8.0+ (or MariaDB equivalent)                                                                   | Requires schema patch for `users` table.                                      |
-| Server-Side Libs | PDO                                                                                                       | For secure database access (Prepared Statements).                             |
-| Optional         | Composer                                                                                                  | Recommended for dependency management (PHPMailer, Stripe SDK).                |
-|                  | APCu                                                                                                      | Used by rate limiting mechanism (requires consistent usage & PHP extension). |
+| Layer            | Technology                                                                                                | Notes                                                              |
+| :--------------- | :-------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------- |
+| Frontend         | HTML5, Tailwind CSS (CDN), Custom CSS (`css/style.css`), JavaScript (Vanilla), Font Awesome 6 (CDN)           | Uses AOS.js & Particles.js. Mobile nav fixed.                    |
+| Backend          | PHP 8.0+                                                                                                  | Core logic, MVC-inspired structure.                              |
+| Web Server       | Apache 2.4+                                                                                               | Requires `mod_rewrite`.                                            |
+| Database         | MySQL 5.7+ / 8.0+ (or MariaDB equivalent)                                                                   | Requires schema patch for `users` table.                         |
+| Server-Side Libs | PDO                                                                                                       | For secure database access (Prepared Statements).                |
+| Optional         | Composer                                                                                                  | Recommended for dependency management (PHPMailer, Stripe SDK).   |
+|                  | APCu                                                                                                      | Used by rate limiting mechanism (requires consistent usage).     |
 
 ---
 
 ## 📁 Folder Structure
 
-*(Reflects current structure - See TDS v13 for detailed map)*
+*(Reflects current structure - See TDS v12 for detailed map)*
 
 Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`, `images/`, `videos/`, `logs/`, `db/`.
 
@@ -185,7 +179,6 @@ Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`
 *   **IMPORTANT:** Apply the patch script [`db/the_scent_update_users_table.sql`](db/the_scent_update_users_table.sql) to update the `users` table with necessary columns (status, newsletter, reset tokens, address fields, timestamps).
 *   **Key Tables:** `users` (updated), `products`, `categories`, `orders`, `order_items`, `cart_items` (inconsistent usage), `quiz_results`, `newsletter_subscribers`, `audit_log`, `coupons`, `coupon_usage`, `inventory_movements`, `tax_rates`, `tax_rate_history`.
 *   **Addresses:** Stored directly in the `users` table. `User::getAddress()` is implemented. Saving addresses needs implementation.
-*   **Cart Storage:** The `cart_items` table exists but is only used for logged-in users. Guest carts use the PHP Session. **This inconsistency should be addressed.**
 
 *(Simplified ER Diagram remains the same as in TDS v12)*
 
@@ -227,14 +220,14 @@ Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`
 5.  Configure production web server (Apache/Nginx).
 6.  **Enable HTTPS**. Force HTTPS.
 7.  Keep server software updated. Enable PHP OPcache.
-8.  **Test thoroughly**, especially the **full checkout and order confirmation flow**.
+8.  Test thoroughly, especially the Order Confirmation flow after implementing the recommended fix.
 
 ---
 
 ## 🛡️ Security Best Practices Implemented
 
 *   ✅ **SQL Injection Prevention:** PDO Prepared Statements used exclusively.
-*   ✅ **CSRF Protection:** Synchronizer Token Pattern implemented and enforced globally on POST. JS reads/sends token correctly.
+*   ✅ **CSRF Protection:** Synchronizer Token Pattern implemented and enforced globally on POST. JS reads token correctly.
 *   ✅ **XSS Prevention:** Input validation (`SecurityMiddleware`) and output escaping (`htmlspecialchars()`) used. CSP header applied (needs review).
 *   ✅ **Authentication & Authorization:** Secure password hashing (`password_hash`/`verify`), Role checks (`isAdmin`, `requireAdmin`), secure password reset flow.
 *   ✅ **Session Management:** Secure cookie flags (HttpOnly, Secure, SameSite=Lax), Session ID regeneration, Session integrity checks (IP/User Agent).
@@ -242,7 +235,7 @@ Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`
 *   ✅ **Error Handling:** Sensitive details suppressed in production. **"Headers Already Sent" issue noted.**
 *   ✅ **Audit Logging:** Key security/user events logged.
 *   🚧 **Rate Limiting:** Mechanism exists but **usage is inconsistent**. Relies on APCu. **Standardization recommended.**
-*   ✅ **Payment Security:** Offloaded to Stripe Elements (PCI DSS). Webhook signature verification implemented. **Webhook session dependency removed.**
+*   ✅ **Payment Security:** Offloaded to Stripe Elements (PCI DSS). Webhook signature verification implemented.
 
 ---
 
@@ -283,7 +276,7 @@ Distributed under the **MIT License**. See the `LICENSE` file for details (assum
 
 ## 📎 Appendix
 
-### ✅ Key Functionality Status Checklist (v3.1)
+### ✅ Key Functionality Status Checklist (v3.0)
 *   [✅] User Registration & Login/Logout (AJAX)
 *   [✅] Password Reset Flow (Email + Form)
 *   [✅] User Profile View & Update (Name, Email, Password, Newsletter Pref)
@@ -293,27 +286,28 @@ Distributed under the **MIT License**. See the `LICENSE` file for details (assum
 *   [✅] Add to Cart (AJAX - Home, List, Detail)
 *   [✅] Cart Page View (Updated UI)
 *   [✅] Cart Item Quantity Update / Removal (AJAX)
-*   [✅] Checkout Page Load (Requires Login, Pre-fills Address, Loads OK)
+*   [✅] Checkout Page Load (Requires Login, Pre-fills Address)
 *   [✅] Checkout AJAX (Coupon Apply, Tax Estimate)
 *   [✅] Checkout Submission (Server-side validation, Order Creation, PI Creation, Inventory Update)
-*   [✅] Order Confirmation Display (**Reliable Flow Implemented**)
 *   [✅] Scent Quiz & Results Display
 *   [✅] Newsletter Signup (AJAX)
 *   [✅] Basic Admin Coupon Management (CRUD Interface)
 *   [✅] Basic Admin Quiz Analytics UI
+*   [🚧] Order Confirmation Display (**Unreliable Flow - Needs Rework**)
 *   [🚧] Cart Storage Consistency (**Needs Standardization**)
 *   [🚧] Rate Limiting (**Needs Consistent Implementation**)
 *   [🚧] Address Saving (**Needs Implementation in Profile/Checkout**)
 
 ### 🔮 Future Enhancements & Recommendations (Prioritized)
-1.  **Standardize Cart Storage (High Priority):** Choose DB-only (for logged-in) or Session-only (until checkout) and enforce consistently in `CartController`.
-2.  **Standardize Rate Limiting (Medium Priority):** Apply `BaseController::validateRateLimit()` consistently to sensitive actions. Ensure APCu reliability or implement fallback.
-3.  **Review & Tighten Content Security Policy (Medium Priority):** Update `config.php`.
-4.  **Fix Error Handling ("Headers Already Sent") (Medium Priority):** Make `views/error.php` self-contained or use output buffering in `ErrorHandler`.
-5.  **Implement Address Saving (Medium Priority):** Add logic to save user addresses (profile/checkout).
-6.  **Code Quality & Refactoring (Ongoing/Future):** Composer, Autoloader, Routing Component, Templating Engine, .env, Migrations, Tests.
-7.  **Full Admin Panel (Future):** CRUD for Products, Orders, Users, etc.
-8.  **Advanced Features (Future):** Search improvements, user reviews, wishlists.
+1.  **Rework Order Confirmation Flow (Critical Priority):** Remove session dependency, use URL parameters from Stripe redirect, verify PI status server-side.
+2.  **Standardize Cart Storage (High Priority):** Use DB consistently for logged-in users.
+3.  **Standardize Rate Limiting (Medium Priority):** Apply `BaseController::validateRateLimit()` consistently to sensitive actions.
+4.  **Review & Tighten Content Security Policy (Medium Priority):** Update `config.php`.
+5.  **Fix Error Handling ("Headers Already Sent") (Medium Priority):** Make error page self-contained or use output buffering.
+6.  **Implement Address Saving (Medium Priority):** Add logic to save user addresses (profile/checkout).
+7.  **Code Quality & Refactoring (Ongoing/Future):** Composer, Autoloader, Routing Component, Templating Engine, .env, Migrations, Tests.
+8.  **Full Admin Panel (Future):** CRUD for Products, Orders, Users, etc.
+9.  **Advanced Features (Future):** Search, Reviews, Wishlists.
 
 ---
 

@@ -3064,6 +3064,9 @@ class PaymentController extends BaseController {
 
         // Use try-catch for external service initialization
         try {
+            // It's generally recommended to set the API key globally once if possible,
+            // but StripeClient constructor also works fine.
+            // Stripe::setApiKey(STRIPE_SECRET_KEY);
             $this->stripe = new StripeClient(STRIPE_SECRET_KEY);
             $this->webhookSecret = STRIPE_WEBHOOK_SECRET;
         } catch (\Exception $e) {
@@ -3100,7 +3103,7 @@ class PaymentController extends BaseController {
 
         $paymentIntentParams = []; // Define outside try for logging
         try {
-            if ($amount <= 0) throw new InvalidArgumentException('Invalid payment amount.');
+            if ($amount <= 0.50) throw new InvalidArgumentException('Invalid payment amount (must be at least 0.50).'); // Stripe min amount
             $currency = strtolower(trim($currency));
             if (strlen($currency) !== 3) throw new InvalidArgumentException('Invalid currency code.');
             if ($orderId <= 0) throw new InvalidArgumentException('Invalid Order ID for Payment Intent.');
@@ -3116,7 +3119,7 @@ class PaymentController extends BaseController {
                 ]
             ];
 
-             if (!empty($customerEmail)) {
+             if (!empty($customerEmail) && filter_var($customerEmail, FILTER_VALIDATE_EMAIL)) {
                  $paymentIntentParams['receipt_email'] = $customerEmail;
              }
 
@@ -3254,38 +3257,41 @@ class PaymentController extends BaseController {
               return; // Acknowledge webhook, log error
          }
 
-         // Idempotency check
-         if (in_array($order['status'], ['paid', 'processing', 'shipped', 'delivered', 'completed'])) {
+         // Idempotency check: Check if the order status indicates it's already processed or finalized.
+         $processedStatuses = ['processing', 'paid', 'shipped', 'delivered', 'completed', 'refunded', 'partially_refunded', 'cancelled'];
+         if (in_array($order['status'], $processedStatuses)) {
              error_log("Webhook Info: Received successful payment event for already processed order ID {$order['id']}. Status: {$order['status']}");
-             return;
+             return; // Avoid reprocessing
          }
 
-        $newStatus = 'processing'; // Or 'paid'
+        // If status is 'pending_payment' or 'payment_failed', proceed to update
+        $newStatus = 'processing'; // Or 'paid' - depends on your workflow post-payment
         $updated = $this->orderModel->updateStatus($order['id'], $newStatus);
 
         if (!$updated) {
+            // Re-check status in case of race condition
             $currentOrder = $this->orderModel->getById($order['id']);
-            if (!$currentOrder || !in_array($currentOrder['status'], ['paid', 'processing', 'shipped', 'delivered', 'completed'])) {
+            if (!$currentOrder || !in_array($currentOrder['status'], $processedStatuses)) {
+                 // Throw exception only if update truly failed and status isn't already processed
                  error_log("Failed DB update for order: " . json_encode($order));
                  throw new Exception("Failed to update order ID {$order['id']} status to '{$newStatus}'.");
             } else {
+                 // Status was likely updated by another process between initial check and update attempt
                  error_log("Webhook Info: Order ID {$order['id']} status already updated, skipping redundant update in handleSuccessfulPayment.");
             }
         } else {
              error_log("Webhook Success: Updated order ID {$order['id']} status to '{$newStatus}' for PaymentIntent {$paymentIntent->id}.");
-
-             // --- Session variable setting REMOVED ---
-             // No longer setting $_SESSION['last_order_id'] here
-             // --- End removal ---
         }
 
         // --- Email and Cart Clearing Logic (Unchanged) ---
+        // Fetch full order details (including items) for the email
         $fullOrder = $this->orderModel->getByIdAndUserId($order['id'], $order['user_id']);
         if ($fullOrder) {
              if ($this->emailService && method_exists($this->emailService, 'sendOrderConfirmation')) {
                   $userModel = new User($this->db);
                   $user = $userModel->getById($fullOrder['user_id']);
                   if ($user) {
+                       // Send email confirmation
                        $emailSent = $this->emailService->sendOrderConfirmation($fullOrder, $user);
                        if ($emailSent) {
                             error_log("Webhook Success: Order confirmation email queued for order ID {$fullOrder['id']}.");
@@ -3302,8 +3308,10 @@ class PaymentController extends BaseController {
              error_log("Webhook Warning: Could not fetch full order details for notification (Order ID: {$order['id']}).");
         }
 
+        // Clear the user's cart (only if user_id is valid)
         if ($order['user_id']) {
             try {
+                // Ensure Cart class is available
                 if (!class_exists('Cart')) require_once __DIR__ . '/../models/Cart.php';
                 $cartModel = new Cart($this->db, $order['user_id']);
                 $cartModel->clearCart();

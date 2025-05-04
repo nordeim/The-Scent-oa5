@@ -1,0 +1,2 @@
+After login, the redirected page is /index.php?page=account&action=dashboard and you can see from the attached screenshot image that the content is not organized or presented in a logical or sensible way (meaning the page looks messy). Please review the server logs in /index.php?page=account&action=dashboard and also compare its HTML output in view-source_index.php_page=account.html
+The HTML output of the home page is attached as current_landing_page.html for comparison.

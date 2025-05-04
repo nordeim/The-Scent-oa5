@@ -1,6 +1,8 @@
 <?php
-// views/account/dashboard.php
-require_once __DIR__ . '/../layout/header.php'; // Standard header include
+// Updated: views/account/dashboard.php
+// Fixed access to quiz recommendations array key
+
+require_once __DIR__ . '/../layout/header.php'; // <<< Already Added
 ?>
 
 <section class="account-section">
@@ -136,8 +138,9 @@ require_once __DIR__ . '/../layout/header.php'; // Standard header include
                                 $latestQuiz = $quizResults[0];
                                 $preferences = isset($latestQuiz['answers']) ? json_decode($latestQuiz['answers'], true) : [];
                                 if (!is_array($preferences)) $preferences = []; // Ensure it's an array
-                                // Use 'recommendations' key from DB
+                                // --- FIX: Use 'recommendations' key from DB ---
                                 $recommendedIds = isset($latestQuiz['recommendations']) ? json_decode($latestQuiz['recommendations'], true) : [];
+                                // --- END FIX ---
                                 if (!is_array($recommendedIds)) $recommendedIds = []; // Ensure it's an array
                             ?>
                             <div class="quiz-results">
@@ -225,4 +228,4 @@ require_once __DIR__ . '/../layout/header.php'; // Standard header include
     </div>
 </section>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // Standard footer include ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; // <<< Already Added ?>

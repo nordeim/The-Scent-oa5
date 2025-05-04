@@ -345,7 +345,7 @@ define('SECURITY_SETTINGS', [
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         // CSP tightened: removed 'unsafe-inline' from script-src and style-src
-        // 'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self'; frame-src https://js.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com",
+        'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self'; frame-src https://js.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com",
         'Strict-Transport-Security' => 'max-age=31536000; includeSubDomains'
     ],
     'file_upload' => [
@@ -1761,7 +1761,7 @@ class User {
 # models/Quiz.php  
 ```php
 <?php
-// models/Quiz.php (Updated with getDetailedAnalytics, getUserPreferenceHistory, and adjusted saveQuizResult signature)
+// models/Quiz.php (Updated: Fixed column name in getResultsByUserId)
 
 class Quiz {
     private PDO $pdo; // Use type hint
@@ -1876,7 +1876,7 @@ class Quiz {
             // The controller now passes an array of IDs directly.
             $stmt = $this->pdo->prepare("
                 INSERT INTO quiz_results
-                (user_id, email, answers, recommended_products, created_at) /* Changed column name */
+                (user_id, email, answers, recommendations, created_at) /* Use correct column name 'recommendations' */
                 VALUES (?, ?, ?, ?, NOW()) /* Use NOW() for DB consistency */
             ");
 
@@ -1898,7 +1898,6 @@ class Quiz {
 
     /**
      * Fetches all quiz results for a specific user, ordered by date.
-     * (Unchanged from original provided file)
      *
      * @param int $userId The user's ID.
      * @return array An array of quiz results, or an empty array if none found or on error.
@@ -1908,13 +1907,14 @@ class Quiz {
             return []; // Return empty array for invalid user ID
         }
         try {
-            // Select necessary columns, potentially decode JSON fields if needed later
+            // --- FIX: Select 'recommendations' column instead of 'recommended_products' ---
             $stmt = $this->pdo->prepare("
-                SELECT id, user_id, email, answers, recommended_products, created_at
+                SELECT id, user_id, email, answers, recommendations, created_at
                 FROM quiz_results
                 WHERE user_id = ?
                 ORDER BY created_at DESC
             ");
+            // --- END FIX ---
             $stmt->execute([$userId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1925,6 +1925,7 @@ class Quiz {
             return []; // Return empty array on database error
         }
     }
+
 
     private function getScentDescription($scentType) {
         // This method remains unchanged from the original
@@ -2031,7 +2032,7 @@ class Quiz {
 
             // Get user's most recent quiz result
             $stmtHistory = $this->pdo->prepare("
-                SELECT answers, recommended_products
+                SELECT answers, recommendations /* Use correct column */
                 FROM quiz_results
                 WHERE user_id = ?
                 ORDER BY created_at DESC
@@ -2048,7 +2049,7 @@ class Quiz {
                 $answers = json_decode($latestResult['answers'], true);
                 $targetMood = $answers['mood'] ?? null;
                 // Decode existing recommendations to exclude them
-                $excludeIds = json_decode($latestResult['recommended_products'], true);
+                $excludeIds = json_decode($latestResult['recommendations'], true); // Use correct column
                 if (!is_array($excludeIds)) $excludeIds = [];
                 $excludeIds = array_filter($excludeIds, 'is_numeric'); // Ensure numeric IDs
             }
@@ -2136,12 +2137,9 @@ class Quiz {
          }
     }
 
-    // --- START: NEW Method for detailed admin analytics ---
     /**
      * Fetches detailed analytics data for the admin dashboard.
-     *
-     * @param string $timeRange String identifier for the time range ('7', '30', '90', 'all').
-     * @return array Structured analytics data.
+     * (Unchanged from previous correct version)
      */
     public function getDetailedAnalytics(string $timeRange): array {
         $results = [
@@ -2177,7 +2175,6 @@ class Quiz {
             if ($statsData) {
                 $results['statistics']['total_quizzes'] = (int)$statsData['total_quizzes'];
                 $results['statistics']['unique_participants'] = (int)$statsData['unique_participants'];
-                // Placeholder for conversion rate and avg time - requires order data join or quiz details
                  $results['statistics']['conversion_rate'] = null; // Requires joining with orders
                  $results['statistics']['avg_completion_time'] = null; // Requires storing completion time
             }
@@ -2196,10 +2193,7 @@ class Quiz {
             $stmtMood->execute($params);
             $results['preferences']['mood_effects'] = $stmtMood->fetchAll(PDO::FETCH_ASSOC);
 
-            // 3. Preferences - Scent Types (Placeholder - Requires mapping answers/recommendations to scent types)
-            // This is complex without knowing the quiz structure or having product attributes linked directly in results
-            // Example: If recommendations link to products with attributes
-            // $sqlScent = "SELECT pa.scent_type as type, COUNT(*) as count ... JOIN products p ... JOIN product_attributes pa ... WHERE {$intervalClause} GROUP BY pa.scent_type ...";
+            // 3. Preferences - Scent Types (Placeholder)
             $results['preferences']['scent_types'] = []; // Placeholder
 
             // 4. Daily Completions
@@ -2214,50 +2208,24 @@ class Quiz {
             $stmtDaily->execute($params);
             $results['preferences']['daily_completions'] = $stmtDaily->fetchAll(PDO::FETCH_ASSOC);
 
-            // 5. Top Recommendations & Conversion (Placeholder - requires joins/logic)
-             // Example SQL structure (highly simplified, needs refinement)
-             /*
-             $sqlRecs = "
-                 SELECT
-                     p.id, p.name, c.name as category,
-                     COUNT(DISTINCT qr.id) as recommendation_count,
-                     -- Conversion requires joining recommendations with actual orders
-                     NULL as conversion_rate
-                 FROM quiz_results qr
-                 CROSS JOIN JSON_TABLE(qr.recommended_products, '$[*]' COLUMNS(product_id INT PATH '$')) as recs
-                 JOIN products p ON recs.product_id = p.id
-                 LEFT JOIN categories c ON p.category_id = c.id
-                 WHERE {$intervalClause}
-                 GROUP BY p.id, p.name, c.name
-                 ORDER BY recommendation_count DESC
-                 LIMIT 10
-             ";
-             $stmtRecs = $this->pdo->prepare($sqlRecs);
-             $stmtRecs->execute($params);
-             $results['recommendations'] = $stmtRecs->fetchAll(PDO::FETCH_ASSOC);
-             */
+            // 5. Top Recommendations & Conversion (Placeholder)
             $results['recommendations'] = []; // Placeholder
-
 
         } catch (PDOException $e) {
             error_log("Error generating detailed quiz analytics: " . $e->getMessage());
-            // Return empty structure on error
         }
         return $results;
     }
-    // --- END: NEW Method for detailed admin analytics ---
 
-    // --- START: NEW Method for user preference history ---
+
     /**
      * Fetches the quiz submission history for a specific user.
-     *
-     * @param int $userId The user's ID.
-     * @return array An array containing the user's quiz history (answers, recommendations, date).
+     * (Unchanged from previous correct version)
      */
     public function getUserPreferenceHistory(int $userId): array {
         try {
             $stmt = $this->pdo->prepare("
-                SELECT answers, recommended_products, created_at
+                SELECT answers, recommendations, created_at /* Use correct column name */
                 FROM quiz_results
                 WHERE user_id = ?
                 ORDER BY created_at DESC
@@ -2268,7 +2236,7 @@ class Quiz {
             // Optionally decode JSON fields here if needed by the view immediately
             foreach ($history as &$item) {
                  $item['answers'] = isset($item['answers']) ? (json_decode($item['answers'], true) ?? []) : [];
-                 $item['recommended_products'] = isset($item['recommended_products']) ? (json_decode($item['recommended_products'], true) ?? []) : [];
+                 $item['recommendations'] = isset($item['recommendations']) ? (json_decode($item['recommendations'], true) ?? []) : []; // Use correct column name
             }
              unset($item); // Unset reference
 
@@ -2278,7 +2246,6 @@ class Quiz {
             return []; // Return empty array on error
         }
     }
-    // --- END: NEW Method for user preference history ---
 
 
 } // End Quiz Class

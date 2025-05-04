@@ -1,10 +1,8 @@
 # views/account/dashboard.php  
 ```php
 <?php
-// Updated: views/account/dashboard.php
-// Added header and footer includes
-
-require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
+// views/account/dashboard.php
+require_once __DIR__ . '/../layout/header.php'; // Standard header include
 ?>
 
 <section class="account-section">
@@ -15,8 +13,8 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                 <div class="account-menu">
                     <div class="user-info">
                         <i class="fas fa-user-circle"></i>
-                        <h3><?= htmlspecialchars($user['name']) ?></h3>
-                        <p><?= htmlspecialchars($user['email']) ?></p>
+                        <h3><?= htmlspecialchars($user['name'] ?? 'User') ?></h3>
+                        <p><?= htmlspecialchars($user['email'] ?? '') ?></p>
                     </div>
 
                     <nav>
@@ -62,7 +60,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                         <div class="stat-item">
                             <i class="fas fa-shopping-bag"></i>
                             <div class="stat-info">
-                                <span class="stat-value"><?= count($recentOrders) ?></span>
+                                <span class="stat-value"><?= count($recentOrders ?? []) ?></span>
                                 <span class="stat-label">Recent Orders</span>
                             </div>
                         </div>
@@ -70,7 +68,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                             <i class="fas fa-box"></i>
                             <div class="stat-info">
                                 <?php // Ensure $quizResults is always an array before counting ?>
-                                <span class="stat-value"><?= is_array($quizResults) ? count($quizResults) : 0 ?></span>
+                                <span class="stat-value"><?= is_array($quizResults ?? []) ? count($quizResults) : 0 ?></span>
                                 <span class="stat-label">Saved Preferences</span>
                             </div>
                         </div>
@@ -140,7 +138,8 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                 $latestQuiz = $quizResults[0];
                                 $preferences = isset($latestQuiz['answers']) ? json_decode($latestQuiz['answers'], true) : [];
                                 if (!is_array($preferences)) $preferences = []; // Ensure it's an array
-                                $recommendedIds = isset($latestQuiz['recommended_products']) ? json_decode($latestQuiz['recommended_products'], true) : [];
+                                // Use 'recommendations' key from DB
+                                $recommendedIds = isset($latestQuiz['recommendations']) ? json_decode($latestQuiz['recommendations'], true) : [];
                                 if (!is_array($recommendedIds)) $recommendedIds = []; // Ensure it's an array
                             ?>
                             <div class="quiz-results">
@@ -165,10 +164,8 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                         <h3>Recommended Products</h3>
                                         <div class="product-recommendations">
                                             <?php
-                                                // Ensure $pdo is available (should be passed via controller or globally)
-                                                // NOTE: $pdo is automatically available in views rendered by BaseController::renderView
+                                                // Ensure $pdo is available (auto-available via renderView)
                                                 if (isset($pdo)) {
-                                                    // Ensure Product model is loaded if needed directly in view
                                                     if (!class_exists('Product')) require_once __DIR__ . '/../../models/Product.php';
                                                     $productModel = new Product($pdo);
                                                     $recommendations = $productModel->getProductsByIds($recommendedIds);
@@ -230,7 +227,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
     </div>
 </section>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; // Standard footer include ?>
 
 ```
 

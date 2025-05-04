@@ -1,3 +1,8 @@
+Okay, I will update the `models/Quiz.php` file based on the provided `Quiz.php-orig.txt` by adding the missing `getDetailedAnalytics` and `getUserPreferenceHistory` methods, and adjusting the `saveQuizResult` signature for compatibility.
+
+Here's the complete updated `models/Quiz.php`:
+
+```php
 <?php
 // models/Quiz.php (Updated with getDetailedAnalytics, getUserPreferenceHistory, and adjusted saveQuizResult signature)
 
@@ -520,3 +525,24 @@ class Quiz {
 
 
 } // End Quiz Class
+```
+
+**Summary of Changes:**
+
+1.  **Added `getDetailedAnalytics(string $timeRange)`:**
+    *   Implemented the method to fetch structured data for the admin quiz analytics page.
+    *   Includes queries for basic stats (total quizzes, unique participants), mood preferences (by extracting `$.mood` from the `answers` JSON), and daily completions.
+    *   Placeholders are included for scent type preferences and recommendation conversion rates, as these require more complex joins or assumptions about the data structure that are not currently defined.
+    *   Uses prepared statements and handles the `$timeRange` parameter correctly.
+    *   Returns a structured array suitable for the controller and potentially the JS charting library.
+2.  **Added `getUserPreferenceHistory(int $userId)`:**
+    *   Implemented the method to fetch a user's quiz submission history (`answers`, `recommended_products`, `created_at`) ordered by date.
+    *   Includes optional JSON decoding within the method.
+    *   Handles errors gracefully, returning an empty array.
+3.  **Adjusted `saveQuizResult` Signature:**
+    *   Changed the method signature to `saveQuizResult(?int $userId, ?string $email, array $answers, array $recommendationIds, ?array $details = null): bool`. This matches the call pattern in the updated `QuizController` (`processQuiz` method), accepting the optional `$details` array even though it's not currently used within this model method. This prevents potential "ArgumentCountError" issues. The core logic still uses the `$recommendationIds` passed directly.
+
+These changes ensure the `Quiz` model now provides the necessary methods (`getDetailedAnalytics`, `getUserPreferenceHistory`) called by the `QuizController` and aligns the `saveQuizResult` method signature.
+
+---
+https://drive.google.com/file/d/1-9_azZDcWjw0TcxtXLU40c5sLcK6BhAm/view?usp=sharing, https://drive.google.com/file/d/13uCUSW5n2_nNW-77ovqKgYBLTEgdt78G/view?usp=sharing, https://drive.google.com/file/d/14Tprq14Ce_o4PzicV8uN8NjRAR3RHVga/view?usp=sharing, https://drive.google.com/file/d/14VYTeB9-4Jm5_uVfbgZnDP1ifPtzpdjF/view?usp=sharing, https://drive.google.com/file/d/18K8IRy-9Wv97u6dOOefW5Fo2O8OJTKvl/view?usp=sharing, https://drive.google.com/file/d/1BYdkXkHVScOEmji3peSUTH1l6-pGVteb/view?usp=sharing, https://drive.google.com/file/d/1CQg29dlNbFSG8K8BUbIhdXk_2XrlAuLj/view?usp=sharing, https://drive.google.com/file/d/1D4n5LqJNzTS8OlAUmA-wk0Xxek6SsTkp/view?usp=sharing, https://drive.google.com/file/d/1G5hYeMTkOhgxce0DnqtPfXhSq8hbML7l/view?usp=sharing, https://drive.google.com/file/d/1HJuCZY5JdHpFjZOMceiMqXXAM1utvSiY/view?usp=sharing, https://drive.google.com/file/d/1LZqGe8yBastGfSr-2FF-dlCicVKx8Mxt/view?usp=sharing, https://drive.google.com/file/d/1MJbk8yBKEoXRTRPPZX00iF9mWEk63Xkp/view?usp=sharing, https://drive.google.com/file/d/1OGtWyJ9MarMZw1v6g54oklTyTBCuMBm6/view?usp=sharing, https://drive.google.com/file/d/1QLzTWsgtcU9pmDj37XknhJLR9jZc5La_/view?usp=sharing, https://drive.google.com/file/d/1QoZi6xLUiDkyha45tLtquPebxFa4vyrO/view?usp=sharing, https://drive.google.com/file/d/1TUtZdMZJIDtRzist1dRVNx8ba6tVZPoX/view?usp=sharing, https://drive.google.com/file/d/1Xz7Y-gFs0LvsNOJyoWicBYWEsbLB2ABW/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221eqUTi2hMG40eJPyqdHnqUSIqReBhkgAE%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1f6lL5QvX8TUZaBD34LCo_R69cVCpd74A/view?usp=sharing, https://drive.google.com/file/d/1l6LyD9k3XbqyvB6vF95HsFFYYAUHJeJi/view?usp=sharing, https://drive.google.com/file/d/1lh9lUQ_xb3y4KTKGbUOeVK6_5qpzQq-2/view?usp=sharing, https://drive.google.com/file/d/1mZQ39XUhy-jccDzKHeMjSp4HQNMjBhBG/view?usp=sharing, https://drive.google.com/file/d/1z9MLM7BFEh6TEnWfYMCD9rZBKyacanrI/view?usp=sharing

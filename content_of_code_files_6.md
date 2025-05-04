@@ -166,7 +166,10 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                         <div class="product-recommendations">
                                             <?php
                                                 // Ensure $pdo is available (should be passed via controller or globally)
+                                                // NOTE: $pdo is automatically available in views rendered by BaseController::renderView
                                                 if (isset($pdo)) {
+                                                    // Ensure Product model is loaded if needed directly in view
+                                                    if (!class_exists('Product')) require_once __DIR__ . '/../../models/Product.php';
                                                     $productModel = new Product($pdo);
                                                     $recommendations = $productModel->getProductsByIds($recommendedIds);
                                                     if (empty($recommendations)) {

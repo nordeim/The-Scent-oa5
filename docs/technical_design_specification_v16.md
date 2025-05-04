@@ -1,4 +1,4 @@
-# The Scent – Technical Design Specification (v14.0)
+# The Scent – Technical Design Specification (v13.0)
 
 ## Table of Contents
 
@@ -68,16 +68,15 @@
 
 ## 1. Introduction
 
-The Scent is a modular, secure, and extensible e-commerce platform focused on delivering premium aromatherapy products. It’s engineered with a custom PHP MVC-inspired architecture without reliance on heavy frameworks, maximizing transparency and developer control. This document (**v14.0**) serves as the updated technical design specification, reflecting the project's current state after incorporating the latest code reviews, fixes, and analysis.
+The Scent is a modular, secure, and extensible e-commerce platform focused on delivering premium aromatherapy products. It’s engineered with a custom PHP MVC-inspired architecture without reliance on heavy frameworks, maximizing transparency and developer control. This document (**v13.0**) serves as the updated technical design specification, reflecting the project's current state after incorporating the latest code reviews, fixes, and analysis.
 
-This version documents **significant improvements and clarifications**:
+This version documents **significant improvements**:
 
 1.  **Resolved Checkout Page Load Error:** The fatal error preventing `views/checkout.php` from loading has been fixed by implementing the `getAddress()` method in `models/User.php` and applying the required database schema patch (`db/the_scent_update_users_table.sql`). **The checkout page now loads correctly after user login.**
-2.  **Robust Order Confirmation Flow:** The critically flawed session-based order confirmation logic in `CheckoutController::showOrderConfirmation` has been **completely replaced**. The new implementation correctly uses the `payment_intent` ID from the Stripe redirect URL, verifies the payment status directly with the Stripe API, validates order ownership, and fetches complete order details before rendering the confirmation view (`views/order_confirmation.php`). **This flow is now reliable.**
-3.  **Account Views UI Fixed:** The broken layout on account pages (`/index.php?page=account*`) has been resolved by adding standard header/footer includes (`views/layout/header.php`, `views/layout/footer.php`) to all account view files (`views/account/*.php`).
-4.  **Quiz Flow CSRF Fixed:** The CSRF error on quiz submission has been resolved by updating `QuizController::showQuiz()` to correctly fetch and pass the CSRF token to the `views/quiz.php` view.
-5.  **Product Filter Error Fixed:** The `TypeError` occurring when filtering products by category has been resolved by correcting the `logSecurityEvent` call in `ProductController.php`.
-6.  **Functional User Management & Core Flows:** User Registration, Login (AJAX), Profile Update (Name, Email, Password, Newsletter), Password Reset, Add-to-Cart (AJAX), Cart Management (AJAX), Product Listing/Filtering/Pagination, and the Scent Quiz are confirmed functional.
+2.  **Robust Order Confirmation Flow:** The critically flawed session-based order confirmation logic in `CheckoutController::showOrderConfirmation` has been **completely replaced**. The new implementation correctly uses the `payment_intent` ID from the Stripe redirect URL, verifies the payment status directly with the Stripe API, validates order ownership, and fetches complete order details before rendering the confirmation view (`views/order_confirmation.php`).
+3.  **Enhanced View Robustness:** Defensive coding (`??` null coalescing operator) has been added to `views/checkout.php` to prevent potential PHP Notices/Warnings during rendering, which likely caused the generic "Oops" error page previously displayed after login.
+4.  **Functional User Management:** User Registration, Login (AJAX), Profile Update (Name, Email, Password, Newsletter), and Password Reset flows are confirmed functional via the refactored `AccountController.php` and the updated `User` model.
+5.  **Core E-commerce Functionality:** Product Listing (with pagination), AJAX Add-to-Cart, and AJAX Cart Management remain functional.
 
 **Remaining Known Issues / Areas for Improvement:**
 
@@ -92,11 +91,11 @@ This document provides a comprehensive overview of the current architecture, log
 
 ## 2. Project Philosophy & Goals
 
-*   **Security First:** Implemented via PDO Prepared Statements, input validation (`SecurityMiddleware`), secure session handling, CSRF protection (Synchronizer Token Pattern, enforced globally on POST), and security headers (CSP needs review). **Rate limiting requires consistent implementation.**
+*   **Security First:** Implemented via PDO Prepared Statements, input validation (`SecurityMiddleware`), secure session handling, CSRF protection (Synchronizer Token Pattern, enforced globally on POST), and security headers (CSP needs review).
 *   **Simplicity & Maintainability:** Modular structure, clear includes in `index.php`. Consistent coding patterns enforced, especially for CSRF.
 *   **Extensibility:** Architecture allows adding new features/pages, requiring manual includes but providing clear extension points. New POST features must follow the CSRF pattern.
 *   **Performance:** Direct routing, PDO prepared statements. CDN for frontend libs. Caching (APCu for rate limiting) used but needs standardization.
-*   **Modern User Experience:** Responsive design (Tailwind), subtle animations (AOS, Particles), AJAX interactions (Cart, Newsletter, Login/Register). **Core user flows (Auth, Cart, Checkout Load, Order Confirmation, Quiz) are now functional.** **Account UI fixed.**
+*   **Modern User Experience:** Responsive design (Tailwind), subtle animations (AOS, Particles), AJAX interactions (Cart, Newsletter, Login/Register). **Core user flows (Auth, Cart, Checkout Load, Order Confirmation) are now functional.**
 *   **Transparency:** Explicit routing and includes in `index.php`.
 *   **Accessibility & SEO:** Semantic HTML, `aria-label` usage. Basic practices followed.
 
@@ -159,7 +158,7 @@ graph LR
     end
 ```
 
-*   **Key Principles:** Centralized routing (`index.php`), separation of concerns (Controller logic, Model data access, View presentation), secure database interaction (PDO Prepared Statements), global CSRF validation on POST. `BaseController` provides shared utilities.
+*   **Key Principles:** Centralized routing (`index.php`), separation of concerns (Controller logic, Model data access, View presentation), secure database interaction (PDO Prepared Statements), global CSRF validation on POST.
 
 ### 3.2 Request-Response Life Cycle (Implemented Confirmation Flow)
 
@@ -192,14 +191,13 @@ graph LR
 |-- index.php              # Main entry script (routing, core includes, dispatch, POST CSRF validation)
 |-- config.php             # Environment, DB, security settings (SECURITY_SETTINGS array)
 |-- css/
-|   |-- style.css          # Custom CSS rules (Merged from provided files)
-|   |-- admin.css          # Minimal admin CSS (Relies on Tailwind)
+|   |-- style.css          # Custom CSS rules
 |-- images/                # Public image assets (structure assumed, contains products/)
 |-- videos/                # Public video assets (e.g., hero.mp4)
 |-- particles.json         # Particles.js configuration
 |-- .htaccess              # Apache URL rewrite rules & config
 |-- includes/              # Shared PHP utility/core files
-|   |-- auth.php           # Helpers: isLoggedIn(), isAdmin() (partially redundant with BaseController)
+|   |-- auth.php           # Helpers: isLoggedIn(), isAdmin() (partially redundant)
 |   |-- db.php             # PDO connection setup (makes $pdo available)
 |   |-- SecurityMiddleware.php # Security helpers (apply headers/session, validation, CSRF gen/validation)
 |   |-- ErrorHandler.php   # Error/exception handling setup (Headers issue noted)
@@ -207,12 +205,12 @@ graph LR
 |-- controllers/           # Business logic / request handlers
 |   |-- BaseController.php # Abstract base with shared helpers (DB, JSON, redirect, validation, CSRF token fetch, Rate Limiting, auth checks, logging, etc.)
 |   |-- AccountController.php # User auth, profile (Functional)
-|   |-- ProductController.php # Product listing/detail (Pagination OK, Logging fixed)
+|   |-- ProductController.php # Product listing/detail (Pagination OK)
 |   |-- CartController.php    # Cart logic, AJAX handlers (Storage inconsistency noted)
 |   |-- CheckoutController.php # Checkout process (Loads OK, Confirmation OK)
 |   |-- PaymentController.php # Payment Intent creation, Webhook handling (Webhook OK)
 |   |-- NewsletterController.php # Newsletter subscription
-|   |-- QuizController.php    # Quiz logic (CSRF passing fixed)
+|   |-- QuizController.php    # Quiz logic
 |   |-- CouponController.php  # Coupon admin logic
 |   |-- InventoryController.php# Stock management logic
 |   |-- TaxController.php     # Tax calculation logic
@@ -221,27 +219,14 @@ graph LR
 |   |-- User.php           # User data access (Updated & Functional, getAddress implemented)
 |   |-- Order.php          # Order data access (Compatible)
 |   |-- Cart.php           # DB Cart logic (Usage inconsistent)
-|   |-- Quiz.php           # Quiz data access (Updated with missing methods)
+|   |-- Quiz.php           # Quiz data access (Compatible)
 |-- views/                 # HTML/PHP templates
 |   |-- home.php, products.php, product_detail.php, cart.php, checkout.php, ... # Page views
-|   |-- account/             # User account specific views (UI Fixed - Includes added)
-|   |   |-- dashboard.php
-|   |   |-- order_details.php
-|   |   |-- orders.php
-|   |   |-- profile.php
-|   |   |-- (quiz_history.php - if implemented)
+|   |-- account/             # User account specific views (Functional)
 |   |-- admin/             # Admin-specific views (Coupons, Quiz Analytics functional)
-|   |   |-- coupons.php, quiz_analytics.php, products.php, product_form.php, dashboard.php, ...
-|   |-- layout/            # Reusable layout partials (header, footer, admin_header, admin_footer)
-|   |   |-- header.php
-|   |   |-- footer.php
-|   |   |-- admin_header.php
-|   |   |-- admin_footer.php
-|   |-- order_confirmation.php # View for confirmation page (Functional)
+|   |-- layout/            # Reusable layout partials (header, footer)
+|   |-- order_confirmation.php # View for confirmation page (Logic fixed in controller)
 |   |-- checkout.php         # View for checkout (Loads OK, defensive coding added)
-|   |-- quiz.php             # View for quiz form (CSRF OK)
-|   |-- quiz_results.php     # View for quiz results display
-|   |-- ... (other static/error views: 404.php, error.php, contact.php, etc.)
 |-- logs/                  # Directory for log files (requires write permissions)
 |   |-- security.log
 |   |-- error.log
@@ -251,36 +236,33 @@ graph LR
 |   |-- the_scent_update_users_table.sql # REQUIRED patch for 'users' table
 |-- js/                    # Custom JavaScript
 |   |-- main.js            # Global handlers (AJAX, UI), page initializers (CSRF OK)
-|-- README.md              # Project documentation (Should be updated based on this TDS)
-|-- technical_design_specification.md # (This document v14.0)
-|-- composer.json, composer.lock, vendor/ # (Recommended) Added if Composer is used
+|-- README.md              # Project documentation (v3.0)
+|-- technical_design_specification.md # (This document v13.0)
+|-- composer.json, composer.lock, vendor/ # Added if Composer is used
 |-- LICENSE                # MIT License file (Assumed)
 |-- ... (other docs, HTML output files)
 ```
 
 ### 4.2 Key Files Explained
 
-*   **index.php**: Central router. **Auto POST CSRF validation robust.** Dispatches correctly. **Correctly handles `CheckoutController` dependency injection.**
+*   **index.php**: Central router. **Auto POST CSRF validation robust.** Dispatches correctly. **Correctly instantiates `CheckoutController` with `PaymentController` dependency.**
 *   **config.php**: Central config. **CSP needs review.** Rate limit config exists but usage inconsistent. Secrets exposure risk.
 *   **includes/SecurityMiddleware.php**: Provides core security functions. OK.
 *   **controllers/BaseController.php**: Abstract base. Provides essential helpers. Rate limiting usage inconsistent. OK.
 *   **controllers/AccountController.php**: Handles user auth/profile. **Functional.**
-*   **controllers/CheckoutController.php**: Handles checkout. **Loads OK.** **`showOrderConfirmation` logic fixed and robust.**
-*   **controllers/PaymentController.php**: Stripe PI creation, Webhook handling. **Webhook session dependency removed.** `getStripeClient()` available. OK.
-*   **controllers/CartController.php**: Handles cart logic via AJAX. Functional. **Cart storage inconsistency noted.**
-*   **controllers/ProductController.php**: Product listing/detail/admin. Pagination OK. **Logging TypeError fixed.** OK.
-*   **controllers/QuizController.php**: Quiz logic. **CSRF token passing fixed.** Relies on `QuizModel` methods. OK.
-*   **models/User.php**: **Updated & Functional.** `getAddress` implemented. Meets `AccountController` needs. Requires schema patch applied.
+*   **controllers/CheckoutController.php**: Handles checkout. **Page Loads Correctly.** **`showOrderConfirmation` logic fixed and robust.**
+*   **controllers/PaymentController.php**: Handles Stripe PI creation and webhooks. **Webhook handler confirmed free of session dependency for confirmation flow.** `getStripeClient()` added. OK.
+*   **controllers/CartController.php**: Handles cart logic. AJAX functional. **Cart storage inconsistency noted.**
+*   **models/User.php**: **Updated & Functional.** `getAddress()` implemented. Meets `AccountController` needs. Requires schema patch applied.
 *   **models/Order.php**: Order DB logic. Compatible. OK.
 *   **models/Product.php**: Product DB logic. Pagination functional. OK.
 *   **models/Cart.php**: DB cart logic. Usage inconsistent. OK.
-*   **models/Quiz.php**: Quiz DB logic. **Updated with missing methods.** OK.
 *   **views/layout/header.php**: Outputs global CSRF token (`#csrf-token-value`). Reflects login state. OK.
 *   **views/layout/footer.php**: Includes `main.js`. OK.
-*   **views/account/*.php**: Account section views. **Layout fixed by adding header/footer includes.** Compatible with CSS/JS. OK.
-*   **views/checkout.php**: **Loads correctly.** Uses `$userAddress`. AJAX/Stripe JS functional. Defensive coding added. OK.
+*   **views/*.php**: Templates. Use `htmlspecialchars()`. Must output CSRF token correctly if needed. OK.
+*   **views/checkout.php**: **Loads correctly.** Uses `$userAddress`. AJAX/Stripe JS functional. **Defensive coding added.** OK.
+*   **views/cart.php**: Functional with updated UI. Relies on AJAX. OK.
 *   **views/order_confirmation.php**: View OK. **Controller logic fixed.** OK.
-*   **views/quiz.php**: View OK. **Controller now passes CSRF token.** OK.
 *   **js/main.js**: Handles AJAX. **Correctly reads/sends CSRF token.** Page initializers OK.
 *   **includes/ErrorHandler.php**: Global error handling. **"Headers Already Sent" issue noted.**
 *   **db/the_scent_update_users_table.sql**: **Mandatory patch script** for database schema.
@@ -302,14 +284,14 @@ graph LR
 ### 5.3 Controller Dispatch & Action Flow
 
 *   Controllers included/instantiated within `index.php` switch. Extend `BaseController`.
-*   **CSRF Token Flow:** Controllers rendering views needing subsequent CSRF protection *must* fetch the token (`$this->getCsrfToken()`) and pass it to the view data array. **(Confirmed fixed for QuizController)**.
+*   **CSRF Token Flow:** Controllers rendering views needing subsequent CSRF protection *must* fetch the token (`$this->getCsrfToken()`) and pass it to the view data array.
 *   Controllers handling AJAX POST expect CSRF token in the request body (validated by `index.php`). Controllers handling standard POST expect CSRF token in `$_POST['csrf_token']` (validated by `index.php`).
-*   Rate limiting check (`$this->validateRateLimit()`) **should be applied** consistently in sensitive controller actions. **(Still inconsistent)**.
+*   Rate limiting check (`$this->validateRateLimit()`) **should be applied** consistently in sensitive controller actions.
 
 ### 5.4 Views: Templating and Rendering
 
 *   PHP files in `views/` mix HTML and PHP. Use `htmlspecialchars()` for output.
-*   **CSRF Token Output:** Views initiating forms/AJAX **must** output the token via `<input type="hidden" id="csrf-token-value" value="...">`. Standard forms *also* need `<input type="hidden" name="csrf_token" value="...">`. **(Confirmed correct in relevant views)**.
+*   **CSRF Token Output:** Views initiating forms/AJAX **must** output the token via `<input type="hidden" id="csrf-token-value" value="...">`. Standard forms *also* need `<input type="hidden" name="csrf_token" value="...">`.
 *   JS reads token from `#csrf-token-value`.
 
 ---
@@ -323,7 +305,6 @@ graph LR
 *   Styling via Tailwind CDN + custom CSS.
 *   Libraries: Google Fonts, Font Awesome 6, AOS.js, Particles.js (CDNs/local).
 *   Mobile Nav CSS fixed.
-*   **Account views now correctly include CSS/JS via header/footer.**
 
 ### 6.2 Responsive Design and Accessibility
 
@@ -332,7 +313,7 @@ graph LR
 ### 6.3 JavaScript: Interactivity, Libraries, and CSRF Handling
 
 *   **`js/main.js`:** Core script included in footer. Handles global UI (flash messages, mobile menu) and AJAX interactions.
-*   **Page Initializers:** Use `body` class to trigger specific JS setup (e.g., `initCartPage`, `initCheckoutPage`, `initLoginPage`, `initRegisterPage`). **Account pages now load JS correctly.**
+*   **Page Initializers:** Use `body` class to trigger specific JS setup (e.g., `initCartPage`, `initCheckoutPage`).
 *   **AJAX CSRF:** All AJAX POST requests (Add-to-Cart, Cart Update/Remove, Login, Register, Newsletter, Checkout Coupon/Tax) correctly read the CSRF token from the global `#csrf-token-value` hidden input and include it in the request body/payload. This aligns with the server-side validation in `index.php`. **Correct.**
 
 ---
@@ -345,11 +326,11 @@ graph LR
 *   **Product Grid/Cards:** Functional.
 *   **Shopping Cart:** Functional with updated UI. AJAX OK. **Cart storage inconsistency noted.**
 *   **Product Detail Page:** Functional.
-*   **Products Page:** Functional. Filters/Sorting/Pagination work. **Category filter error fixed.**
-*   **Checkout Process:** **Loads correctly.** Address pre-filling works (if data exists). AJAX OK. Payment Intent creation OK.
-*   **Order Confirmation:** **Functional & Reliable.** Controller logic now robustly verifies payment via Stripe API.
-*   **User Account Pages:** **UI Fixed & Functional** (Dashboard, Orders List/Details, Profile View/Update).
-*   **Quiz Flow:** **Functional.** CSRF issue fixed in Controller/View interaction.
+*   **Products Page:** Functional. Filters/Sorting/Pagination work.
+*   **Checkout Process:** **Loads correctly.** Address pre-filling works. AJAX OK. Payment Intent creation OK.
+*   **Order Confirmation:** **Functional.** Controller logic now robustly verifies payment via Stripe API.
+*   **User Account Pages:** Functional (Dashboard, Orders List/Details, Profile View/Update).
+*   **Quiz Flow:** Functional.
 
 ---
 
@@ -361,16 +342,11 @@ graph LR
     *   `CheckoutController`: **Loads & Confirmation Flow Fixed.**
     *   `PaymentController`: PI creation OK. **Webhook session dependency removed.** `getStripeClient()` available.
     *   `CartController`: Functional AJAX. **Cart storage inconsistency.**
-    *   `ProductController`: **Logging TypeError fixed.** Admin routing clarified.
-    *   `QuizController`: **CSRF token passing fixed.**
     *   Rate limiting usage inconsistent.
 *   **Database Abstraction:** PDO Prepared Statements used throughout Models. **Secure.**
 *   **Models:**
     *   `User.php`: **Updated & Functional.** `getAddress` implemented.
-    *   `Order.php`: Compatible. OK.
-    *   `Product.php`: Pagination functional. OK.
-    *   `Cart.php`: Usage inconsistent. OK.
-    *   `Quiz.php`: **Updated with missing methods.** OK.
+    *   Others (`Product`, `Order`, `Cart`, `Quiz`) compatible.
 *   **Security Middleware & Error Handling:** `SecurityMiddleware` enforces headers, session rules, CSRF. `ErrorHandler` handles errors globally, but "Headers Already Sent" issue exists.
 *   **Session, Auth, User Flow:** Secure session handling implemented. Auth flows functional.
 *   **Payment Processing & Webhook:** Stripe PI flow implemented. **Webhook confirmation flow dependency removed.** Signature verification OK.
@@ -402,7 +378,6 @@ Standard e-commerce relationships.
 *   **Checkout Submit:** Works. Server validates, creates order/PI, returns clientSecret.
 *   **Payment Success -> Redirect:** Works. Stripe redirects to confirmation URL with `payment_intent` parameter.
 *   **Confirmation Page Load:** **Works.** `CheckoutController` uses `payment_intent` ID to verify via Stripe API, checks ownership, fetches order, renders view.
-*   **Quiz Submit:** **Works.** `QuizController` validates CSRF, gets recommendations, saves result (if logged in), redirects to results page.
 
 ---
 
@@ -410,11 +385,11 @@ Standard e-commerce relationships.
 
 *   **Input Sanitization & Validation:** **Implemented** via `SecurityMiddleware`.
 *   **Session Management:** **Implemented** (Secure flags, regeneration, integrity checks).
-*   **CSRF Protection:** **Implemented & Fixed** (Synchronizer Token Pattern, global POST validation). Correct JS handling.
+*   **CSRF Protection:** **Implemented** (Synchronizer Token Pattern, global POST validation). Correct JS handling.
 *   **Security Headers & CSP:** **Implemented.** CSP needs review/tightening.
 *   **Rate Limiting:** **Partially Implemented.** Mechanism exists (`BaseController`), but usage needs standardization. Relies on APCu.
 *   **File Uploads & Permissions:** Validation logic exists. Secure handling needed if used. `logs/` needs correct permissions.
-*   **Audit Logging & Error Handling:** **Implemented.** Error handling has "Headers Already Sent" issue. Logging TypeErrors fixed.
+*   **Audit Logging & Error Handling:** **Implemented.** Error handling has "Headers Already Sent" issue.
 *   **SQL Injection Prevention:** **Implemented** via PDO Prepared Statements.
 *   **Payment Security:** Handled via Stripe Elements (PCI compliance offloaded). Webhook signature verification **implemented**.
 
@@ -441,8 +416,8 @@ Standard e-commerce relationships.
 7.  Configure Apache VirtualHost.
 8.  **(Optional but Recommended):** If using Composer dependencies (PHPMailer, Stripe SDK), run `composer install`.
 9.  Browse site, check logs (`error.log`, `security.log`).
-10. **Verify CSRF flow** (inspect views/JS, test POST actions like Quiz submit, Login, Register).
-11. **Verify Core Functionality:** Add-to-Cart, Cart View/Update, Product List/Pagination/Filtering, Login/Register, Profile Update, Password Reset, Quiz Flow. Verify Checkout page loads. **Verify successful payment leads to the Order Confirmation page.** **Verify Account Dashboard UI.**
+10. **Verify CSRF flow** (inspect views/JS, test POST actions).
+11. **Verify Core Functionality:** Add-to-Cart, Cart View/Update, Product List/Pagination, Login/Register, Profile Update, Password Reset. Verify Checkout page loads. **Verify successful payment leads to the Order Confirmation page.**
 12. **Note Known Issues:** Understand cart inconsistency and rate limiting gaps.
 
 ### 11.4 Testing & Debugging Notes
@@ -452,9 +427,6 @@ Standard e-commerce relationships.
 *   Test User Profile/Password flows.
 *   **Test the full payment flow through to the Order Confirmation page.**
 *   Test cart behavior when logging in/out.
-*   Test Quiz submission and results page.
-*   Test Product category filtering.
-*   Test Account Dashboard UI.
 *   Manually trigger rate limits if testing that feature.
 *   Enable `ENVIRONMENT = 'development'` in `config.php` for detailed PHP errors during debugging (disable for production).
 
@@ -462,12 +434,12 @@ Standard e-commerce relationships.
 
 ## 12. Future Enhancements & Recommendations
 
-*(Prioritized List - Core issues addressed)*
+*(Prioritized List - Order Confirmation fixed)*
 
 1.  **Standardize Cart Storage (High Priority):** Choose DB-only (for logged-in) or Session-only (until checkout) and enforce consistently in `CartController`. DB-only is generally preferred for logged-in persistence.
 2.  **Standardize Rate Limiting (Medium Priority):** Apply `BaseController::validateRateLimit()` consistently to sensitive controller actions (Login, Register, Password Reset, Checkout Submit, Coupon Apply, Profile Update). Ensure APCu reliability or implement fallback.
 3.  **Review & Tighten Content Security Policy (Medium Priority):** Update CSP in `config.php` based on actual needs (Stripe, fonts, etc.). Avoid `'unsafe-inline'` if possible.
-4.  **Fix Error Handling ("Headers Already Sent") (Medium Priority):** Make `views/error.php` self-contained or use output buffering more consistently in `ErrorHandler`.
+4.  **Fix Error Handling ("Headers Already Sent") (Medium Priority):** Make `views/error.php` self-contained or use output buffering in `ErrorHandler`.
 5.  **Implement Address Saving (Medium Priority):** Add logic to save user addresses (profile/checkout). Update `views/checkout.php` to use this stored data if available.
 6.  **Code Quality & Refactoring (Ongoing/Future):**
     *   Implement Composer for autoloading and managing dependencies (PHPMailer, Stripe SDK).
@@ -476,7 +448,7 @@ Standard e-commerce relationships.
     *   Use `.env` files for configuration/secrets.
     *   Implement database migrations.
     *   Add unit/integration tests.
-7.  **Full Admin Panel (Future):** Develop CRUD interfaces for Products, Orders, Users, etc. Improve Quiz Analytics methods in `QuizModel`.
+7.  **Full Admin Panel (Future):** Develop CRUD interfaces for Products, Orders, Users, etc.
 8.  **Advanced Features (Future):** Search improvements, user reviews, wishlists, etc.
 
 ---
@@ -495,19 +467,16 @@ Standard e-commerce relationships.
 | `controllers/CheckoutController.php`| Handles checkout. AJAX interaction.                            | **Loads OK. Confirmation Flow Fixed.**                                         |
 | `controllers/PaymentController.php` | Stripe PI creation, Webhook handling                         | OK. **Webhook session dependency removed.** `getStripeClient()` available.      |
 | `controllers/CartController.php`| Handles cart logic via AJAX.                                   | Functional. **Cart storage inconsistent.**                                     |
-| `controllers/ProductController.php` | Product listing/detail/admin.                                | OK. Pagination OK. **Logging TypeError fixed.**                                |
-| `controllers/QuizController.php` | Quiz logic.                                                  | OK. **CSRF token passing fixed.**                                              |
 | `models/User.php`           | User DB logic (**PDO Prepared Statements**).                   | **Updated & Functional.** `getAddress` implemented. Requires schema patch.     |
 | `models/Order.php`          | Order DB logic (**PDO Prepared Statements**).                  | OK.                                                                              |
 | `models/Product.php`        | Product DB logic (**PDO Prepared Statements**).                | OK. Pagination functional.                                                     |
 | `models/Cart.php`           | DB cart logic (**PDO Prepared Statements**).                   | OK. Usage inconsistent.                                                        |
-| `models/Quiz.php`           | Quiz DB logic (**PDO Prepared Statements**).                   | **Updated with missing methods.** OK.                                          |
 | `views/layout/header.php`   | Header, nav, assets, outputs global CSRF token.              | OK.                                                                              |
-| `views/account/*.php`       | Account views (Dashboard, Orders, Profile, etc.)               | **UI Fixed.** Compatible with CSS/JS. OK.                                        |
+| `views/*.php`               | HTML/PHP templates, must output CSRF token correctly.          | OK. Requires correct CSRF token output.                                        |
 | `views/layout/footer.php`   | Footer, JS init, global AJAX handlers read CSRF token.       | OK.                                                                              |
 | `views/checkout.php`        | Checkout form view.                                            | **Loads OK.** Uses `$userAddress`. **Defensive coding added.** AJAX/Stripe OK. |
+| `views/cart.php`            | Cart view.                                                     | Functional, updated UI.                                                        |
 | `views/order_confirmation.php`| Confirmation view.                                             | **Functional.** Controller logic fixed.                                        |
-| `views/quiz.php`            | Quiz form view.                                                | OK. Controller passes CSRF token.                                              |
 | `js/main.js`                | Frontend logic, AJAX handlers, CSRF handling via hidden input. | OK. Correctly handles CSRF for AJAX.                                           |
 | `includes/ErrorHandler.php` | Global error handling.                                         | OK. "Headers Already Sent" issue noted.                                        |
 | `db/*`                      | Schema files.                                                  | **Update script is mandatory.**                                                |
@@ -519,8 +488,6 @@ Standard e-commerce relationships.
 ### C. Code Snippets and Patterns (CSRF, Implemented Confirmation Flow)
 
 #### 1. Correct & Required CSRF Token Implementation Pattern
-
-*(Same as TDS v13.0 - Confirmed correct implementation in relevant files)*
 
 *   **Controller (Rendering View):**
     ```php
@@ -566,7 +533,7 @@ Standard e-commerce relationships.
 
 #### 2. Implemented Order Confirmation Flow (`CheckoutController::showOrderConfirmation`)
 
-*(Same as TDS v13.0 - Confirmed correct and robust implementation)*
+*   **Improvement:** Uses Payment Intent ID from Stripe's redirect URL, verifies status/ownership server-side via Stripe API.
 
 ```php
     // controllers/CheckoutController.php
@@ -675,4 +642,4 @@ Standard e-commerce relationships.
 ```
 
 ---
-https://drive.google.com/file/d/1-9_azZDcWjw0TcxtXLU40c5sLcK6BhAm/view?usp=sharing, https://drive.google.com/file/d/13uCUSW5n2_nNW-77ovqKgYBLTEgdt78G/view?usp=sharing, https://drive.google.com/file/d/14Tprq14Ce_o4PzicV8uN8NjRAR3RHVga/view?usp=sharing, https://drive.google.com/file/d/14VYTeB9-4Jm5_uVfbgZnDP1ifPtzpdjF/view?usp=sharing, https://drive.google.com/file/d/18K8IRy-9Wv97u6dOOefW5Fo2O8OJTKvl/view?usp=sharing, https://drive.google.com/file/d/1BYdkXkHVScOEmji3peSUTH1l6-pGVteb/view?usp=sharing, https://drive.google.com/file/d/1CQg29dlNbFSG8K8BUbIhdXk_2XrlAuLj/view?usp=sharing, https://drive.google.com/file/d/1D4n5LqJNzTS8OlAUmA-wk0Xxek6SsTkp/view?usp=sharing, https://drive.google.com/file/d/1G5hYeMTkOhgxce0DnqtPfXhSq8hbML7l/view?usp=sharing, https://drive.google.com/file/d/1HJuCZY5JdHpFjZOMceiMqXXAM1utvSiY/view?usp=sharing, https://drive.google.com/file/d/1LZqGe8yBastGfSr-2FF-dlCicVKx8Mxt/view?usp=sharing, https://drive.google.com/file/d/1MJbk8yBKEoXRTRPPZX00iF9mWEk63Xkp/view?usp=sharing, https://drive.google.com/file/d/1OGtWyJ9MarMZw1v6g54oklTyTBCuMBm6/view?usp=sharing, https://drive.google.com/file/d/1QLzTWsgtcU9pmDj37XknhJLR9jZc5La_/view?usp=sharing, https://drive.google.com/file/d/1QoZi6xLUiDkyha45tLtquPebxFa4vyrO/view?usp=sharing, https://drive.google.com/file/d/1TUtZdMZJIDtRzist1dRVNx8ba6tVZPoX/view?usp=sharing, https://drive.google.com/file/d/1Xz7Y-gFs0LvsNOJyoWicBYWEsbLB2ABW/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221eqUTi2hMG40eJPyqdHnqUSIqReBhkgAE%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1f6lL5QvX8TUZaBD34LCo_R69cVCpd74A/view?usp=sharing, https://drive.google.com/file/d/1l6LyD9k3XbqyvB6vF95HsFFYYAUHJeJi/view?usp=sharing, https://drive.google.com/file/d/1lh9lUQ_xb3y4KTKGbUOeVK6_5qpzQq-2/view?usp=sharing, https://drive.google.com/file/d/1mZQ39XUhy-jccDzKHeMjSp4HQNMjBhBG/view?usp=sharing, https://drive.google.com/file/d/1z9MLM7BFEh6TEnWfYMCD9rZBKyacanrI/view?usp=sharing
+https://drive.google.com/file/d/1-sUAoBUl6pA64buwufYHBSSi5yZ62Raj/view?usp=sharing, https://drive.google.com/file/d/15bitqhWNq2U0oVwLAq5XykB5yTo0Xjyh/view?usp=sharing, https://drive.google.com/file/d/16HHyF3fUpldmiLxlpEE8NkjgAsjVRkWR/view?usp=sharing, https://drive.google.com/file/d/1A8TTC_ybZjQQV7Twy55kS73hvmPjAbdN/view?usp=sharing, https://drive.google.com/file/d/1Ch0NuZ3uSrLmZQVw9HA32lIpGpJJjde6/view?usp=sharing, https://drive.google.com/file/d/1CqlP3iZUNeT-Iz2HZte3dAVlZ3EE6AU9/view?usp=sharing, https://drive.google.com/file/d/1D54uflzlmAE5tS77KFtf50m3cfIDnMmU/view?usp=sharing, https://drive.google.com/file/d/1FeYPFvldnvjsirrFh5DF9M8WJwU4gqFf/view?usp=sharing, https://drive.google.com/file/d/1VL-sFQfsQba_oE3Qicmgr9nFd9gVe0jX/view?usp=sharing, https://drive.google.com/file/d/1bIM1MPPoku21T6LdQ92gj0H2KPoebDtJ/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221bdZUHlK9NGrEbspVNgspBdWk9Qnaz5jH%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1cE1TiQhqSq2l-5C9SnTS9GM2QKl74j2x/view?usp=sharing, https://drive.google.com/file/d/1gzmYOqQ_bMhQzcuMpipWfN591B9audJl/view?usp=sharing, https://drive.google.com/file/d/1kP97pYJWb-za26V7uitOe78EnSKN07uc/view?usp=sharing, https://drive.google.com/file/d/1kPkUVoSRrZ4gVXc5J5ohl4mW9MA9VB8E/view?usp=sharing, https://drive.google.com/file/d/1lxZ6G3BnCriOybsHE2Iq9cN8NMDAX26G/view?usp=sharing, https://drive.google.com/file/d/1pTUpeOtzldtz3zla_75B1fxEsc_N9Qku/view?usp=sharing, https://drive.google.com/file/d/1u4CMSYpcpxsNO1oYmN_AmAw4SgyB8Pxz/view?usp=sharing

@@ -537,7 +537,8 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Log error using BaseController method if available, otherwise use error_log
-            $this->logSecurityEvent('error_show_home', null, ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+            // --- FIX: Changed second argument from null to [] ---
+            $this->logSecurityEvent('error_show_home', [], ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             error_log("Error loading homepage: " . $e->getMessage()); // Fallback logging
             $this->setFlashMessage('An error occurred while loading the page', 'error');
             // Redirect to a generic error page using BaseController helper
@@ -651,7 +652,8 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Use BaseController logging/helpers
-            $this->logSecurityEvent('error_show_product_list', null, ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+            // --- FIX: Changed second argument from null to [] ---
+            $this->logSecurityEvent('error_show_product_list', [], ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             error_log("Error loading product list: " . $e->getMessage()); // Fallback logging
             $this->setFlashMessage('Error loading products. Please try again.', 'error');
             $this->redirect('index.php?page=error'); // Redirect to generic error page
@@ -711,7 +713,8 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Use BaseController logging/helpers
-            $this->logSecurityEvent('error_show_product_detail', null, ['product_id' => $id ?? null, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+            // --- FIX: Changed second argument from null to [] ---
+            $this->logSecurityEvent('error_show_product_detail', [], ['product_id' => $id ?? null, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             error_log("Error loading product details for ID {$id}: " . $e->getMessage());
             $this->setFlashMessage('Error loading product details. Please try again.', 'error');
             $this->redirect('index.php?page=products'); // Redirect to product list

@@ -107,7 +107,7 @@ class AccountController extends BaseController {
             if ($orderId <= 0) {
                  $this->setFlashMessage('Invalid order ID.', 'error');
                  // Use BaseController redirect helper
-                 $this->redirect('index.php?page=account&section=orders');
+                 $this->redirect('index.php?page=account&action=orders');
                  return;
             }
 
@@ -187,13 +187,10 @@ class AccountController extends BaseController {
             $this->requireLogin();
             $userId = $this->getUserId();
             $this->validateCSRF(); // Use BaseController method, checks POST token
-            // --- START FIX: Add rate limiting ---
-            $this->validateRateLimit('profile_update');
-            // --- END FIX ---
 
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 $this->setFlashMessage('Invalid request method.', 'warning');
-                $this->redirect('index.php?page=account&section=profile');
+                $this->redirect('index.php?page=account&action=profile');
                 return;
             }
 
@@ -272,7 +269,7 @@ class AccountController extends BaseController {
                 $this->logAuditTrail('profile_update', $userId, ['name' => $name, 'email' => $email, 'password_changed' => $passwordChanged]);
 
                 // Redirect back to profile page
-                $this->redirect('index.php?page=account&section=profile');
+                $this->redirect('index.php?page=account&action=profile');
                 return;
 
             } catch (Exception $e) {
@@ -286,7 +283,7 @@ class AccountController extends BaseController {
             $userId = $userId ?? ($this->getUserId() ?? 'unknown'); // Ensure userId is set for logging
             error_log("Profile update failed for user {$userId}: " . $e->getMessage());
             $this->setFlashMessage($e->getMessage(), 'error'); // Show specific error message from exception
-            $this->redirect('index.php?page=account&section=profile'); // Redirect back to profile page
+            $this->redirect('index.php?page=account&action=profile'); // Redirect back to profile page
         }
     }
 
@@ -455,9 +452,6 @@ class AccountController extends BaseController {
             $this->requireLogin();
             $userId = $this->getUserId();
             $this->validateCSRF();
-             // --- START FIX: Add rate limiting ---
-             $this->validateRateLimit('profile_update'); // Reuse profile update limit or create 'pref_update'
-             // --- END FIX ---
 
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                  $this->setFlashMessage('Invalid request method.', 'warning');
@@ -494,7 +488,7 @@ class AccountController extends BaseController {
             $this->logSecurityEvent('newsletter_update_fail', ['user_id' => $userId, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             $this->setFlashMessage('Failed to update newsletter preferences. Please try again.', 'error');
         }
-        $this->redirect('index.php?page=account&section=profile');
+        $this->redirect('index.php?page=account&action=profile');
     }
 
     // --- Authentication (Login / Register) ---
@@ -559,7 +553,10 @@ class AccountController extends BaseController {
              // Merge cart
              if (class_exists('CartController')) {
                  CartController::mergeSessionCartOnLogin($this->db, $user['id']);
-                 // CartController now updates session count internally upon merge
+                 if (class_exists('Cart')) {
+                     $cartModel = new Cart($this->db, $user['id']);
+                     $_SESSION['cart_count'] = $cartModel->getCartCount();
+                 } else { $_SESSION['cart_count'] = 0; }
              } else { error_log("CartController class not found, cannot merge session cart."); }
 
             $this->logAuditTrail('login_success', $user['id']);
@@ -695,8 +692,7 @@ class AccountController extends BaseController {
         if (mb_strlen($password) < $minLength) { return false; }
         if ($reqMixedCase && (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password))) { return false; }
         if ($reqNumber && !preg_match('/[0-9]/', $password)) { return false; }
-        // Ensure special char regex matches config.php or is appropriate
-        if ($reqSpecial && !preg_match('/[\W_]/', $password)) { return false; } // Match any non-alphanumeric including underscore
+        if ($reqSpecial && !preg_match('/[\'^£$%&*()}{@#~?><>,|=_+¬-]/', $password)) { return false; }
         return true;
     }
 

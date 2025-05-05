@@ -1661,6 +1661,17 @@ document.addEventListener('DOMContentLoaded', function() {
                             <label for="order_notes">Order Notes (Optional)</label>
                             <textarea id="order_notes" name="order_notes" rows="3" class="form-textarea"></textarea>
                         </div>
+
+                        <!-- START FIX: Add "Save Address" Checkbox -->
+                        <div class="form-group mt-4">
+                            <label class="checkbox-label flex items-center text-sm text-gray-700 cursor-pointer font-body">
+                                <input type="checkbox" name="save_address" value="1"
+                                       class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary mr-2" checked>
+                                <span>Save this shipping address to my profile</span>
+                            </label>
+                        </div>
+                        <!-- END FIX -->
+
                         <!-- The submit button is now outside the form, controlled by JS -->
                     </form>
                 </div>
@@ -1686,9 +1697,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         <?php foreach ($cartItems as $item): ?>
                             <?php
                                 // Defensive access for variables used in this item's display
-                                $productId = $item['product']['id'] ?? ''; // Use empty string or 0 if appropriate
-                                $imageUrl = $item['product']['image'] ?? '/images/placeholder.jpg';
-                                $productName = $item['product']['name'] ?? 'Unknown Product';
+                                $productInfo = $item['product'] ?? []; // Access nested product array
+                                $productId = $productInfo['id'] ?? ''; // Use empty string or 0 if appropriate
+                                $imageUrl = $productInfo['image'] ?? '/images/placeholder.jpg';
+                                $productName = $productInfo['name'] ?? 'Unknown Product';
                                 $quantity = $item['quantity'] ?? 0;
                                 $lineSubtotal = $item['subtotal'] ?? 0;
                             ?>
@@ -1762,7 +1774,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // This function would typically be called by the page dispatcher in main.js
     // if the body has class 'page-checkout'
     function initCheckoutPage() {
-        console.log("Initializing Checkout Page JS..."); // Add console log for debugging
+        // console.log("Initializing Checkout Page JS..."); // Add console log for debugging
         // --- Configuration ---
         // Fetch config from body data attributes for better security/flexibility
         const bodyData = document.body.dataset;
@@ -1830,7 +1842,7 @@ document.addEventListener('DOMContentLoaded', function() {
              elements = stripe.elements({ appearance });
              const paymentElement = elements.create('payment');
              paymentElement.mount('#payment-element');
-             console.log("Stripe Payment Element mounted.");
+             // console.log("Stripe Payment Element mounted.");
         } catch (stripeError) {
             console.error("Stripe initialization error:", stripeError);
             showMessage("Could not initialize payment system. Please refresh.", true);
@@ -2028,6 +2040,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     checkoutFormData.delete('applied_coupon_code'); // Remove if empty
                 }
+                 // Add save_address checkbox value
+                 const saveAddressCheckbox = checkoutForm.querySelector('input[name="save_address"]');
+                 if (saveAddressCheckbox && saveAddressCheckbox.checked) {
+                     checkoutFormData.set('save_address', '1');
+                 }
 
                 const response = await fetch('index.php?page=checkout&action=processCheckout', {
                     method: 'POST',
@@ -2036,9 +2053,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 // Log status and try to parse JSON regardless of status code initially
-                console.log("Process Checkout Response Status:", response.status);
+                // console.log("Process Checkout Response Status:", response.status);
                 const data = await response.json(); // Try to parse JSON
-                console.log("Process Checkout Response Data:", data);
+                // console.log("Process Checkout Response Data:", data);
 
                 if (response.ok && data.success && data.clientSecret && data.orderId) {
                     clientSecret = data.clientSecret;
@@ -2057,7 +2074,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Ensure BASE_URL ends with '/' for correct path joining
                 const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
                 const returnUrl = `${window.location.origin}${formattedBaseUrl}index.php?page=checkout&action=confirmation`;
-                console.log("Stripe return_url:", returnUrl); // Log the return URL
+                // console.log("Stripe return_url:", returnUrl); // Log the return URL
 
                 const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
                     elements,
@@ -2111,6 +2128,12 @@ document.addEventListener('DOMContentLoaded', function() {
 .form-input:focus, .form-select:focus, .form-textarea:focus {
      outline: none; border-color: #1A4D5A; box-shadow: 0 0 0 2px rgba(26, 77, 90, 0.3);
 }
+/* Added form-group styles if not globally defined elsewhere */
+.form-group { margin-bottom: 1rem; }
+.form-row { display: flex; flex-wrap: wrap; gap: 1rem; }
+.form-row .form-group { flex: 1 1 0%; min-width: 150px; margin-bottom: 0; } /* Adjust min-width as needed */
+.coupon-input { display: flex; gap: 0.5rem; }
+.coupon-input input { flex-grow: 1; }
 </style>
 
 <?php require_once __DIR__ . '/layout/footer.php'; ?>

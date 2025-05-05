@@ -244,11 +244,18 @@ class Product {
     }
 
     public function getFiltered($conditions = [], $params = [], $sortBy = 'name_asc', $limit = 12, $offset = 0) {
-        // --- START: Updated getFiltered method ---
-        // Use conditions provided by Controller directly (controller adds 'p.' prefix)
+        // --- Corrected version from content_of_code_files_2 ---
+        $fixedConditions = array_map(function($cond) {
+            // Ensure word boundaries for simple replacements, handle table aliases
+            $cond = preg_replace('/\bname\b/', 'p.name', $cond);
+            $cond = preg_replace('/\bdescription\b/', 'p.description', $cond);
+            $cond = preg_replace('/\bprice\b/', 'p.price', $cond);
+            $cond = preg_replace('/\bcategory_id\b/', 'p.category_id', $cond);
+            return $cond;
+        }, $conditions);
         $sql = "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id";
-        if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(" AND ", $conditions); // Directly use conditions
+        if (!empty($fixedConditions)) {
+            $sql .= " WHERE " . implode(" AND ", $fixedConditions);
         }
         // Sorting
         switch ($sortBy) {
@@ -261,7 +268,7 @@ class Product {
         $sql .= " LIMIT :limit OFFSET :offset"; // Use named placeholders
         $stmt = $this->pdo->prepare($sql);
 
-        // Bind WHERE clause parameters (if any)
+        // Bind WHERE clause parameters
         $paramIndex = 1;
         foreach ($params as $value) {
             $stmt->bindValue($paramIndex++, $value); // Use positional binding for WHERE params
@@ -279,10 +286,11 @@ class Product {
         }
         unset($product); // Unset reference
         return $products;
-        // --- END: Updated getFiltered method ---
     }
 
-    public function getPriceRange() {
+    // --- Unchanged methods below (getStock, isInStock, etc.) ---
+    // ... (rest of the methods from the provided content_of_code_files_2.md remain here) ...
+     public function getPriceRange() {
         $stmt = $this->pdo->query("
             SELECT MIN(price) as min_price, MAX(price) as max_price
             FROM products
@@ -415,27 +423,34 @@ class Product {
     }
 
     public function getCount($conditions = [], $params = []) {
-        // --- START: Updated getCount method ---
-        $sql = "SELECT COUNT(p.id) as count FROM products p";
-        // Determine if category join is needed based on conditions
+        // --- Corrected version from content_of_code_files_2 ---
+        $fixedConditions = array_map(function($cond) {
+            // Ensure word boundaries for simple replacements, handle table aliases
+            $cond = preg_replace('/\\bname\\b/', 'p.name', $cond);
+            $cond = preg_replace('/\\bdescription\\b/', 'p.description', $cond);
+            $cond = preg_replace('/\\bprice\\b/', 'p.price', $cond);
+            $cond = preg_replace('/\\bcategory_id\\b/', 'p.category_id', $cond);
+            return $cond;
+        }, $conditions);
         $needsCategoryJoin = false;
-        foreach($conditions as $cond) {
-            if (strpos($cond, 'c.') !== false || strpos($cond, 'category_id') !== false) { // Check for alias or column name
+        foreach($fixedConditions as $cond) {
+            if (strpos($cond, 'c.') !== false) {
                 $needsCategoryJoin = true;
                 break;
             }
         }
-        if ($needsCategoryJoin) {
+        $sql = "SELECT COUNT(p.id) as count FROM products p";
+        // Join categories only if category conditions exist
+        if ($needsCategoryJoin || array_key_exists('category_id', $params) || in_array('p.category_id = ?', $fixedConditions)) {
             $sql .= " LEFT JOIN categories c ON p.category_id = c.id";
         }
-        if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(" AND ", $conditions); // Directly use conditions
+        if (!empty($fixedConditions)) {
+            $sql .= " WHERE " . implode(" AND ", $fixedConditions);
         }
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
         return $row ? (int)$row['count'] : 0;
-        // --- END: Updated getCount method ---
     }
 
 } // End Product Class

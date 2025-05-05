@@ -581,7 +581,7 @@ class Cart {
 # includes/ErrorHandler.php  
 ```php
 <?php
-// includes/ErrorHandler.php (Updated v2 - Robust Error Page Display)
+// includes/ErrorHandler.php (Updated v3 - Moved http_response_code)
 
 // Ensure SecurityLogger class is defined before ErrorHandler uses it.
 // (It's defined below in this same file)
@@ -649,17 +649,19 @@ class ErrorHandler {
         self::trackError($error); // Track frequency
         self::logErrorToFile($error); // Log to file/logger
 
-        // Set status code IF headers haven't been sent yet.
-        if (!headers_sent()) {
-             http_response_code(500);
-        } else {
-            // Log the fact that we couldn't set the status code.
-            error_log("ErrorHandler Warning: Cannot set HTTP 500 status code for handled error (errno: {$errno}), headers already sent. Error: {$errstr} in {$errfile}:{$errline}");
-        }
-
         // Attempt to display the error page using output buffering for safety.
         ob_start();
         try {
+            // --- START FIX: Move http_response_code inside try block ---
+            // Set status code IF headers haven't been sent yet.
+            if (!headers_sent()) {
+                 http_response_code(500);
+            } else {
+                // Log the fact that we couldn't set the status code.
+                error_log("ErrorHandler Warning: Cannot set HTTP 500 status code for handled error (errno: {$errno}), headers already sent. Error: {$errstr} in {$errfile}:{$errline}");
+            }
+            // --- END FIX ---
+
             if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
                 self::displayErrorPage($error);
             } else {
@@ -701,16 +703,18 @@ class ErrorHandler {
              if(self::$securityLogger) self::$securityLogger->warning("Potentially security-related exception caught", $error);
         }
 
-        // Set status code IF headers haven't been sent.
-        if (!headers_sent()) {
-            http_response_code(500);
-        } else {
-            error_log("ErrorHandler Warning: Cannot set HTTP 500 status code for exception, headers already sent. Exception: " . $error['message']);
-        }
-
          // Use output buffering to capture the error page output safely
          ob_start();
          try {
+             // --- START FIX: Move http_response_code inside try block ---
+             // Set status code IF headers haven't been sent.
+             if (!headers_sent()) {
+                 http_response_code(500);
+             } else {
+                 error_log("ErrorHandler Warning: Cannot set HTTP 500 status code for exception, headers already sent. Exception: " . $error['message']);
+             }
+             // --- END FIX ---
+
              if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
                  self::displayErrorPage($error);
              } else {
@@ -749,12 +753,14 @@ class ErrorHandler {
               // Use output buffering for safety.
               ob_start();
               try {
+                   // --- START FIX: Move http_response_code inside try block ---
                    // Attempt to set status code only if headers not sent.
                    if (!headers_sent()) {
                        http_response_code(500);
                    } else {
                         error_log("ErrorHandler Warning: Cannot set HTTP 500 status code during fatal error handling, headers already sent.");
                    }
+                   // --- END FIX ---
 
                    if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
                        self::displayErrorPage($fatalError);

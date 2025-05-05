@@ -21,7 +21,7 @@ class CheckoutController extends BaseController {
     private TaxController $taxController;
     private PaymentController $paymentController; // Store PaymentController instance
     private CouponController $couponController;
-    private User $userModel; // Add UserModel instance variable
+    // EmailService is inherited from BaseController
 
     // Updated Constructor to accept PaymentController
     public function __construct($pdo, PaymentController $paymentController) { // Added PaymentController dependency
@@ -32,7 +32,6 @@ class CheckoutController extends BaseController {
         $this->taxController = new TaxController($pdo);
         $this->paymentController = $paymentController; // Store injected PaymentController
         $this->couponController = new CouponController($pdo);
-        $this->userModel = new User($pdo); // Initialize UserModel
     }
 
     /**
@@ -84,11 +83,8 @@ class CheckoutController extends BaseController {
         $shipping_cost = $subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
         $total = $subtotal + $shipping_cost + $tax_amount;
 
-        // --- Corrected: Initialize UserModel properly ---
-        // $userModel = new User($this->db); // Removed - Initialized in constructor now
-        $userAddress = $this->userModel->getAddress($userId); // Fetches address data or null
-        // --- End Correction ---
-
+        $userModel = new User($this->db);
+        $userAddress = $userModel->getAddress($userId); // Fetches address data or null
 
         $csrfToken = $this->getCsrfToken();
         $bodyClass = 'page-checkout';
@@ -128,6 +124,10 @@ class CheckoutController extends BaseController {
         if (empty($country)) {
            return $this->jsonResponse(['success' => false, 'error' => 'Country is required'], 400);
         }
+        // Allow zero subtotal for tax calculation (might be free items + shipping tax)
+        // if ($subtotalAfterDiscount <= 0) {
+        //      return $this->jsonResponse(['success' => false, 'error' => 'Cart is empty or invalid'], 400);
+        // }
 
         $shipping_cost = $subtotalAfterDiscount >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
         $tax_amount = $this->taxController->calculateTax($subtotalAfterDiscount, $country, $state); // Tax based on subtotal after discount
@@ -156,10 +156,11 @@ class CheckoutController extends BaseController {
     /**
      * Processes the checkout form submission via AJAX.
      * Creates order, handles inventory, coupons, and initiates payment intent.
-     * Optionally updates user address.
      */
     public function processCheckout() {
+        // --- START FIX: Add rate limiting ---
         $this->validateRateLimit('checkout_submit');
+        // --- END FIX ---
         $this->requireLogin(true); // AJAX request
         $this->validateCSRF();
 
@@ -213,9 +214,6 @@ class CheckoutController extends BaseController {
              ], 400);
         }
         $orderNotes = $this->validateInput($_POST['order_notes'] ?? null, 'string', ['max' => 1000]);
-        // --- START FIX: Check Save Address Checkbox ---
-        $saveAddress = isset($_POST['save_address']) && $_POST['save_address'] === '1';
-        // --- END FIX ---
 
         // --- Validate Coupon (Again, server-side) ---
         $couponCode = $this->validateInput($_POST['applied_coupon_code'] ?? null, 'string');
@@ -299,26 +297,11 @@ class CheckoutController extends BaseController {
                 // Use price from the cart item array (which should reflect current price)
                 $itemStmt->execute([$orderId, $productId, $itemData['quantity'], $itemData['price']]);
                 // Decrement stock using InventoryController for audit trail
-                 // Pass $this->db explicitly if InventoryController needs it and doesn't inherit
-                 $inventoryController = new InventoryController($this->db); // Instantiate if not already available
-                if (!$inventoryController->updateStock($productId, -$itemData['quantity'], 'sale', $orderId)) {
+                if (!$this->inventoryController->updateStock($productId, -$itemData['quantity'], 'sale', $orderId)) {
                     // updateStock should throw exception on failure, caught below
                     throw new Exception("Failed to update inventory for product ID {$productId}");
                 }
             }
-
-            // --- START FIX: Update User Address if Requested ---
-            if ($saveAddress) {
-                 // Pass $postData which contains validated shipping fields
-                 // UserModel is now initialized in constructor as $this->userModel
-                if (!$this->userModel->updateAddress($userId, $postData)) {
-                     // Log warning but don't fail the checkout transaction
-                     error_log("Warning: Failed to save user address during checkout for User ID {$userId}. Order ID {$orderId}.");
-                } else {
-                     $this->logAuditTrail('user_address_update_checkout', $userId, ['order_id' => $orderId]);
-                }
-            }
-            // --- END FIX ---
 
             // --- Create Payment Intent ---
             $paymentResult = $this->paymentController->createPaymentIntent($total, 'usd', $orderId, $postData['shipping_email']);
@@ -384,7 +367,9 @@ class CheckoutController extends BaseController {
      */
     public function applyCouponAjax() {
          $this->requireLogin(true); // AJAX
+         // --- START FIX: Add rate limiting ---
          $this->validateRateLimit('coupon_apply');
+         // --- END FIX ---
          $this->validateCSRF();
 
          $json = file_get_contents('php://input');
@@ -595,10 +580,8 @@ class CheckoutController extends BaseController {
                       );
 
                       if ($trackingUpdated) {
-                          // --- Corrected: Use $this->userModel ---
-                          // $userModel = new User($this->db); // Removed
-                          $user = $this->userModel->getById($order['user_id']);
-                          // --- End Correction ---
+                          $userModel = new User($this->db);
+                          $user = $userModel->getById($order['user_id']);
                           // Fetch full order details for email context
                           $fullOrder = $this->orderModel->getByIdAndUserId($orderId, $order['user_id']); // Use correct method
 

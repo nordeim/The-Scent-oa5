@@ -195,13 +195,12 @@ abstract class BaseController {
         }
 
 
-        // --- START FIX: Remove filter_var validation for relative URLs ---
-        // if (!filter_var($finalUrl, FILTER_VALIDATE_URL)) {
-        //     error_log("Redirect URL validation failed after constructing: " . $finalUrl);
-        //     header('Location: ' . rtrim(BASE_URL, '/') . '/'); // Redirect home as safe fallback
-        //     exit;
-        // }
-        // --- END FIX ---
+        // Validate the final URL structure (optional but recommended)
+        if (!filter_var($finalUrl, FILTER_VALIDATE_URL)) {
+            error_log("Redirect URL validation failed after constructing: " . $finalUrl);
+            header('Location: ' . rtrim(BASE_URL, '/') . '/'); // Redirect home as safe fallback
+            exit;
+        }
 
         header('Location: ' . $finalUrl, true, $statusCode);
         exit;

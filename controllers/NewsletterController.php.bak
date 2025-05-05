@@ -15,9 +15,7 @@ class NewsletterController extends BaseController {
     public function subscribe() {
         try {
             $this->validateCSRF();
-            // --- START FIX: Add rate limiting ---
-            $this->validateRateLimit('newsletter_subscribe'); // Use distinct action name
-            // --- END FIX ---
+            $this->validateRateLimit('newsletter');
 
             // Use validateInput from BaseController which uses SecurityMiddleware
             $email = $this->validateInput($_POST['email'] ?? null, 'email');
@@ -124,14 +122,11 @@ class NewsletterController extends BaseController {
             $this->rollback();
             error_log("Newsletter subscription error: " . $e->getMessage());
             $this->logSecurityEvent('newsletter_subscribe_error', ['error' => $e->getMessage(), 'email' => $email ?? null]);
-            // --- START FIX: Check if rate limit error ---
-            $statusCode = ($e->getCode() === 429) ? 429 : 500;
-            $errorMessage = ($e->getCode() === 429) ? $e->getMessage() : 'An error occurred. Please try again later.';
+
             return $this->jsonResponse([
                 'success' => false,
-                'message' => $errorMessage
-            ], $statusCode);
-            // --- END FIX ---
+                'message' => 'An error occurred. Please try again later.'
+            ], 500);
         }
     }
 

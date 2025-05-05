@@ -1,15 +1,7 @@
 <?php
-// views/layout/header.php (Updated with data-* attributes for JS config and simplified cart count)
+// views/layout/header.php (Updated with data-* attributes for JS config)
 
 require_once __DIR__ . '/../../includes/auth.php'; // Provides isLoggedIn()
-
-// --- START SESSION IF NOT ACTIVE ---
-// Ensure session is started before accessing session variables
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-// --- END START SESSION ---
-
 // It's assumed the controller rendering this view has already generated
 // and passed $csrfToken and $bodyClass variables into the view's scope.
 ?>
@@ -84,10 +76,13 @@ if (session_status() === PHP_SESSION_NONE) {
                     <a href="index.php?page=cart" class="cart-link relative group" aria-label="Cart">
                         <i class="fas fa-shopping-bag"></i>
                         <?php
-                            // --- START SIMPLIFIED CART COUNT ---
-                            // Rely on CartController keeping $_SESSION['cart_count'] accurate
-                            $cartCount = $_SESSION['cart_count'] ?? 0;
-                            // --- END SIMPLIFIED CART COUNT ---
+                            $cartCount = 0;
+                            if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); } // Ensure session started
+                            if (isLoggedIn()) {
+                                $cartCount = $_SESSION['cart_count'] ?? 0;
+                            } else {
+                                $cartCount = isset($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
+                            }
                         ?>
                         <span class="cart-count" style="display: <?= $cartCount > 0 ? 'flex' : 'none' ?>;">
                             <?= $cartCount ?>

@@ -1,6 +1,4 @@
 <?php
-// models/Product.php (Updated: Consistent Named Placeholders)
-
 class Product {
     private $pdo;
 
@@ -245,59 +243,34 @@ class Product {
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
     }
 
-    /**
-     * Fetches filtered and sorted products with pagination. Uses NAMED placeholders.
-     *
-     * @param array $conditions Array of SQL condition strings (e.g., "p.category_id = :category_id").
-     * @param array $params Associative array of parameters to bind (e.g., [':category_id' => 1, ':limit' => 10]).
-     * @param string $sortBy Sorting criteria.
-     * @param int $limit Number of items per page.
-     * @param int $offset Offset for pagination.
-     * @return array List of products.
-     */
-    public function getFiltered(array $conditions = [], array $params = [], string $sortBy = 'name_asc', int $limit = 12, int $offset = 0): array {
-        // --- START: FIX 1 - Use NAMED Placeholders ---
+    public function getFiltered($conditions = [], $params = [], $sortBy = 'name_asc', $limit = 12, $offset = 0) {
+        // --- START: Updated getFiltered method ---
+        // Use conditions provided by Controller directly (controller adds 'p.' prefix)
         $sql = "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id";
-
         if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(" AND ", $conditions);
+            $sql .= " WHERE " . implode(" AND ", $conditions); // Directly use conditions
         }
-
         // Sorting
         switch ($sortBy) {
-            case 'price_asc': $sql .= " ORDER BY p.price ASC, p.name ASC"; break;
-            case 'price_desc': $sql .= " ORDER BY p.price DESC, p.name ASC"; break;
+            case 'price_asc': $sql .= " ORDER BY p.price ASC, p.name ASC"; break; // Added secondary sort
+            case 'price_desc': $sql .= " ORDER BY p.price DESC, p.name ASC"; break; // Added secondary sort
             case 'name_desc': $sql .= " ORDER BY p.name DESC"; break;
-            case 'created_at_desc': $sql .= " ORDER BY p.created_at DESC"; break;
+            case 'created_at_desc': $sql .= " ORDER BY p.created_at DESC"; break; // Added created_at sort
             case 'name_asc': default: $sql .= " ORDER BY p.name ASC"; break;
         }
-
-        $sql .= " LIMIT :limit OFFSET :offset"; // Use named placeholders for limit/offset
-
+        $sql .= " LIMIT :limit OFFSET :offset"; // Use named placeholders
         $stmt = $this->pdo->prepare($sql);
 
-        // Add limit and offset to params array
-        $params[':limit'] = (int)$limit;
-        $params[':offset'] = (int)$offset;
-
-        // Bind all parameters using the associative array keys
-        foreach ($params as $key => $value) {
-            // Determine type (simplified: use INT for limit/offset, default for others)
-            $type = PDO::PARAM_STR; // Default to string
-            if ($key === ':limit' || $key === ':offset' || $key === ':category_id') { // Use PARAM_INT for specific keys
-                 $type = PDO::PARAM_INT;
-            } elseif (is_int($value)) {
-                 $type = PDO::PARAM_INT;
-            } elseif (is_bool($value)) {
-                $type = PDO::PARAM_BOOL;
-            } elseif (is_null($value)) {
-                $type = PDO::PARAM_NULL;
-            }
-            $stmt->bindValue($key, $value, $type);
+        // Bind WHERE clause parameters (if any)
+        $paramIndex = 1;
+        foreach ($params as $value) {
+            $stmt->bindValue($paramIndex++, $value); // Use positional binding for WHERE params
         }
+        // Bind LIMIT/OFFSET parameters by name
+        $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
 
-        $stmt->execute(); // Execute without passing params array here, as they are bound
-
+        $stmt->execute();
         $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
         // Decode JSON fields if present
         foreach ($products as &$product) {
@@ -306,7 +279,7 @@ class Product {
         }
         unset($product); // Unset reference
         return $products;
-        // --- END: FIX 1 ---
+        // --- END: Updated getFiltered method ---
     }
 
     public function getPriceRange() {
@@ -329,49 +302,37 @@ class Product {
         }
 
         $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-        // Prepare the ORDER BY FIELD part separately
-        $orderByField = "FIELD(p.id, $placeholders)"; // Use alias p.id
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM products
+            WHERE id IN ($placeholders)
+            ORDER BY FIELD(id, $placeholders)
+        ");
 
-        $sql = "SELECT p.*, c.name as category_name
-                FROM products p
-                LEFT JOIN categories c ON p.category_id = c.id
-                WHERE p.id IN ($placeholders)
-                ORDER BY $orderByField";
-
-        $stmt = $this->pdo->prepare($sql);
-
-        // Double the IDs array for parameters
+        // Double the IDs array since we need it twice in the query
         $params = array_merge($ids, $ids);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
     }
 
-
     public function searchWithFilters($query, $categoryId = null, $minPrice = null, $maxPrice = null) {
-        // --- START: FIX 1 - Use NAMED Placeholders ---
-        $conditions = ["(p.name LIKE :query_name OR p.description LIKE :query_desc OR p.sku LIKE :query_sku)"]; // Added SKU search, table alias, named placeholders
-        $params = [
-            ':query_name' => "%{$query}%",
-            ':query_desc' => "%{$query}%",
-            ':query_sku' => "%{$query}%"
-        ];
+        $conditions = ["(p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ?)"]; // Added SKU search, table alias
+        $params = ["%$query%", "%$query%", "%$query%"];
         if ($categoryId) {
-            $conditions[] = "p.category_id = :category_id"; // Added table alias, named placeholder
-            $params[':category_id'] = $categoryId;
+            $conditions[] = "p.category_id = ?"; // Added table alias
+            $params[] = $categoryId;
         }
         if ($minPrice !== null) {
-            $conditions[] = "p.price >= :min_price"; // Added table alias, named placeholder
-            $params[':min_price'] = $minPrice;
+            $conditions[] = "p.price >= ?"; // Added table alias
+            $params[] = $minPrice;
         }
         if ($maxPrice !== null) {
-            $conditions[] = "p.price <= :max_price"; // Added table alias, named placeholder
-            $params[':max_price'] = $maxPrice;
+            $conditions[] = "p.price <= ?"; // Added table alias
+            $params[] = $maxPrice;
         }
         $sql = "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE " . implode(" AND ", $conditions);
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params); // Execute with named parameters
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
-        // --- END: FIX 1 ---
     }
 
     public function getRelatedProducts($productId, $categoryId, $limit = 4) {
@@ -432,12 +393,12 @@ class Product {
             SELECT p.*, c.name as category_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
-            WHERE p.stock_quantity <= COALESCE(p.low_stock_threshold, :threshold)
+            WHERE p.stock_quantity <= COALESCE(p.low_stock_threshold, ?)
             ORDER BY p.stock_quantity ASC
-        "; // Use named placeholder
+        ";
         $stmt = $this->pdo->prepare($sql);
         // Bind the threshold value passed to the function
-        $stmt->bindValue(':threshold', (int)$threshold, PDO::PARAM_INT);
+        $stmt->bindValue(1, (int)$threshold, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
     }
@@ -453,15 +414,8 @@ class Product {
         return $stmt->execute([(int)$threshold, (int)(bool)$backorderAllowed, (int)$id]);
     }
 
-    /**
-     * Gets the total count of products matching the filter conditions. Uses NAMED placeholders.
-     *
-     * @param array $conditions Array of SQL condition strings (e.g., "p.category_id = :category_id").
-     * @param array $params Associative array of parameters to bind (e.g., [':category_id' => 1]).
-     * @return int Total count.
-     */
-    public function getCount(array $conditions = [], array $params = []): int {
-        // --- START: FIX 1 - Use NAMED Placeholders ---
+    public function getCount($conditions = [], $params = []) {
+        // --- START: Updated getCount method ---
         $sql = "SELECT COUNT(p.id) as count FROM products p";
         // Determine if category join is needed based on conditions
         $needsCategoryJoin = false;
@@ -478,10 +432,10 @@ class Product {
             $sql .= " WHERE " . implode(" AND ", $conditions); // Directly use conditions
         }
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params); // Execute with named parameters
+        $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
         return $row ? (int)$row['count'] : 0;
-        // --- END: FIX 1 ---
+        // --- END: Updated getCount method ---
     }
 
 } // End Product Class

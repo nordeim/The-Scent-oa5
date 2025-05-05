@@ -1,0 +1,235 @@
+<?php
+// controllers/QuizController.php (Updated: showResults logic)
+
+require_once __DIR__ . '/BaseController.php';
+require_once __DIR__ . '/../models/Quiz.php';
+require_once __DIR__ . '/../models/Product.php'; // Added for fetching product details
+
+class QuizController extends BaseController {
+    private Quiz $quizModel; // Use type hint
+    private Product $productModel; // Added product model instance
+
+    public function __construct(PDO $pdo) { // Use type hint
+        parent::__construct($pdo);
+        $this->quizModel = new Quiz($pdo);
+        $this->productModel = new Product($pdo); // Initialize product model
+    }
+
+    /**
+     * Displays the quiz form.
+     */
+    public function showQuiz() {
+        // Use BaseController method to get CSRF token
+        $csrfToken = $this->getCsrfToken();
+        $questions = $this->quizModel->getQuestions(); // Fetch questions
+
+        // Use BaseController render helper
+        $data = [
+            'pageTitle' => 'Scent Finder Quiz',
+            'csrfToken' => $csrfToken,
+            'questions' => $questions, // Pass questions to the view
+            'bodyClass' => 'page-quiz' // For JS initializer
+        ];
+        echo $this->renderView('quiz', $data);
+    }
+
+    /**
+     * Processes quiz submission, saves results, and redirects.
+     */
+    public function processQuiz() {
+        try {
+            $this->validateCSRF(); // Validate CSRF token
+
+            // Validate answers
+            $answers = [];
+            // Example for single question 'mood'
+            $mood = $this->validateInput($_POST['mood'] ?? null, 'string');
+            if (!$mood || !in_array($mood, ['relaxation', 'energy', 'focus', 'balance'])) {
+                throw new Exception('Invalid mood selection.');
+            }
+            $answers['mood'] = $mood;
+
+            // Get user ID or null for guests
+            $userId = $this->getUserId();
+            $userEmail = null; // Email not collected in this quiz version
+
+            // Get recommendations
+            $recommendedProducts = $this->quizModel->getRecommendations($answers);
+            // Extract only product IDs for saving
+            $recommendationIds = array_column($recommendedProducts, 'id');
+            $recommendationIds = array_filter($recommendationIds, 'is_numeric'); // Ensure numeric IDs
+
+            // Save result (including recommendation IDs)
+            $saveSuccess = $this->quizModel->saveQuizResult(
+                 $userId,
+                 $userEmail,
+                 $answers,
+                 $recommendationIds
+            );
+
+            if (!$saveSuccess) {
+                 error_log("Failed to save quiz result for user " . ($userId ?? 'guest'));
+                 // Proceed to redirect anyway, but maybe log an error
+            } else {
+                 $this->logAuditTrail('quiz_completed', $userId, ['answers' => $answers, 'recommendations_count' => count($recommendationIds)]);
+            }
+
+            // --- START: FIX 2 - Store results in session for immediate display ---
+            // Store the fetched product details in session to show on the results page immediately after redirect
+            if (session_status() === PHP_SESSION_NONE) session_start();
+            $_SESSION['quiz_results_products'] = $recommendedProducts; // Store the full product data
+            // --- END: FIX 2 ---
+
+            // Redirect to results page
+            $this->redirect('index.php?page=quiz&action=results'); // Use BaseController helper
+
+        } catch (Exception $e) {
+            error_log("Quiz processing error: " . $e->getMessage());
+            $this->setFlashMessage('Error processing quiz: ' . $e->getMessage(), 'error');
+             // Redirect back to quiz on error
+             $this->redirect('index.php?page=quiz');
+        }
+    }
+
+
+    /**
+      * Displays the quiz results page, showing products based on the LATEST saved recommendations.
+      */
+     public function showResults() {
+         // --- START: FIX 2 - Retrieve results from session first, then fallback ---
+         if (session_status() === PHP_SESSION_NONE) session_start();
+
+         $products = [];
+         if (isset($_SESSION['quiz_results_products'])) {
+             // Use results stored right after submission
+             $products = $_SESSION['quiz_results_products'];
+             unset($_SESSION['quiz_results_products']); // Clear session after displaying once
+         } else {
+             // Fallback: Get latest result from DB and fetch products (if user revisits page)
+             $userId = $this->getUserId();
+             if ($userId) {
+                 $latestResult = $this->quizModel->getResultsByUserId($userId)[0] ?? null; // Get the most recent one
+             } else {
+                 $latestResult = null; // Cannot get latest for guest if session is lost
+             }
+
+             if ($latestResult && !empty($latestResult['recommendations'])) {
+                 $recommendationIds = json_decode($latestResult['recommendations'], true);
+                 if (is_array($recommendationIds) && !empty($recommendationIds)) {
+                     // Ensure IDs are numeric
+                     $recommendationIds = array_filter($recommendationIds, 'is_numeric');
+                     if (!empty($recommendationIds)) {
+                         // Fetch products using the saved IDs
+                         $products = $this->productModel->getProductsByIds($recommendationIds);
+                     }
+                 }
+             }
+
+             // If still no products after fallback, $products remains empty, view will handle it.
+             if (empty($products)) {
+                 error_log("Quiz results page loaded, but no recommendations found in session or DB for user " . ($userId ?? 'guest'));
+                 // Optionally, fetch generic featured products as a final fallback
+                 // $products = $this->productModel->getFeatured(3);
+             }
+         }
+         // --- END: FIX 2 ---
+
+         $csrfToken = $this->getCsrfToken();
+         $data = [
+             'pageTitle' => 'Your Scent Recommendations',
+             'products' => $products, // Pass the correctly fetched products
+             'csrfToken' => $csrfToken,
+             'bodyClass' => 'page-quiz-results' // For JS initializer
+         ];
+
+         echo $this->renderView('quiz_results', $data);
+     }
+
+
+    /**
+     * Displays quiz analytics in the admin area.
+     */
+    public function showAnalytics() {
+        $this->requireAdmin();
+
+        // Get time range filter from query string, default to 7 days
+        $timeRange = $this->validateInput($_GET['range'] ?? '7d', 'string');
+        $days = match ($timeRange) {
+            '1d' => 1,
+            '30d' => 30,
+            '90d' => 90,
+            'all' => 'all',
+            '7d' => 7, // Default
+            default => 7,
+        };
+
+        // --- START: Fetch data using detailed method ---
+        // Assuming getDetailedAnalytics returns the nested structure needed by JS
+        $analyticsData = $this->quizModel->getDetailedAnalytics($days);
+        // --- END: Fetch data ---
+
+        // Handle AJAX request (for dynamic updates)
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return $this->jsonResponse([
+                 'success' => true,
+                 'data' => $analyticsData // Send the fetched data back
+             ]);
+        }
+
+        // Handle standard page load
+        $data = [
+            'pageTitle' => 'Quiz Analytics',
+            'analyticsData' => $analyticsData, // Pass initial data
+            'currentTimeRange' => $timeRange,
+            'csrfToken' => $this->getCsrfToken(),
+            'bodyClass' => 'page-admin-quiz-analytics' // For JS initializer
+        ];
+
+        echo $this->renderView('admin/quiz_analytics', $data);
+    }
+
+
+    /**
+     * Shows the quiz history for the logged-in user.
+     * Requires login.
+     */
+    public function showUserQuizHistory() {
+        $this->requireLogin();
+        $userId = $this->getUserId();
+
+        try {
+             $history = $this->quizModel->getUserPreferenceHistory($userId);
+             // Fetch product details for recommended IDs in each history item
+             foreach ($history as &$item) {
+                 $productIds = $item['recommendations'] ?? [];
+                 if (!empty($productIds) && is_array($productIds)) {
+                      // Ensure IDs are numeric before fetching
+                      $numericIds = array_filter($productIds, 'is_numeric');
+                      if (!empty($numericIds)) {
+                           $item['recommended_products_details'] = $this->productModel->getProductsByIds($numericIds);
+                      } else {
+                           $item['recommended_products_details'] = [];
+                      }
+                 } else {
+                      $item['recommended_products_details'] = [];
+                 }
+             }
+             unset($item); // Unset reference
+
+             $data = [
+                 'pageTitle' => 'Your Quiz History - The Scent',
+                 'history' => $history,
+                 'user' => $this->getCurrentUser(), // For sidebar/layout
+                 'csrfToken' => $this->getCsrfToken(),
+                 'bodyClass' => 'page-account-quiz-history'
+             ];
+             echo $this->renderView('account/quiz_history', $data); // Assuming view exists
+
+        } catch (Exception $e) {
+             error_log("Error fetching user quiz history for user {$userId}: " . $e->getMessage());
+             $this->setFlashMessage('Failed to load quiz history.', 'error');
+             $this->redirect('index.php?page=account'); // Redirect to dashboard
+        }
+    }
+
+} // End QuizController class

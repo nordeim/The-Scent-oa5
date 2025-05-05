@@ -1,5 +1,5 @@
 <?php
-// Updated: views/account/profile.php (v16.0 - Added Address Form)
+// Updated: views/account/profile.php
 // Added header and footer includes
 
 require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
@@ -153,77 +153,31 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                         </form>
                     </div>
 
-                    <!-- START: Shipping Address Section -->
-                    <div class="profile-card bg-white p-6 rounded-lg shadow md:col-span-2" data-aos="fade-up" data-aos-delay="200">
-                         <h2 class="text-xl font-semibold mb-4 border-b pb-2">Shipping Address</h2>
-                         <form action="index.php?page=account&section=profile" method="POST"
-                               class="address-form space-y-4" id="addressForm">
-                              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                              <input type="hidden" name="action" value="update_address"> <!-- Specify action -->
-
-                              <div class="form-group">
-                                   <label for="address_line1" class="block text-sm font-medium text-gray-700">Address Line 1</label>
-                                   <input type="text" id="address_line1" name="address_line1" required
-                                          class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                                          value="<?= htmlspecialchars($userAddress['address_line1'] ?? '') ?>"
-                                          placeholder="Street address, P.O. box, company name, c/o">
-                              </div>
-
-                              <div class="form-group">
-                                   <label for="address_line2" class="block text-sm font-medium text-gray-700">Address Line 2 (Optional)</label>
-                                   <input type="text" id="address_line2" name="address_line2"
-                                          class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                                          value="<?= htmlspecialchars($userAddress['address_line2'] ?? '') ?>"
-                                          placeholder="Apartment, suite, unit, building, floor, etc.">
-                              </div>
-
-                              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                   <div class="form-group">
-                                        <label for="city" class="block text-sm font-medium text-gray-700">City</label>
-                                        <input type="text" id="city" name="city" required
-                                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                                               value="<?= htmlspecialchars($userAddress['city'] ?? '') ?>">
-                                   </div>
-                                   <div class="form-group">
-                                        <label for="state" class="block text-sm font-medium text-gray-700">State / Province / Region</label>
-                                        <input type="text" id="state" name="state" required
-                                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                                               value="<?= htmlspecialchars($userAddress['state'] ?? '') ?>">
-                                   </div>
-                              </div>
-
-                              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div class="form-group">
-                                        <label for="postal_code" class="block text-sm font-medium text-gray-700">ZIP / Postal Code</label>
-                                        <input type="text" id="postal_code" name="postal_code" required
-                                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                                               value="<?= htmlspecialchars($userAddress['postal_code'] ?? '') ?>">
-                                    </div>
-                                   <div class="form-group">
-                                        <label for="country" class="block text-sm font-medium text-gray-700">Country</label>
-                                        <select id="country" name="country" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary">
-                                             <option value="">Select Country</option>
-                                             <option value="US" <?= (($userAddress['country'] ?? '') === 'US') ? 'selected' : '' ?>>United States</option>
-                                             <option value="CA" <?= (($userAddress['country'] ?? '') === 'CA') ? 'selected' : '' ?>>Canada</option>
-                                             <option value="GB" <?= (($userAddress['country'] ?? '') === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
-                                             <option value="AU" <?= (($userAddress['country'] ?? '') === 'AU') ? 'selected' : '' ?>>Australia</option>
-                                             {/* Add more countries as needed */}
-                                        </select>
-                                   </div>
-                              </div>
-
-                              <button type="submit" class="btn-primary mt-4">Save Address</button>
-                         </form>
-                    </div>
-                    <!-- END: Shipping Address Section -->
-
                     <!-- Communication Preferences -->
-                     <div class="profile-card bg-white p-6 rounded-lg shadow md:col-span-2" data-aos="fade-up" data-aos-delay="300"> {/* Adjusted delay */}
+                     <div class="profile-card bg-white p-6 rounded-lg shadow md:col-span-2" data-aos="fade-up" data-aos-delay="200">
                          <h2 class="text-xl font-semibold mb-4 border-b pb-2">Communication Preferences</h2>
                          <form action="index.php?page=account&section=profile" method="POST"
-                               class="preferences-form space-y-3" id="preferencesForm">
+                               class="preferences-form space-y-3">
                              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
                              <input type="hidden" name="action" value="update_preferences"> <!-- Specify action -->
+                             <?php /* Removed unused checkboxes as they are not in the DB schema
+                             <div class="form-group">
+                                 <label class="checkbox-label flex items-center">
+                                     <input type="checkbox" name="email_marketing"
+                                            class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary mr-2"
+                                            <?php //= ($user['email_marketing'] ?? 0) ? 'checked' : '' ?>>
+                                     <span>Promotional emails about new products and special offers</span>
+                                 </label>
+                             </div>
+                             <div class="form-group">
+                                 <label class="checkbox-label flex items-center">
+                                     <input type="checkbox" name="email_orders"
+                                            class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary mr-2"
+                                            <?php //= ($user['email_orders'] ?? 1) ? 'checked' : '' ?>>
+                                     <span>Order status updates and shipping notifications</span>
+                                 </label>
+                             </div>
+                             */ ?>
                              <div class="form-group">
                                  <label class="checkbox-label flex items-center">
                                      <input type="checkbox" name="newsletter_subscribed" value="1"
@@ -243,7 +197,6 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
 </section>
 
 <script>
-// Existing JS for password toggle and validation (from content_of_code_files_6) remains unchanged
 document.addEventListener('DOMContentLoaded', function() {
     // --- Password visibility toggle ---
     document.querySelectorAll('.toggle-password').forEach(button => {
@@ -276,8 +229,6 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function validatePasswordRequirements() {
-        if (!passwordForm || !newPassword || !confirmPassword) return; // Check if elements exist
-
         let allMet = true;
         const passwordValue = newPassword.value;
         const confirmPasswordValue = confirmPassword.value;
@@ -332,8 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (passwordForm && newPassword && confirmPassword) {
         newPassword.addEventListener('input', validatePasswordRequirements);
         confirmPassword.addEventListener('input', validatePasswordRequirements);
-        // Initial validation check on load
-        validatePasswordRequirements();
 
         passwordForm.addEventListener('submit', function(e) {
             // Only perform final check if a new password has been entered
@@ -341,53 +290,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Check if passwords match
                  if (newPassword.value !== confirmPassword.value) {
                      e.preventDefault();
-                     // Use the global flash message function if available
-                     if(typeof window.showFlashMessage === 'function') {
-                          window.showFlashMessage('New passwords do not match.', 'error');
-                     } else { alert('New passwords do not match.'); }
+                     alert('New passwords do not match.');
                      confirmPassword.focus();
                      return;
                  }
                  // Check if password meets requirements according to pattern attribute (browser validation)
                  if (!newPassword.checkValidity()) {
                      e.preventDefault();
-                      if(typeof window.showFlashMessage === 'function') {
-                           window.showFlashMessage('Please ensure the new password meets all requirements.', 'error');
-                      } else { alert('Please ensure the new password meets all requirements.'); }
+                     alert('Please ensure the new password meets all requirements.');
                      newPassword.focus();
                      return;
                  }
             }
              // Current password validation (if new password is set) should be handled server-side for security.
         });
-    }
-
-    // Optional: Add basic client-side validation for the address form if desired
-    const addressForm = document.getElementById('addressForm');
-    if (addressForm) {
-         addressForm.addEventListener('submit', function(e) {
-             const requiredAddressFields = ['address_line1', 'city', 'state', 'postal_code', 'country'];
-             let addressIsValid = true;
-             requiredAddressFields.forEach(id => {
-                  const input = document.getElementById(id);
-                  if (!input || !input.value.trim()) {
-                       addressIsValid = false;
-                       input?.classList.add('border-red-500'); // Add error indication
-                  } else {
-                       input?.classList.remove('border-red-500');
-                  }
-             });
-             if (!addressIsValid) {
-                  e.preventDefault();
-                   if(typeof window.showFlashMessage === 'function') {
-                       window.showFlashMessage('Please fill in all required address fields.', 'error');
-                  } else { alert('Please fill in all required address fields.'); }
-             } else {
-                 // Optional: Add spinner/loading state to button
-                 const submitBtn = addressForm.querySelector('button[type="submit"]');
-                 if (submitBtn) submitBtn.disabled = true; // Prevent double submit
-             }
-         });
     }
 });
 </script>

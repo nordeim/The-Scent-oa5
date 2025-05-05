@@ -21,7 +21,7 @@ for i in controllers/AccountController.php controllers/NewsletterController.php 
 
 for i in includes/EmailService.php views/account/dashboard.php views/account/order_details.php views/account/orders.php views/account/profile.php views/checkout.php includes/auth.php ; do (echo -e "# $i  \n\`\`\`php" ; cat $i ; echo -e "\n\`\`\`\n" ) ; done | tee content_of_code_files_5.md
 
-for i in views/account/dashboard.php views/account/order_details.php views/account/orders.php views/account/profile.php ; do (echo -e "# $i  \n\`\`\`php" ; cat $i ; echo -e "\n\`\`\`\n" ) ; done | tee content_of_code_files_6.md 
+for i in views/account/dashboard.php views/account/order_details.php views/account/orders.php controllers/QuizController.php ; do (echo -e "# $i  \n\`\`\`php" ; cat $i ; echo -e "\n\`\`\`\n" ) ; done | tee content_of_code_files_6.md 
 #for i in models/User.php models/Order.php models/Quiz.php  ; do (echo -e "# $i  \n\`\`\`php" ; cat $i ; echo -e "\n\`\`\`\n" ) ; done | tee content_of_code_files_6.md 
 #
 #### for i in index.php controllers/PaymentController.php controllers/CouponController.php  ; do (echo -e "# $i  \n\`\`\`php" ; cat $i ; echo -e "\n\`\`\`\n" ) ; done | tee content_of_code_files_6.md

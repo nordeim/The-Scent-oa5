@@ -1,168 +1,47 @@
-<?php /* ----- Updated: controllers/QuizController.php ----- */ ?>
 <?php
+// controllers/QuizController.php (Updated: Reverted showResults/processQuiz to session logic)
+
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Quiz.php';
-require_once __DIR__ . '/../models/Product.php';
+require_once __DIR__ . '/../models/Product.php'; // Added for fetching product details
 
 class QuizController extends BaseController {
-    private $quizModel;
-    // Removed duplicate private $pdo; as it's available via $this->db from BaseController
+    private Quiz $quizModel; // Use type hint
+    private Product $productModel; // Added product model instance
 
-    public function __construct($pdo) {
+    public function __construct(PDO $pdo) { // Use type hint
         parent::__construct($pdo);
         $this->quizModel = new Quiz($pdo);
-        // Removed $this->pdo = $pdo; assignment
+        $this->productModel = new Product($pdo); // Initialize product model
     }
 
+    /**
+     * Displays the quiz form.
+     */
     public function showQuiz() {
         try {
-            $questions = $this->quizModel->getQuestions();
+             $questions = $this->quizModel->getQuestions();
+             $csrfToken = $this->getCsrfToken(); // Use BaseController method
 
-            // --- FIX: Fetch CSRF token and make it available to the view ---
-            $csrfToken = $this->getCsrfToken();
-            $pageTitle = 'Scent Finder Quiz'; // Optional: Set page title
-            $bodyClass = 'page-quiz'; // Optional: Set body class for JS
-
-            // Pass data to the view's scope before including it
-            extract([
-                'questions' => $questions,
-                'csrfToken' => $csrfToken,
-                'pageTitle' => $pageTitle,
-                'bodyClass' => $bodyClass
-            ]);
-            // --- END FIX ---
-
-            // Include the view (which now has access to $csrfToken)
-            // Note: Using renderView would be more consistent if BaseController provides it fully
-            // For now, keeping the direct require_once as in the original file
-            require_once __DIR__ . '/../views/quiz.php';
+             $data = [
+                 'pageTitle' => 'Scent Finder Quiz',
+                 'csrfToken' => $csrfToken,
+                 'questions' => $questions,
+                 'bodyClass' => 'page-quiz' // For JS initializer
+             ];
+             echo $this->renderView('quiz', $data); // Use renderView
 
         } catch (Exception $e) {
             error_log("Error loading quiz questions: " . $e->getMessage());
-            // Use BaseController AJAX check if available, otherwise fallback
-            if (method_exists($this, 'isAjaxRequest') && $this->isAjaxRequest()) { // Check if method exists before calling
-                $this->jsonResponse(['error' => 'Failed to load quiz questions'], 500);
-            } else {
-                $this->setFlashMessage('Failed to load quiz questions. Please try again.', 'error');
-                $this->redirect('index.php?page=home'); // Redirect home on error
-            }
+            $this->setFlashMessage('Failed to load quiz questions. Please try again.', 'error');
+            $this->redirect('index.php?page=home'); // Redirect home on error
         }
     }
 
-    // This method seems unused based on index.php routing provided earlier.
-    // Keeping it for now as requested, but processQuiz is likely the active one.
-    public function handleQuizSubmission() {
-        $this->validateRateLimit('quiz_submit');
-        try {
-            $this->validateCSRF();
-
-            // Validate and sanitize answers
-            $answers = [];
-            // Use specific keys if known, or filter POST data carefully
-            if (isset($_POST['mood'])) { // Assuming 'mood' is the primary answer key from the form
-                $answers['mood'] = $this->validateInput($_POST['mood'], 'string');
-            }
-            // Adapt if other question keys like 'q_...' are actually used
-            // foreach ($_POST as $question => $answer) {
-            //     if (strpos($question, 'q_') === 0) {
-            //         $questionId = substr($question, 2);
-            //         $answers[$questionId] = $this->validateInput($answer, 'string');
-            //     }
-            // }
-
-
-            if (empty($answers) || empty($answers['mood'])) { // Check specifically for mood
-                $this->setFlashMessage('Please select an option to get your recommendations.', 'error');
-                $this->redirect('index.php?page=quiz'); // Redirect back to quiz page
-                return; // Stop execution
-            }
-
-            $this->beginTransaction();
-
-            // Get personalized recommendations
-            $recommendations = $this->quizModel->getRecommendations($answers);
-
-            // Prepare recommendation IDs for saving
-            $recommendationIds = [];
-            if (is_array($recommendations)) {
-                 foreach ($recommendations as $product) {
-                     if (isset($product['id'])) $recommendationIds[] = (int)$product['id'];
-                 }
-             }
-
-            // Save quiz results if user is logged in
-            $currentUser = $this->getCurrentUser();
-            if ($currentUser && isset($currentUser['id'])) {
-                // Pass IDs, not the full recommendation objects
-                $this->quizModel->saveQuizResult($currentUser['id'], $currentUser['email'], $answers, $recommendationIds);
-            } else {
-                 // Optionally save for guest using email if collected, or skip saving
-                 // $guestEmail = $this->validateInput($_POST['email'] ?? null, 'email'); // Example if email collected
-                 // if ($guestEmail) {
-                 //     $this->quizModel->saveQuizResult(null, $guestEmail, $answers, $recommendationIds);
-                 // }
-            }
-
-            $this->commit();
-
-            $_SESSION['quiz_recommendations'] = $recommendations; // Store full recommendations for results page
-
-            // Use BaseController AJAX check if available
-            if (method_exists($this, 'isAjaxRequest') && $this->isAjaxRequest()) {
-                $this->jsonResponse([
-                    'success' => true,
-                    'recommendations' => $recommendations // Send full recommendations for AJAX if needed
-                ]);
-            } else {
-                $this->redirect('index.php?page=quiz&action=results'); // Redirect to results display action
-            }
-
-        } catch (Exception $e) {
-            $this->rollback();
-            error_log("Error processing quiz submission: " . $e->getMessage());
-
-             // Use BaseController AJAX check if available
-             if (method_exists($this, 'isAjaxRequest') && $this->isAjaxRequest()) {
-                $this->jsonResponse(['error' => 'Failed to process quiz submission'], 500);
-            } else {
-                $this->setFlashMessage('An error occurred processing your selection. Please try again.', 'error');
-                $this->redirect('index.php?page=quiz');
-            }
-        }
-    }
-
-    public function showResults() {
-        // Ensure session is started before accessing
-        if (session_status() === PHP_SESSION_NONE) { session_start(); }
-
-        if (!isset($_SESSION['quiz_recommendations'])) {
-            $this->setFlashMessage('Please complete the quiz first to see recommendations.', 'info');
-            $this->redirect('index.php?page=quiz');
-            return; // Stop execution
-        }
-
-        $recommendations = $_SESSION['quiz_recommendations'];
-
-        // --- Pass necessary data to the view ---
-        $csrfToken = $this->getCsrfToken();
-        $pageTitle = 'Your Scent Recommendations';
-        $bodyClass = 'page-quiz-results';
-
-        // Use renderView for consistency
-        echo $this->renderView('quiz_results', [
-             'products' => $recommendations, // Pass recommendations as 'products' for the view template
-             'csrfToken' => $csrfToken,
-             'pageTitle' => $pageTitle,
-             'bodyClass' => $bodyClass
-         ]);
-         // --- End passing data ---
-
-
-        // Clear recommendations after showing them
-        unset($_SESSION['quiz_recommendations']);
-    }
-
-    // Method called by index.php for quiz submission
+    /**
+     * Processes quiz submission, saves results, stores recommendations in session, and redirects.
+     * Logic restored from QuizController.php-orig.txt
+     */
     public function processQuiz() {
         $this->validateRateLimit('quiz_submit');
         try {
@@ -181,8 +60,8 @@ class QuizController extends BaseController {
                  $answers['mood'] = $this->validateInput($_POST['mood'], 'string');
              }
 
-            if (empty($answers) || empty($answers['mood'])) {
-                throw new Exception('Please select an option.');
+            if (empty($answers) || empty($answers['mood']) || !in_array($answers['mood'], ['relaxation', 'energy', 'focus', 'balance'])) {
+                 throw new Exception('Please select a valid option.');
             }
 
             $this->beginTransaction();
@@ -209,32 +88,24 @@ class QuizController extends BaseController {
             $sessionId = session_id();
             $browserInfo = $_SERVER['HTTP_USER_AGENT'] ?? null;
 
-            // Call saveQuizResult correctly
-             $this->quizModel->saveQuizResult(
+            // Call saveQuizResult correctly (passing IDs)
+             $saveSuccess = $this->quizModel->saveQuizResult(
                  $userId,
-                 $userEmail, // Pass email associated with user ID if logged in
+                 $userEmail,
                  $answers,
-                 $recommendationIds, // Pass only the IDs
-                 // Add extra details if saveQuizResult accepts them (original only took 4 args)
-                 // [
-                 //    'session_id' => $sessionId,
-                 //    'browser_info' => $browserInfo,
-                 //    'completion_time' => $completionTime
-                 //]
+                 $recommendationIds
              );
+
+            if (!$saveSuccess) {
+                 error_log("Failed to save quiz result for user " . ($userId ?? 'guest'));
+                 // Proceed anyway, but log the error
+            }
 
             $this->commit();
 
-            // Store recommendations in session for results page
+            // Store full recommendations in session for results page (as per original logic)
             $_SESSION['quiz_recommendations'] = $recommendations;
-
-            // Use BaseController AJAX check if available
-            if (method_exists($this, 'isAjaxRequest') && $this->isAjaxRequest()) {
-                return $this->jsonResponse([
-                    'success' => true,
-                    'recommendations' => $recommendations
-                ]);
-            }
+            $this->logAuditTrail('quiz_completed', $userId, ['answers' => $answers, 'recommendations_count' => count($recommendationIds)]);
 
             // Redirect to results display action using BaseController method
             return $this->redirect('index.php?page=quiz&action=results');
@@ -243,210 +114,127 @@ class QuizController extends BaseController {
             $this->rollback();
             error_log("Quiz processing error: " . $e->getMessage());
 
-            // Use BaseController AJAX check if available
-             if (method_exists($this, 'isAjaxRequest') && $this->isAjaxRequest()) {
-                return $this->jsonResponse([
-                    'success' => false,
-                    'error' => $e->getMessage()
-                ], ($e->getCode() === 403 ? 403 : 500)); // Handle potential CSRF 403
-            }
-
             $this->setFlashMessage($e->getMessage(), 'error');
             return $this->redirect('index.php?page=quiz');
         }
     }
 
-    // Removed duplicate isAjaxRequest() - Assuming it's in BaseController
 
-    // --- Analytics and other methods remain the same ---
-    public function getAnalytics() {
-        try {
-            $this->requireAdmin(true); // Specify AJAX if needed
+    /**
+      * Displays the quiz results page, showing products stored in the session.
+      * Logic restored from QuizController.php-orig.txt
+      */
+     public function showResults() {
+         // Ensure session is started before accessing
+         if (session_status() === PHP_SESSION_NONE) { session_start(); }
 
-            // Get time range from request
-            $timeRangeInput = $this->validateInput($_GET['range'] ?? '30', 'string'); // Default to 30 days
-            // Allow specific numerical ranges or 'all'
-             $allowedRanges = ['7', '30', '90', '365', 'all'];
-             $timeRange = in_array($timeRangeInput, $allowedRanges) ? $timeRangeInput : '30';
+         // Retrieve recommendations from session
+         if (!isset($_SESSION['quiz_recommendations'])) {
+             $this->setFlashMessage('Please complete the quiz first to see recommendations.', 'info');
+             $this->redirect('index.php?page=quiz');
+             return; // Stop execution
+         }
 
+         $recommendations = $_SESSION['quiz_recommendations'];
+         // Clear recommendations after retrieving them
+         unset($_SESSION['quiz_recommendations']);
 
-            // Assuming QuizModel has getDetailedAnalytics - Needs implementation in QuizModel
-             if (!method_exists($this->quizModel, 'getDetailedAnalytics')) {
-                  throw new Exception("Quiz analytics calculation method not found in QuizModel.");
-             }
-            $data = $this->quizModel->getDetailedAnalytics($timeRange); // Pass validated range
+         $csrfToken = $this->getCsrfToken();
+         $data = [
+             'pageTitle' => 'Your Scent Recommendations',
+             'products' => $recommendations, // Pass recommendations as 'products'
+             'csrfToken' => $csrfToken,
+             'bodyClass' => 'page-quiz-results' // For JS initializer
+         ];
 
-            // Respond based on request type
-             if (method_exists($this, 'isAjaxRequest') && $this->isAjaxRequest()) {
-                return $this->jsonResponse([
-                    'success' => true,
-                    'data' => $data // Send structured data
-                ]);
-            } else {
-                // For non-AJAX, render the view using BaseController method
-                 return $this->renderView('admin/quiz_analytics', [
-                     'pageTitle' => 'Quiz Analytics - Admin',
-                     'analyticsData' => $data, // Pass structured data
-                     'selectedRange' => $timeRange, // Pass selected range for UI
-                     'bodyClass' => 'page-admin-quiz-analytics', // For JS hook
-                     'csrfToken' => $this->getCsrfToken() // Needed for layout/footer
-                 ]);
-            }
+         echo $this->renderView('quiz_results', $data);
+     }
 
-        } catch (Exception $e) {
-            error_log("Quiz analytics error: " . $e->getMessage());
+    /**
+     * Displays quiz analytics in the admin area.
+     */
+    public function showAnalytics() {
+        $this->requireAdmin();
 
-             if (method_exists($this, 'isAjaxRequest') && $this->isAjaxRequest()) {
-                return $this->jsonResponse([
-                    'success' => false,
-                    'error' => 'Failed to retrieve quiz analytics: ' . $e->getMessage()
-                ], 500);
-            } else {
-                 $this->setFlashMessage('Failed to load analytics: ' . $e->getMessage(), 'error');
-                 // Redirect to admin dashboard or appropriate page
-                 return $this->redirect('index.php?page=admin');
-            }
-        }
-    }
+        // Get time range filter from query string, default to 7 days
+        $timeRange = $this->validateInput($_GET['range'] ?? '7d', 'string');
+        $days = match ($timeRange) {
+            '1d' => 1,
+            '30d' => 30,
+            '90d' => 90,
+            'all' => 'all',
+            '7d' => 7, // Default
+            default => 7,
+        };
 
-    // getPersonalizedRecommendations, getQuizHistory, handleQuiz seem okay,
-    // but handleQuiz is likely redundant with processQuiz. Keep as per request.
-     public function getPersonalizedRecommendations($userId = null) {
-        try {
-            if (!$userId) {
-                $userId = $this->getUserId();
-            }
+        // Fetch data using detailed method
+        $analyticsData = $this->quizModel->getDetailedAnalytics($days);
 
-            if (!$userId) {
-                // Return empty for guests, or throw error if auth required for this feature
-                 return $this->jsonResponse(['success' => true, 'data' => ['recommendations' => [], 'preferences' => []]]);
-                // OR: throw new Exception('User not authenticated');
-            }
-
-            // Assuming methods exist in QuizModel
-            $recommendations = [];
-            if (method_exists($this->quizModel, 'getPersonalizedRecommendations')) {
-                $recommendations = $this->quizModel->getPersonalizedRecommendations($userId);
-            } else { error_log("Missing method: QuizModel::getPersonalizedRecommendations"); }
-
-            $preferences = [];
-            if (method_exists($this->quizModel, 'getUserPreferenceHistory')) {
-                 $preferences = $this->quizModel->getUserPreferenceHistory($userId);
-            } else { error_log("Missing method: QuizModel::getUserPreferenceHistory"); }
-
-
+        // Handle AJAX request (for dynamic updates)
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             return $this->jsonResponse([
-                'success' => true,
-                'data' => [
-                    'recommendations' => $recommendations,
-                    'preferences' => $preferences
-                ]
-            ]);
-
-        } catch (Exception $e) {
-            error_log("Personalization error for User ID {$userId}: " . $e->getMessage());
-            return $this->jsonResponse([
-                'success' => false,
-                'error' => 'Failed to get personalized recommendations'
-            ], 500);
+                 'success' => true,
+                 'data' => $analyticsData // Send the fetched data back
+             ]);
         }
+
+        // Handle standard page load
+        $data = [
+            'pageTitle' => 'Quiz Analytics',
+            'analyticsData' => $analyticsData, // Pass initial data
+            'currentTimeRange' => $timeRange,
+            'csrfToken' => $this->getCsrfToken(),
+            'bodyClass' => 'page-admin-quiz-analytics' // For JS initializer
+        ];
+
+        echo $this->renderView('admin/quiz_analytics', $data);
     }
 
-     public function getQuizHistory() {
-        $this->requireLogin(true); // Assuming this is an AJAX endpoint for account section
+
+    /**
+     * Shows the quiz history for the logged-in user.
+     * Requires login.
+     */
+    public function showUserQuizHistory() {
+        $this->requireLogin();
+        $userId = $this->getUserId();
 
         try {
-            $userId = $this->getUserId();
-            if (!$userId) throw new Exception("User ID not found in session."); // Should be caught by requireLogin
-
-             // Ensure method exists
-             if (!method_exists($this->quizModel, 'getUserQuizHistory')) {
-                 throw new Exception("Quiz history retrieval method not found.");
-             }
-            $history = $this->quizModel->getUserQuizHistory($userId); // Fetch history
-
-            // Respond with JSON
-            $this->jsonResponse([
-                'success' => true,
-                'data' => $history
-            ]);
-
-        } catch (Exception $e) {
-            error_log("Error retrieving quiz history for User ID {$userId}: " . $e->getMessage());
-            // Respond with JSON error
-            $this->jsonResponse([
-                'success' => false,
-                'error' => 'Failed to retrieve quiz history'
-            ], 500);
-        }
-    }
-
-    // This seems like a simplified/older handler. processQuiz is used by the router.
-    // Keeping it as per request.
-    public function handleQuiz() {
-        // WARNING: This method lacks CSRF protection and proper validation compared to processQuiz
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $mood = $_POST['mood'] ?? null;
-            if (!$mood) {
-                // Consider a more user-friendly error display
-                die("Please select a mood.");
-            }
-
-            // Map mood to product attribute criteria
-            $moodEffectMap = [
-                'relaxation' => 'calming',
-                'energy' => 'energizing',
-                'focus' => 'focusing',
-                'balance' => 'balancing'
-            ];
-            $moodEffect = $moodEffectMap[$mood] ?? 'calming';
-
-             try {
-                 // Use $this->db instead of global $pdo
-                 $stmt = $this->db->prepare("
-                     SELECT p.*
-                     FROM products p
-                     LEFT JOIN product_attributes pa ON p.id = pa.product_id
-                     WHERE pa.mood_effect = ?
-                     ORDER BY RAND()
-                     LIMIT 3
-                 ");
-                 $stmt->execute([$moodEffect]);
-                 $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                 // Ensure session started before accessing
-                 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-                 $userId = $_SESSION['user']['id'] ?? null;
-                 $email = $_SESSION['user']['email'] ?? null;
-
-                 $answers = json_encode(['mood' => $mood]);
-                 $recommendationIds = json_encode(array_column($products, 'id'));
-
-                 // Call the proper save method (if it exists)
-                 if (method_exists($this->quizModel, 'saveQuizResult')) {
-                      $this->quizModel->saveQuizResult($userId, $email, json_decode($answers, true), json_decode($recommendationIds, true));
+             $history = $this->quizModel->getUserPreferenceHistory($userId);
+             // Fetch product details for recommended IDs in each history item
+             foreach ($history as &$item) {
+                 $productIds = $item['recommendations'] ?? [];
+                 if (!empty($productIds) && is_array($productIds)) {
+                      // Ensure IDs are numeric before fetching
+                      $numericIds = array_filter($productIds, 'is_numeric');
+                      if (!empty($numericIds)) {
+                           $item['recommended_products_details'] = $this->productModel->getProductsByIds($numericIds);
+                      } else {
+                           $item['recommended_products_details'] = [];
+                      }
                  } else {
-                       // Fallback if method doesn't exist (or log error)
-                       error_log("QuizModel::saveQuizResult method not found.");
+                      $item['recommended_products_details'] = [];
                  }
-
-
-                 // Show results page - Pass data correctly
-                 $_SESSION['quiz_recommendations'] = $products; // Store full product data
-                 $this->redirect('index.php?page=quiz&action=results'); // Redirect to show results page
-                 exit;
-
-             } catch (Exception $e) {
-                  error_log("Error in handleQuiz POST: " . $e->getMessage());
-                  // Display error or redirect
-                   $this->setFlashMessage('An error occurred submitting your quiz.', 'error');
-                   $this->redirect('index.php?page=quiz');
-                   exit;
              }
+             unset($item); // Unset reference
 
-        } else {
-            // Show the quiz form for GET request
-            $this->showQuiz(); // Call the method that renders the form
+             $data = [
+                 'pageTitle' => 'Your Quiz History - The Scent',
+                 'history' => $history,
+                 'user' => $this->getCurrentUser(), // For sidebar/layout
+                 'csrfToken' => $this->getCsrfToken(),
+                 'bodyClass' => 'page-account-quiz-history'
+             ];
+             echo $this->renderView('account/quiz_history', $data); // Assuming view exists
+
+        } catch (Exception $e) {
+             error_log("Error fetching user quiz history for user {$userId}: " . $e->getMessage());
+             $this->setFlashMessage('Failed to load quiz history.', 'error');
+             $this->redirect('index.php?page=account'); // Redirect to dashboard
         }
     }
-}
+
+    // Removed handleQuizSubmission and handleQuiz as processQuiz is the active method based on index.php
+    // Removed getAnalytics, getPersonalizedRecommendations, getQuizHistory as they are not directly called by index.php
+
+} // End QuizController class

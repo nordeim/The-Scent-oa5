@@ -1,6 +1,4 @@
 <?php
-// controllers/ProductController.php (Updated: Pass Named Parameters to Model)
-
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Product.php';
 
@@ -18,6 +16,7 @@ class ProductController extends BaseController {
     // --- Public Facing Methods ---
 
     public function showHomePage() {
+        // ... (code remains the same as in content_of_code_files_1.md) ...
          try {
             $featuredProducts = $this->productModel->getFeatured();
             // Log if empty, but don't throw error - view should handle empty state
@@ -41,7 +40,8 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Log error using BaseController method if available, otherwise use error_log
-            $this->logSecurityEvent('error_show_home', ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'], []); // Corrected parameter order
+            // --- FIX: Changed second argument from null to [] ---
+            $this->logSecurityEvent('error_show_home', [], ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             error_log("Error loading homepage: " . $e->getMessage()); // Fallback logging
             $this->setFlashMessage('An error occurred while loading the page', 'error');
             // Redirect to a generic error page using BaseController helper
@@ -50,6 +50,7 @@ class ProductController extends BaseController {
     }
 
     public function showProductList() {
+        // ... (code remains the same as in content_of_code_files_1.md) ...
          try {
             // Validate input using BaseController helper
             $page = $this->validateInput($_GET['page_num'] ?? 1, 'int', ['min' => 1]) ?: 1;
@@ -62,43 +63,43 @@ class ProductController extends BaseController {
             // Calculate pagination
             $offset = ($page - 1) * $this->itemsPerPage;
 
-            // --- START: FIX 1 - Build NAMED Params/Conditions ---
+            // Get products based on filters
             $conditions = [];
-            $params = []; // Now an associative array
+            $params = [];
 
             // Apply search condition
             if (!empty($searchQuery)) {
-                $conditions[] = "(p.name LIKE :search_name OR p.description LIKE :search_desc)"; // Named placeholders
-                $params[':search_name'] = "%{$searchQuery}%";
-                $params[':search_desc'] = "%{$searchQuery}%";
+                $conditions[] = "(p.name LIKE ? OR p.description LIKE ?)"; // Prefix with 'p.'
+                $params[] = "%{$searchQuery}%";
+                $params[] = "%{$searchQuery}%";
             }
 
             // Apply category filter
             if ($categoryId !== null && $categoryId !== false && $categoryId > 0) {
-                $conditions[] = "p.category_id = :category_id"; // Named placeholder
-                $params[':category_id'] = $categoryId;
+                $conditions[] = "p.category_id = ?"; // Prefix with 'p.'
+                $params[] = $categoryId;
             }
 
             // Apply price filters
             if ($minPrice !== null && $minPrice !== false && is_numeric($minPrice)) {
-                $conditions[] = "p.price >= :min_price"; // Named placeholder
-                $params[':min_price'] = $minPrice;
+                $conditions[] = "p.price >= ?"; // Prefix with 'p.'
+                $params[] = $minPrice;
             }
             if ($maxPrice !== null && $maxPrice !== false && is_numeric($maxPrice)) {
-                $conditions[] = "p.price <= :max_price"; // Named placeholder
-                $params[':max_price'] = $maxPrice;
+                $conditions[] = "p.price <= ?"; // Prefix with 'p.'
+                $params[] = $maxPrice;
             }
-            // --- END: FIX 1 ---
 
-            // Get total count for pagination using the same named conditions/params
-            $totalProducts = $this->productModel->getCount($conditions, $params); // Pass named params
+            // Get total count for pagination using the same conditions/params
+            // Assuming getCount prefixes columns correctly or doesn't need it
+            $totalProducts = $this->productModel->getCount($conditions, $params);
             $totalPages = ($this->itemsPerPage > 0) ? ceil($totalProducts / $this->itemsPerPage) : 1;
             $totalPages = max(1, $totalPages); // Ensure at least 1 page
 
-            // Get paginated products using named params
+            // Get paginated products
             $products = $this->productModel->getFiltered(
                 $conditions,
-                $params, // Pass named params
+                $params,
                 $sortBy,
                 $this->itemsPerPage,
                 $offset
@@ -154,7 +155,8 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Use BaseController logging/helpers
-            $this->logSecurityEvent('error_show_product_list', ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'], []); // Corrected parameter order
+            // --- FIX: Changed second argument from null to [] ---
+            $this->logSecurityEvent('error_show_product_list', [], ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             error_log("Error loading product list: " . $e->getMessage()); // Fallback logging
             $this->setFlashMessage('Error loading products. Please try again.', 'error');
             $this->redirect('index.php?page=error'); // Redirect to generic error page
@@ -162,6 +164,7 @@ class ProductController extends BaseController {
     }
 
     public function showProduct($id) {
+        // ... (code remains the same as in content_of_code_files_1.md) ...
          try {
             // Validate input using BaseController helper
             $id = $this->validateInput($id, 'int');
@@ -213,7 +216,8 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Use BaseController logging/helpers
-            $this->logSecurityEvent('error_show_product_detail', ['product_id' => $id ?? null, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'], []); // Corrected parameter order
+            // --- FIX: Changed second argument from null to [] ---
+            $this->logSecurityEvent('error_show_product_detail', [], ['product_id' => $id ?? null, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             error_log("Error loading product details for ID {$id}: " . $e->getMessage());
             $this->setFlashMessage('Error loading product details. Please try again.', 'error');
             $this->redirect('index.php?page=products'); // Redirect to product list
@@ -463,6 +467,7 @@ class ProductController extends BaseController {
     }
 
     // --- Search and Getters (No changes needed) ---
+    // ... (searchProducts, getProduct, getAllProducts remain the same as in content_of_code_files_1.md) ...
      public function searchProducts() {
          try {
              $query = $this->validateInput($_GET['q'] ?? '', 'string');

@@ -493,6 +493,8 @@ class CartController extends BaseController {
 # controllers/ProductController.php  
 ```php
 <?php
+// controllers/ProductController.php (Updated: Pass Named Parameters to Model)
+
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Product.php';
 
@@ -510,7 +512,6 @@ class ProductController extends BaseController {
     // --- Public Facing Methods ---
 
     public function showHomePage() {
-        // ... (code remains the same as in content_of_code_files_1.md) ...
          try {
             $featuredProducts = $this->productModel->getFeatured();
             // Log if empty, but don't throw error - view should handle empty state
@@ -534,8 +535,7 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Log error using BaseController method if available, otherwise use error_log
-            // --- FIX: Changed second argument from null to [] ---
-            $this->logSecurityEvent('error_show_home', [], ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+            $this->logSecurityEvent('error_show_home', ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'], []); // Corrected parameter order
             error_log("Error loading homepage: " . $e->getMessage()); // Fallback logging
             $this->setFlashMessage('An error occurred while loading the page', 'error');
             // Redirect to a generic error page using BaseController helper
@@ -544,7 +544,6 @@ class ProductController extends BaseController {
     }
 
     public function showProductList() {
-        // ... (code remains the same as in content_of_code_files_1.md) ...
          try {
             // Validate input using BaseController helper
             $page = $this->validateInput($_GET['page_num'] ?? 1, 'int', ['min' => 1]) ?: 1;
@@ -557,43 +556,43 @@ class ProductController extends BaseController {
             // Calculate pagination
             $offset = ($page - 1) * $this->itemsPerPage;
 
-            // Get products based on filters
+            // --- START: FIX 1 - Build NAMED Params/Conditions ---
             $conditions = [];
-            $params = [];
+            $params = []; // Now an associative array
 
             // Apply search condition
             if (!empty($searchQuery)) {
-                $conditions[] = "(p.name LIKE ? OR p.description LIKE ?)"; // Prefix with 'p.'
-                $params[] = "%{$searchQuery}%";
-                $params[] = "%{$searchQuery}%";
+                $conditions[] = "(p.name LIKE :search_name OR p.description LIKE :search_desc)"; // Named placeholders
+                $params[':search_name'] = "%{$searchQuery}%";
+                $params[':search_desc'] = "%{$searchQuery}%";
             }
 
             // Apply category filter
             if ($categoryId !== null && $categoryId !== false && $categoryId > 0) {
-                $conditions[] = "p.category_id = ?"; // Prefix with 'p.'
-                $params[] = $categoryId;
+                $conditions[] = "p.category_id = :category_id"; // Named placeholder
+                $params[':category_id'] = $categoryId;
             }
 
             // Apply price filters
             if ($minPrice !== null && $minPrice !== false && is_numeric($minPrice)) {
-                $conditions[] = "p.price >= ?"; // Prefix with 'p.'
-                $params[] = $minPrice;
+                $conditions[] = "p.price >= :min_price"; // Named placeholder
+                $params[':min_price'] = $minPrice;
             }
             if ($maxPrice !== null && $maxPrice !== false && is_numeric($maxPrice)) {
-                $conditions[] = "p.price <= ?"; // Prefix with 'p.'
-                $params[] = $maxPrice;
+                $conditions[] = "p.price <= :max_price"; // Named placeholder
+                $params[':max_price'] = $maxPrice;
             }
+            // --- END: FIX 1 ---
 
-            // Get total count for pagination using the same conditions/params
-            // Assuming getCount prefixes columns correctly or doesn't need it
-            $totalProducts = $this->productModel->getCount($conditions, $params);
+            // Get total count for pagination using the same named conditions/params
+            $totalProducts = $this->productModel->getCount($conditions, $params); // Pass named params
             $totalPages = ($this->itemsPerPage > 0) ? ceil($totalProducts / $this->itemsPerPage) : 1;
             $totalPages = max(1, $totalPages); // Ensure at least 1 page
 
-            // Get paginated products
+            // Get paginated products using named params
             $products = $this->productModel->getFiltered(
                 $conditions,
-                $params,
+                $params, // Pass named params
                 $sortBy,
                 $this->itemsPerPage,
                 $offset
@@ -649,8 +648,7 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Use BaseController logging/helpers
-            // --- FIX: Changed second argument from null to [] ---
-            $this->logSecurityEvent('error_show_product_list', [], ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+            $this->logSecurityEvent('error_show_product_list', ['error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'], []); // Corrected parameter order
             error_log("Error loading product list: " . $e->getMessage()); // Fallback logging
             $this->setFlashMessage('Error loading products. Please try again.', 'error');
             $this->redirect('index.php?page=error'); // Redirect to generic error page
@@ -658,7 +656,6 @@ class ProductController extends BaseController {
     }
 
     public function showProduct($id) {
-        // ... (code remains the same as in content_of_code_files_1.md) ...
          try {
             // Validate input using BaseController helper
             $id = $this->validateInput($id, 'int');
@@ -710,8 +707,7 @@ class ProductController extends BaseController {
 
         } catch (Exception $e) {
             // Use BaseController logging/helpers
-            // --- FIX: Changed second argument from null to [] ---
-            $this->logSecurityEvent('error_show_product_detail', [], ['product_id' => $id ?? null, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+            $this->logSecurityEvent('error_show_product_detail', ['product_id' => $id ?? null, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'], []); // Corrected parameter order
             error_log("Error loading product details for ID {$id}: " . $e->getMessage());
             $this->setFlashMessage('Error loading product details. Please try again.', 'error');
             $this->redirect('index.php?page=products'); // Redirect to product list
@@ -961,7 +957,6 @@ class ProductController extends BaseController {
     }
 
     // --- Search and Getters (No changes needed) ---
-    // ... (searchProducts, getProduct, getAllProducts remain the same as in content_of_code_files_1.md) ...
      public function searchProducts() {
          try {
              $query = $this->validateInput($_GET['q'] ?? '', 'string');
@@ -1600,6 +1595,8 @@ require_once __DIR__ . '/layout/header.php'; // Includes CSRF token output globa
 # models/Product.php  
 ```php
 <?php
+// models/Product.php (Updated: Consistent Named Placeholders)
+
 class Product {
     private $pdo;
 
@@ -1844,34 +1841,59 @@ class Product {
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
     }
 
-    public function getFiltered($conditions = [], $params = [], $sortBy = 'name_asc', $limit = 12, $offset = 0) {
-        // --- START: Updated getFiltered method ---
-        // Use conditions provided by Controller directly (controller adds 'p.' prefix)
+    /**
+     * Fetches filtered and sorted products with pagination. Uses NAMED placeholders.
+     *
+     * @param array $conditions Array of SQL condition strings (e.g., "p.category_id = :category_id").
+     * @param array $params Associative array of parameters to bind (e.g., [':category_id' => 1, ':limit' => 10]).
+     * @param string $sortBy Sorting criteria.
+     * @param int $limit Number of items per page.
+     * @param int $offset Offset for pagination.
+     * @return array List of products.
+     */
+    public function getFiltered(array $conditions = [], array $params = [], string $sortBy = 'name_asc', int $limit = 12, int $offset = 0): array {
+        // --- START: FIX 1 - Use NAMED Placeholders ---
         $sql = "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id";
+
         if (!empty($conditions)) {
-            $sql .= " WHERE " . implode(" AND ", $conditions); // Directly use conditions
+            $sql .= " WHERE " . implode(" AND ", $conditions);
         }
+
         // Sorting
         switch ($sortBy) {
-            case 'price_asc': $sql .= " ORDER BY p.price ASC, p.name ASC"; break; // Added secondary sort
-            case 'price_desc': $sql .= " ORDER BY p.price DESC, p.name ASC"; break; // Added secondary sort
+            case 'price_asc': $sql .= " ORDER BY p.price ASC, p.name ASC"; break;
+            case 'price_desc': $sql .= " ORDER BY p.price DESC, p.name ASC"; break;
             case 'name_desc': $sql .= " ORDER BY p.name DESC"; break;
-            case 'created_at_desc': $sql .= " ORDER BY p.created_at DESC"; break; // Added created_at sort
+            case 'created_at_desc': $sql .= " ORDER BY p.created_at DESC"; break;
             case 'name_asc': default: $sql .= " ORDER BY p.name ASC"; break;
         }
-        $sql .= " LIMIT :limit OFFSET :offset"; // Use named placeholders
+
+        $sql .= " LIMIT :limit OFFSET :offset"; // Use named placeholders for limit/offset
+
         $stmt = $this->pdo->prepare($sql);
 
-        // Bind WHERE clause parameters (if any)
-        $paramIndex = 1;
-        foreach ($params as $value) {
-            $stmt->bindValue($paramIndex++, $value); // Use positional binding for WHERE params
-        }
-        // Bind LIMIT/OFFSET parameters by name
-        $stmt->bindValue(':limit', (int)$limit, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', (int)$offset, PDO::PARAM_INT);
+        // Add limit and offset to params array
+        $params[':limit'] = (int)$limit;
+        $params[':offset'] = (int)$offset;
 
-        $stmt->execute();
+        // Bind all parameters using the associative array keys
+        foreach ($params as $key => $value) {
+            // Determine type (simplified: use INT for limit/offset, default for others)
+            $type = PDO::PARAM_STR; // Default to string
+            if ($key === ':limit' || $key === ':offset' || $key === ':category_id') { // Use PARAM_INT for specific keys
+                 $type = PDO::PARAM_INT;
+            } elseif (is_int($value)) {
+                 $type = PDO::PARAM_INT;
+            } elseif (is_bool($value)) {
+                $type = PDO::PARAM_BOOL;
+            } elseif (is_null($value)) {
+                $type = PDO::PARAM_NULL;
+            }
+            $stmt->bindValue($key, $value, $type);
+        }
+
+        $stmt->execute(); // Execute without passing params array here, as they are bound
+
         $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
         // Decode JSON fields if present
         foreach ($products as &$product) {
@@ -1880,7 +1902,7 @@ class Product {
         }
         unset($product); // Unset reference
         return $products;
-        // --- END: Updated getFiltered method ---
+        // --- END: FIX 1 ---
     }
 
     public function getPriceRange() {
@@ -1903,37 +1925,49 @@ class Product {
         }
 
         $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-        $stmt = $this->pdo->prepare("
-            SELECT * FROM products
-            WHERE id IN ($placeholders)
-            ORDER BY FIELD(id, $placeholders)
-        ");
+        // Prepare the ORDER BY FIELD part separately
+        $orderByField = "FIELD(p.id, $placeholders)"; // Use alias p.id
 
-        // Double the IDs array since we need it twice in the query
+        $sql = "SELECT p.*, c.name as category_name
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.id IN ($placeholders)
+                ORDER BY $orderByField";
+
+        $stmt = $this->pdo->prepare($sql);
+
+        // Double the IDs array for parameters
         $params = array_merge($ids, $ids);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
     }
 
+
     public function searchWithFilters($query, $categoryId = null, $minPrice = null, $maxPrice = null) {
-        $conditions = ["(p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ?)"]; // Added SKU search, table alias
-        $params = ["%$query%", "%$query%", "%$query%"];
+        // --- START: FIX 1 - Use NAMED Placeholders ---
+        $conditions = ["(p.name LIKE :query_name OR p.description LIKE :query_desc OR p.sku LIKE :query_sku)"]; // Added SKU search, table alias, named placeholders
+        $params = [
+            ':query_name' => "%{$query}%",
+            ':query_desc' => "%{$query}%",
+            ':query_sku' => "%{$query}%"
+        ];
         if ($categoryId) {
-            $conditions[] = "p.category_id = ?"; // Added table alias
-            $params[] = $categoryId;
+            $conditions[] = "p.category_id = :category_id"; // Added table alias, named placeholder
+            $params[':category_id'] = $categoryId;
         }
         if ($minPrice !== null) {
-            $conditions[] = "p.price >= ?"; // Added table alias
-            $params[] = $minPrice;
+            $conditions[] = "p.price >= :min_price"; // Added table alias, named placeholder
+            $params[':min_price'] = $minPrice;
         }
         if ($maxPrice !== null) {
-            $conditions[] = "p.price <= ?"; // Added table alias
-            $params[] = $maxPrice;
+            $conditions[] = "p.price <= :max_price"; // Added table alias, named placeholder
+            $params[':max_price'] = $maxPrice;
         }
         $sql = "SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE " . implode(" AND ", $conditions);
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
+        $stmt->execute($params); // Execute with named parameters
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
+        // --- END: FIX 1 ---
     }
 
     public function getRelatedProducts($productId, $categoryId, $limit = 4) {
@@ -1994,12 +2028,12 @@ class Product {
             SELECT p.*, c.name as category_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
-            WHERE p.stock_quantity <= COALESCE(p.low_stock_threshold, ?)
+            WHERE p.stock_quantity <= COALESCE(p.low_stock_threshold, :threshold)
             ORDER BY p.stock_quantity ASC
-        ";
+        "; // Use named placeholder
         $stmt = $this->pdo->prepare($sql);
         // Bind the threshold value passed to the function
-        $stmt->bindValue(1, (int)$threshold, PDO::PARAM_INT);
+        $stmt->bindValue(':threshold', (int)$threshold, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
     }
@@ -2015,8 +2049,15 @@ class Product {
         return $stmt->execute([(int)$threshold, (int)(bool)$backorderAllowed, (int)$id]);
     }
 
-    public function getCount($conditions = [], $params = []) {
-        // --- START: Updated getCount method ---
+    /**
+     * Gets the total count of products matching the filter conditions. Uses NAMED placeholders.
+     *
+     * @param array $conditions Array of SQL condition strings (e.g., "p.category_id = :category_id").
+     * @param array $params Associative array of parameters to bind (e.g., [':category_id' => 1]).
+     * @return int Total count.
+     */
+    public function getCount(array $conditions = [], array $params = []): int {
+        // --- START: FIX 1 - Use NAMED Placeholders ---
         $sql = "SELECT COUNT(p.id) as count FROM products p";
         // Determine if category join is needed based on conditions
         $needsCategoryJoin = false;
@@ -2033,10 +2074,10 @@ class Product {
             $sql .= " WHERE " . implode(" AND ", $conditions); // Directly use conditions
         }
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
+        $stmt->execute($params); // Execute with named parameters
         $row = $stmt->fetch(PDO::FETCH_ASSOC); // Added FETCH_ASSOC
         return $row ? (int)$row['count'] : 0;
-        // --- END: Updated getCount method ---
+        // --- END: FIX 1 ---
     }
 
 } // End Product Class

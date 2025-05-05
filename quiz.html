@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Us</title>
+    <title>Scent Finder Quiz</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,14 +36,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="page-contact"
+<body class="page-quiz"
       data-base-url="/"
       data-stripe-public-key="pk_test_your_stripe_public_key"
       data-free-shipping-threshold="50"
       data-base-shipping-cost="5.99">
 
     <!-- Global CSRF Token Input for JavaScript AJAX Requests -->
-    <input type="hidden" id="csrf-token-value" value="2bae0584edb6bb54541c0088acbb4c9aec7227604d9bc4a5dcb877cb74d11aff">
+    <input type="hidden" id="csrf-token-value" value="e167b9f428ae2a655f1ece14584a16d492919ef1382e7bcaa2175c2ee6548d1b">
 
     <header>
         <nav class="main-nav sample-header">
@@ -87,26 +87,81 @@
         
         <!-- Container for dynamically added flash messages by JS -->
         <div class="flash-message-container fixed top-5 right-5 z-[1100] max-w-sm w-full space-y-2"></div>
-<main class="container py-12">
-    <h1 class="text-3xl font-heading mb-6">Contact Us</h1>
-    <p class="mb-4">Have a question or need help? Fill out the form below and our team will get back to you as soon as possible.</p>
-    <form method="post" class="max-w-lg bg-white p-6 rounded shadow" action="#">
-        <input type="hidden" name="csrf_token" id="csrf-token-value" value="2bae0584edb6bb54541c0088acbb4c9aec7227604d9bc4a5dcb877cb74d11aff">
-        <div class="mb-4">
-            <label for="name" class="block font-medium mb-1">Name</label>
-            <input type="text" id="name" name="name" class="w-full border rounded px-3 py-2" required>
+<body class="page-quiz">
+
+<div class="quiz-container min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-20">
+    <!-- Particles Background -->
+    <div id="particles-js" class="absolute inset-0 z-0"></div>
+
+    <div class="container mx-auto px-4 relative z-10">
+        <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-8" data-aos="fade-up">
+            <h1 class="text-4xl font-heading font-semibold text-center mb-8">Find Your Perfect Scent</h1>
+            <p class="text-center text-gray-600 mb-12">Let us guide you to the perfect aromatherapy products for your needs.</p>
+
+            <form id="scent-quiz" method="POST" action="index.php?page=quiz&action=submit" class="space-y-8">
+                <!-- CSRF Token: This input is correctly placed. 
+                     The error "CSRF token validation failed" usually means the 
+                     CONTROLLER (QuizController.php -> showQuiz method) 
+                     is NOT passing the '$csrfToken' variable when rendering this view. 
+                     Ensure the controller calls $this->getCsrfToken() and includes it 
+                     in the $data array passed to renderView('quiz', $data). 
+                -->
+                <input type="hidden" name="csrf_token" value="e167b9f428ae2a655f1ece14584a16d492919ef1382e7bcaa2175c2ee6548d1b">
+
+                <div class="quiz-step" data-step="1">
+                    <h3 class="text-2xl font-heading mb-6">What are you looking for today?</h3>
+
+                    <!-- Added quiz-options-container div for potential JS targeting -->
+                    <div class="quiz-options-container grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="relaxation" class="hidden" required>
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-spa text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Relaxation</h4>
+                                <p class="text-sm text-gray-600">Find calm and peace in your daily routine</p>
+                            </div>
+                        </label>
+
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="energy" class="hidden">
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-bolt text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Energy</h4>
+                                <p class="text-sm text-gray-600">Boost your vitality and motivation</p>
+                            </div>
+                        </label>
+
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="focus" class="hidden">
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-brain text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Focus</h4>
+                                <p class="text-sm text-gray-600">Enhance concentration and clarity</p>
+                            </div>
+                        </label>
+
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="balance" class="hidden">
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-yin-yang text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Balance</h4>
+                                <p class="text-sm text-gray-600">Find harmony in body and mind</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="mt-8 text-center">
+                        <button type="submit" class="btn-primary inline-flex items-center space-x-2">
+                            <span>Find My Perfect Scent</span>
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
-        <div class="mb-4">
-            <label for="email" class="block font-medium mb-1">Email</label>
-            <input type="email" id="email" name="email" class="w-full border rounded px-3 py-2" required>
-        </div>
-        <div class="mb-4">
-            <label for="message" class="block font-medium mb-1">Message</label>
-            <textarea id="message" name="message" class="w-full border rounded px-3 py-2" rows="5" required></textarea>
-        </div>
-        <button type="submit" class="btn-primary">Send Message</button>
-    </form>
-</main>
+    </div>
+</div>
+
 </main>
     <footer>
         <div class="container">
@@ -147,7 +202,7 @@
                     <p><i class="fas fa-phone"></i> +1 (555) 123-4567</p>
                     <p><i class="fas fa-envelope"></i> hello@thescent.com</p>
                     <form id="newsletter-form-footer" class="newsletter-form" style="margin-top:1rem;">
-                        <input type="hidden" name="csrf_token" value="2bae0584edb6bb54541c0088acbb4c9aec7227604d9bc4a5dcb877cb74d11aff">
+                        <input type="hidden" name="csrf_token" value="e167b9f428ae2a655f1ece14584a16d492919ef1382e7bcaa2175c2ee6548d1b">
                         <input type="email" name="email" placeholder="Enter your email" required class="newsletter-input">
                         <button type="submit" class="btn btn-primary newsletter-btn">Subscribe</button>
                     </form>

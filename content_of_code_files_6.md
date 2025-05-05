@@ -823,319 +823,248 @@ document.addEventListener('DOMContentLoaded', function() {
 
 ```
 
-# views/account/profile.php  
+# controllers/QuizController.php  
 ```php
 <?php
-// Updated: views/account/profile.php
-// Added header and footer includes
+// controllers/QuizController.php (Updated: Reverted showResults/processQuiz to session logic)
 
-require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
-?>
+require_once __DIR__ . '/BaseController.php';
+require_once __DIR__ . '/../models/Quiz.php';
+require_once __DIR__ . '/../models/Product.php'; // Added for fetching product details
 
-<section class="account-section">
-    <div class="container">
-        <div class="account-grid">
-            <!-- Sidebar Navigation -->
-            <aside class="account-sidebar" data-aos="fade-right">
-                <div class="account-menu">
-                    <div class="user-info">
-                        <i class="fas fa-user-circle"></i>
-                        <h3><?= htmlspecialchars($user['name']) ?></h3>
-                        <p><?= htmlspecialchars($user['email']) ?></p>
-                    </div>
+class QuizController extends BaseController {
+    private Quiz $quizModel; // Use type hint
+    private Product $productModel; // Added product model instance
 
-                    <nav>
-                        <ul>
-                            <li>
-                                <a href="index.php?page=account">
-                                    <i class="fas fa-home"></i> Dashboard
-                                </a>
-                            </li>
-                            <li>
-                                <a href="index.php?page=account&section=orders">
-                                    <i class="fas fa-shopping-bag"></i> My Orders
-                                </a>
-                            </li>
-                            <li>
-                                <a href="index.php?page=account&section=profile" class="active">
-                                    <i class="fas fa-user"></i> Profile Settings
-                                </a>
-                            </li>
-                            <li>
-                                <a href="index.php?page=account&section=quiz">
-                                    <i class="fas fa-clipboard-list"></i> Quiz History
-                                </a>
-                            </li>
-                            <li>
-                                <a href="index.php?page=logout">
-                                    <i class="fas fa-sign-out-alt"></i> Logout
-                                </a>
-                            </li>
-                        </ul>
-                    </nav>
-                </div>
-            </aside>
-
-            <!-- Main Content -->
-            <div class="account-content">
-                <h1 class="page-title" data-aos="fade-up">Profile Settings</h1>
-
-                <?php // Flash messages handled globally by header.php now ?>
-
-                <div class="profile-grid grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <!-- Personal Information -->
-                    <div class="profile-card bg-white p-6 rounded-lg shadow" data-aos="fade-up">
-                        <h2 class="text-xl font-semibold mb-4 border-b pb-2">Personal Information</h2>
-                        <form action="index.php?page=account&section=profile" method="POST"
-                              class="profile-form space-y-4" id="profileForm">
-                              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                              <input type="hidden" name="action" value="update_profile"> <!-- Specify action -->
-                            <div class="form-group">
-                                <label for="name" class="block text-sm font-medium text-gray-700">Full Name</label>
-                                <input type="text" id="name" name="name" required
-                                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                                       value="<?= htmlspecialchars($user['name']) ?>">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
-                                <input type="email" id="email" name="email" required
-                                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-                                       value="<?= htmlspecialchars($user['email']) ?>">
-                            </div>
-
-                            <button type="submit" class="btn-primary">Save Changes</button>
-                        </form>
-                    </div>
-
-                    <!-- Change Password -->
-                    <div class="profile-card bg-white p-6 rounded-lg shadow" data-aos="fade-up" data-aos-delay="100">
-                        <h2 class="text-xl font-semibold mb-4 border-b pb-2">Change Password</h2>
-                        <form action="index.php?page=account&section=profile" method="POST"
-                              class="password-form space-y-4" id="passwordForm">
-                              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                              <input type="hidden" name="action" value="update_password"> <!-- Specify action -->
-                            <div class="form-group">
-                                <label for="current_password" class="block text-sm font-medium text-gray-700">Current Password</label>
-                                <div class="password-input relative mt-1">
-                                    <input type="password" id="current_password" name="current_password"
-                                           class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary pr-10">
-                                    <button type="button" class="toggle-password absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="new_password" class="block text-sm font-medium text-gray-700">New Password</label>
-                                <div class="password-input relative mt-1">
-                                    <input type="password" id="new_password" name="new_password"
-                                           class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary pr-10"
-                                           pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[\W_]).{12,}"
-                                           title="Must contain at least 12 characters, including uppercase, lowercase, number, and special character."
-                                           aria-describedby="passwordRequirements">
-                                    <button type="button" class="toggle-password absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="confirm_password" class="block text-sm font-medium text-gray-700">Confirm New Password</label>
-                                <div class="password-input relative mt-1">
-                                    <input type="password" id="confirm_password" name="confirm_password"
-                                           class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary pr-10">
-                                    <button type="button" class="toggle-password absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Updated Password Requirements Styling -->
-                             <div class="password-requirements mt-4 p-4 border border-gray-200 rounded-md bg-gray-50/50" id="passwordRequirements">
-                                <h4 class="text-sm font-medium text-gray-700 mb-2 font-body">Password must contain:</h4>
-                                <ul class="space-y-1 text-xs text-gray-600 font-body">
-                                    <li id="req-length" class="requirement flex items-center not-met"> <!-- ID matches JS -->
-                                        <i class="fas fa-times-circle text-red-500 mr-2 w-4 text-center"></i> At least 12 characters
-                                    </li>
-                                    <li id="req-uppercase" class="requirement flex items-center not-met"> <!-- ID matches JS -->
-                                        <i class="fas fa-times-circle text-red-500 mr-2 w-4 text-center"></i> One uppercase letter (A-Z)
-                                    </li>
-                                    <li id="req-lowercase" class="requirement flex items-center not-met"> <!-- ID matches JS -->
-                                        <i class="fas fa-times-circle text-red-500 mr-2 w-4 text-center"></i> One lowercase letter (a-z)
-                                    </li>
-                                    <li id="req-number" class="requirement flex items-center not-met"> <!-- ID matches JS -->
-                                        <i class="fas fa-times-circle text-red-500 mr-2 w-4 text-center"></i> One number (0-9)
-                                    </li>
-                                    <li id="req-special" class="requirement flex items-center not-met"> <!-- ID matches JS -->
-                                        <i class="fas fa-times-circle text-red-500 mr-2 w-4 text-center"></i> One special character (e.g., !@#$)
-                                    </li>
-                                     <li id="req-match" class="requirement flex items-center not-met"> <!-- Added match requirement -->
-                                         <i class="fas fa-times-circle text-red-500 mr-2 w-4 text-center"></i> Passwords match
-                                     </li>
-                                </ul>
-                            </div>
-
-                            <button type="submit" class="btn-primary">Update Password</button>
-                        </form>
-                    </div>
-
-                    <!-- Communication Preferences -->
-                     <div class="profile-card bg-white p-6 rounded-lg shadow md:col-span-2" data-aos="fade-up" data-aos-delay="200">
-                         <h2 class="text-xl font-semibold mb-4 border-b pb-2">Communication Preferences</h2>
-                         <form action="index.php?page=account&section=profile" method="POST"
-                               class="preferences-form space-y-3">
-                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
-                             <input type="hidden" name="action" value="update_preferences"> <!-- Specify action -->
-                             <?php /* Removed unused checkboxes as they are not in the DB schema
-                             <div class="form-group">
-                                 <label class="checkbox-label flex items-center">
-                                     <input type="checkbox" name="email_marketing"
-                                            class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary mr-2"
-                                            <?php //= ($user['email_marketing'] ?? 0) ? 'checked' : '' ?>>
-                                     <span>Promotional emails about new products and special offers</span>
-                                 </label>
-                             </div>
-                             <div class="form-group">
-                                 <label class="checkbox-label flex items-center">
-                                     <input type="checkbox" name="email_orders"
-                                            class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary mr-2"
-                                            <?php //= ($user['email_orders'] ?? 1) ? 'checked' : '' ?>>
-                                     <span>Order status updates and shipping notifications</span>
-                                 </label>
-                             </div>
-                             */ ?>
-                             <div class="form-group">
-                                 <label class="checkbox-label flex items-center">
-                                     <input type="checkbox" name="newsletter_subscribed" value="1"
-                                            class="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary mr-2"
-                                            <?= ($user['newsletter_subscribed'] ?? 0) ? 'checked' : '' ?>>
-                                     <span>Monthly newsletter with aromatherapy tips and trends</span>
-                                 </label>
-                             </div>
-                             <button type="submit" class="btn-primary mt-4">Update Preferences</button>
-                         </form>
-                     </div>
-
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // --- Password visibility toggle ---
-    document.querySelectorAll('.toggle-password').forEach(button => {
-        button.addEventListener('click', function() {
-            const input = this.previousElementSibling;
-            const icon = this.querySelector('i');
-            if (input && input.type) {
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    icon?.classList.replace('fa-eye', 'fa-eye-slash');
-                } else {
-                    input.type = 'password';
-                    icon?.classList.replace('fa-eye-slash', 'fa-eye');
-                }
-            }
-        });
-    });
-
-    // --- Password strength validation & matching ---
-    const passwordForm = document.getElementById('passwordForm');
-    const newPassword = document.getElementById('new_password');
-    const confirmPassword = document.getElementById('confirm_password');
-    const requirements = {
-        length: { regex: /.{12,}/, element: document.getElementById('req-length') },
-        uppercase: { regex: /[A-Z]/, element: document.getElementById('req-uppercase') },
-        lowercase: { regex: /[a-z]/, element: document.getElementById('req-lowercase') },
-        number: { regex: /[0-9]/, element: document.getElementById('req-number') },
-        special: { regex: /[\W_]/, element: document.getElementById('req-special') }, // Match any non-alphanumeric
-        match: { element: document.getElementById('req-match') }
-    };
-
-    function validatePasswordRequirements() {
-        let allMet = true;
-        const passwordValue = newPassword.value;
-        const confirmPasswordValue = confirmPassword.value;
-
-        // Only validate if new password field is not empty
-        const shouldValidate = passwordValue.length > 0;
-
-        for (const reqKey in requirements) {
-            const req = requirements[reqKey];
-            if (!req.element) continue;
-
-            let isMet = false;
-            if (reqKey === 'match') {
-                isMet = passwordValue && passwordValue === confirmPasswordValue;
-            } else if (req.regex) {
-                isMet = req.regex.test(passwordValue);
-            }
-
-            // Update UI only if validation should occur
-            if (shouldValidate) {
-                 req.element.classList.toggle('met', isMet);
-                 req.element.classList.toggle('not-met', !isMet);
-                 const icon = req.element.querySelector('i');
-                 if (icon) {
-                     icon.classList.toggle('fa-check-circle', isMet);
-                     icon.classList.toggle('fa-times-circle', !isMet);
-                     icon.classList.toggle('text-green-500', isMet);
-                     icon.classList.toggle('text-red-500', !isMet);
-                 }
-            } else {
-                 // Reset UI if new password field is empty
-                 req.element.classList.remove('met');
-                 req.element.classList.add('not-met');
-                 const icon = req.element.querySelector('i');
-                 if (icon) {
-                      icon.classList.remove('fa-check-circle', 'text-green-500');
-                      icon.classList.add('fa-times-circle', 'text-red-500');
-                 }
-            }
-
-            if (shouldValidate && !isMet) allMet = false;
-        }
-        // Enable submit button only if *all* requirements are met OR if the new password field is empty
-        const submitButton = passwordForm.querySelector('button[type="submit"]');
-        if (submitButton) {
-             submitButton.disabled = !(allMet || !shouldValidate);
-        }
-
-        return allMet || !shouldValidate;
+    public function __construct(PDO $pdo) { // Use type hint
+        parent::__construct($pdo);
+        $this->quizModel = new Quiz($pdo);
+        $this->productModel = new Product($pdo); // Initialize product model
     }
 
-    if (passwordForm && newPassword && confirmPassword) {
-        newPassword.addEventListener('input', validatePasswordRequirements);
-        confirmPassword.addEventListener('input', validatePasswordRequirements);
+    /**
+     * Displays the quiz form.
+     */
+    public function showQuiz() {
+        try {
+             $questions = $this->quizModel->getQuestions();
+             $csrfToken = $this->getCsrfToken(); // Use BaseController method
 
-        passwordForm.addEventListener('submit', function(e) {
-            // Only perform final check if a new password has been entered
-            if (newPassword.value.length > 0) {
-                // Check if passwords match
-                 if (newPassword.value !== confirmPassword.value) {
-                     e.preventDefault();
-                     alert('New passwords do not match.');
-                     confirmPassword.focus();
-                     return;
-                 }
-                 // Check if password meets requirements according to pattern attribute (browser validation)
-                 if (!newPassword.checkValidity()) {
-                     e.preventDefault();
-                     alert('Please ensure the new password meets all requirements.');
-                     newPassword.focus();
-                     return;
-                 }
-            }
-             // Current password validation (if new password is set) should be handled server-side for security.
-        });
+             $data = [
+                 'pageTitle' => 'Scent Finder Quiz',
+                 'csrfToken' => $csrfToken,
+                 'questions' => $questions,
+                 'bodyClass' => 'page-quiz' // For JS initializer
+             ];
+             echo $this->renderView('quiz', $data); // Use renderView
+
+        } catch (Exception $e) {
+            error_log("Error loading quiz questions: " . $e->getMessage());
+            $this->setFlashMessage('Failed to load quiz questions. Please try again.', 'error');
+            $this->redirect('index.php?page=home'); // Redirect home on error
+        }
     }
-});
-</script>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
+    /**
+     * Processes quiz submission, saves results, stores recommendations in session, and redirects.
+     * Logic restored from QuizController.php-orig.txt
+     */
+    public function processQuiz() {
+        $this->validateRateLimit('quiz_submit');
+        try {
+            // Ensure session is started before CSRF validation or accessing session data
+            if (session_status() === PHP_SESSION_NONE) { session_start(); }
+
+            $this->validateCSRF(); // Validate CSRF token
+
+            $startTime = $_SESSION['quiz_start_time'] ?? time(); // Use start time if set previously
+            $completionTime = time() - $startTime;
+            unset($_SESSION['quiz_start_time']); // Clear start time
+
+            $answers = [];
+            // Simplified answer collection based on current quiz form
+             if (isset($_POST['mood'])) {
+                 $answers['mood'] = $this->validateInput($_POST['mood'], 'string');
+             }
+
+            if (empty($answers) || empty($answers['mood']) || !in_array($answers['mood'], ['relaxation', 'energy', 'focus', 'balance'])) {
+                 throw new Exception('Please select a valid option.');
+            }
+
+            $this->beginTransaction();
+
+            // Get personalized recommendations
+            $recommendations = $this->quizModel->getRecommendations($answers);
+
+             // Prepare recommendation IDs for saving
+             $recommendationIds = [];
+             if (is_array($recommendations)) {
+                  foreach ($recommendations as $product) {
+                      if (isset($product['id'])) $recommendationIds[] = (int)$product['id'];
+                  }
+              }
+
+            // Save quiz results if user is logged in
+            $userId = $this->getUserId();
+            $userEmail = null; // Get email only if needed and available
+             if ($userId) {
+                 $currentUser = $this->getCurrentUser();
+                 $userEmail = $currentUser['email'] ?? null;
+             }
+
+            $sessionId = session_id();
+            $browserInfo = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+            // Call saveQuizResult correctly (passing IDs)
+             $saveSuccess = $this->quizModel->saveQuizResult(
+                 $userId,
+                 $userEmail,
+                 $answers,
+                 $recommendationIds
+             );
+
+            if (!$saveSuccess) {
+                 error_log("Failed to save quiz result for user " . ($userId ?? 'guest'));
+                 // Proceed anyway, but log the error
+            }
+
+            $this->commit();
+
+            // Store full recommendations in session for results page (as per original logic)
+            $_SESSION['quiz_recommendations'] = $recommendations;
+            $this->logAuditTrail('quiz_completed', $userId, ['answers' => $answers, 'recommendations_count' => count($recommendationIds)]);
+
+            // Redirect to results display action using BaseController method
+            return $this->redirect('index.php?page=quiz&action=results');
+
+        } catch (Exception $e) {
+            $this->rollback();
+            error_log("Quiz processing error: " . $e->getMessage());
+
+            $this->setFlashMessage($e->getMessage(), 'error');
+            return $this->redirect('index.php?page=quiz');
+        }
+    }
+
+
+    /**
+      * Displays the quiz results page, showing products stored in the session.
+      * Logic restored from QuizController.php-orig.txt
+      */
+     public function showResults() {
+         // Ensure session is started before accessing
+         if (session_status() === PHP_SESSION_NONE) { session_start(); }
+
+         // Retrieve recommendations from session
+         if (!isset($_SESSION['quiz_recommendations'])) {
+             $this->setFlashMessage('Please complete the quiz first to see recommendations.', 'info');
+             $this->redirect('index.php?page=quiz');
+             return; // Stop execution
+         }
+
+         $recommendations = $_SESSION['quiz_recommendations'];
+         // Clear recommendations after retrieving them
+         unset($_SESSION['quiz_recommendations']);
+
+         $csrfToken = $this->getCsrfToken();
+         $data = [
+             'pageTitle' => 'Your Scent Recommendations',
+             'products' => $recommendations, // Pass recommendations as 'products'
+             'csrfToken' => $csrfToken,
+             'bodyClass' => 'page-quiz-results' // For JS initializer
+         ];
+
+         echo $this->renderView('quiz_results', $data);
+     }
+
+    /**
+     * Displays quiz analytics in the admin area.
+     */
+    public function showAnalytics() {
+        $this->requireAdmin();
+
+        // Get time range filter from query string, default to 7 days
+        $timeRange = $this->validateInput($_GET['range'] ?? '7d', 'string');
+        $days = match ($timeRange) {
+            '1d' => 1,
+            '30d' => 30,
+            '90d' => 90,
+            'all' => 'all',
+            '7d' => 7, // Default
+            default => 7,
+        };
+
+        // Fetch data using detailed method
+        $analyticsData = $this->quizModel->getDetailedAnalytics($days);
+
+        // Handle AJAX request (for dynamic updates)
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return $this->jsonResponse([
+                 'success' => true,
+                 'data' => $analyticsData // Send the fetched data back
+             ]);
+        }
+
+        // Handle standard page load
+        $data = [
+            'pageTitle' => 'Quiz Analytics',
+            'analyticsData' => $analyticsData, // Pass initial data
+            'currentTimeRange' => $timeRange,
+            'csrfToken' => $this->getCsrfToken(),
+            'bodyClass' => 'page-admin-quiz-analytics' // For JS initializer
+        ];
+
+        echo $this->renderView('admin/quiz_analytics', $data);
+    }
+
+
+    /**
+     * Shows the quiz history for the logged-in user.
+     * Requires login.
+     */
+    public function showUserQuizHistory() {
+        $this->requireLogin();
+        $userId = $this->getUserId();
+
+        try {
+             $history = $this->quizModel->getUserPreferenceHistory($userId);
+             // Fetch product details for recommended IDs in each history item
+             foreach ($history as &$item) {
+                 $productIds = $item['recommendations'] ?? [];
+                 if (!empty($productIds) && is_array($productIds)) {
+                      // Ensure IDs are numeric before fetching
+                      $numericIds = array_filter($productIds, 'is_numeric');
+                      if (!empty($numericIds)) {
+                           $item['recommended_products_details'] = $this->productModel->getProductsByIds($numericIds);
+                      } else {
+                           $item['recommended_products_details'] = [];
+                      }
+                 } else {
+                      $item['recommended_products_details'] = [];
+                 }
+             }
+             unset($item); // Unset reference
+
+             $data = [
+                 'pageTitle' => 'Your Quiz History - The Scent',
+                 'history' => $history,
+                 'user' => $this->getCurrentUser(), // For sidebar/layout
+                 'csrfToken' => $this->getCsrfToken(),
+                 'bodyClass' => 'page-account-quiz-history'
+             ];
+             echo $this->renderView('account/quiz_history', $data); // Assuming view exists
+
+        } catch (Exception $e) {
+             error_log("Error fetching user quiz history for user {$userId}: " . $e->getMessage());
+             $this->setFlashMessage('Failed to load quiz history.', 'error');
+             $this->redirect('index.php?page=account'); // Redirect to dashboard
+        }
+    }
+
+    // Removed handleQuizSubmission and handleQuiz as processQuiz is the active method based on index.php
+    // Removed getAnalytics, getPersonalizedRecommendations, getQuizHistory as they are not directly called by index.php
+
+} // End QuizController class
 
 ```
 

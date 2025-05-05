@@ -1,3 +1,21 @@
+Okay, I will proceed with the meticulous review and update of `views/account/profile.php` to implement the address saving UI, based on the plan and requirements.
+
+**Plan:**
+
+1.  **Fetch Original:** Start with the `views/account/profile.php` code from `content_of_code_files_6.md`.
+2.  **Add Address Section:** Create a new `div.profile-card` within the `profile-grid`.
+3.  **Create Address Form:** Add a `<form>` with `method="POST"`, `action="index.php?page=account&section=profile"`, and `id="addressForm"`.
+4.  **Add Hidden Inputs:** Include the `csrf_token` and a hidden input `name="action" value="update_address"`.
+5.  **Add Address Fields:** Create `label` and `input`/`select` elements for `address_line1`, `address_line2`, `city`, `state`, `postal_code`, and `country`.
+6.  **Pre-fill Data:** Use PHP to echo `htmlspecialchars($userAddress['db_column_name'] ?? '')` in the `value` attributes (or check for `selected` in the dropdown). Assume `$userAddress` is passed by the controller.
+7.  **Add Submit Button:** Include a "Save Address" button.
+8.  **Apply Styling:** Use existing CSS classes (`form-group`, `form-input`, `form-select`, `btn-primary`, etc.) for consistency.
+9.  **Add Animation:** Use `data-aos` attributes similar to other cards.
+10. **Review:** Perform a line-by-line comparison with the original file to ensure only the address section was added correctly and nothing else was altered.
+
+**Execution:**
+
+```php
 <?php
 // Updated: views/account/profile.php (v16.0 - Added Address Form)
 // Added header and footer includes
@@ -393,3 +411,29 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
+```
+
+**Summary of Changes to `views/account/profile.php`:**
+
+1.  **Added "Shipping Address" Card:** A new `div.profile-card` section was inserted within the `profile-grid`, following the structure of existing cards.
+2.  **Added Address Form:** Inside the new card, a `<form>` with `id="addressForm"`, `method="POST"`, and the correct `action` was created.
+3.  **Added Hidden Inputs:** Included the standard `csrf_token` hidden input and a new hidden input `name="action" value="update_address"` to differentiate this form's submission on the backend.
+4.  **Added Address Input Fields:** Created standard `div.form-group` wrappers with `label` and `input`/`select` elements for Address Line 1, Address Line 2, City, State, Postal Code, and Country. `required` attributes were added where appropriate.
+5.  **Implemented Data Pre-filling:** The `value` attribute of each input and the `selected` attribute for the country `select` options are now populated using PHP, accessing the `$userAddress` array (passed by the controller) with null coalescing (`?? ''`) for safety (e.g., `htmlspecialchars($userAddress['address_line1'] ?? '')`).
+6.  **Added Submit Button:** A standard "Save Address" submit button was added.
+7.  **Applied Consistent Styling:** Standard CSS classes (`form-group`, `form-input`, `form-select`, `btn-primary`, etc.) were used.
+8.  **Applied Animation:** `data-aos` attributes were added with an appropriate delay.
+9.  **No Regressions:** A careful review confirms that the existing "Personal Information", "Change Password", and "Communication Preferences" forms and their logic remain untouched. The structure and includes (`header.php`, `footer.php`) are preserved.
+10. **JavaScript:** Added basic *optional* client-side validation for the new address form for immediate user feedback, similar to the password validation approach. The existing password validation JS remains unchanged.
+
+**Next Steps:**
+
+*   The `AccountController::updateProfile` method (or a new dedicated method routed via `index.php`) needs to be updated to:
+    *   Check for `$_POST['action'] === 'update_address'`.
+    *   Validate the submitted address fields (`address_line1`, `city`, etc.).
+    *   Call `$this->userModel->updateAddress($userId, $_POST);`.
+    *   Handle success/failure and set appropriate flash messages/redirects.
+*   The `AccountController::showProfile` method needs to fetch the user's address using `$this->userModel->getAddress($userId)` and pass it to the view as `$userAddress`.
+
+---
+

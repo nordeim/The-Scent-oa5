@@ -154,24 +154,18 @@ class AccountController extends BaseController {
         try {
             $this->requireLogin();
             $currentUser = $this->getCurrentUser(); // Use BaseController helper
-            $userId = $this->getUserId(); // Get user ID
 
-            if (!$currentUser || !$userId) {
+            if (!$currentUser) {
                  // Should be caught by requireLogin, but safety check
                  $this->setFlashMessage('Could not load user profile data.', 'error');
                  $this->redirect('index.php?page=login');
                  return;
             }
 
-            // --- START: Fetch User Address ---
-            $userAddress = $this->userModel->getAddress($userId); // Fetch address
-            // --- END: Fetch User Address ---
-
             // Data for the view
             $data = [
                 'pageTitle' => 'My Profile - The Scent',
                 'user' => $currentUser,
-                'userAddress' => $userAddress ?? [], // Pass address or empty array
                 'csrfToken' => $this->getCsrfToken(), // Use BaseController method
                 'bodyClass' => 'page-account-profile'
             ];
@@ -187,207 +181,112 @@ class AccountController extends BaseController {
         }
     }
 
-    /**
-     * Handles POST requests to update profile sections (info, password, address, preferences).
-     */
     public function updateProfile() {
         $userId = null; // Initialize for error logging
         try {
             $this->requireLogin();
             $userId = $this->getUserId();
-            $this->validateCSRF(); // Checks POST token
+            $this->validateCSRF(); // Use BaseController method, checks POST token
+            // --- START FIX: Add rate limiting ---
+            $this->validateRateLimit('profile_update');
+            // --- END FIX ---
 
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-                throw new Exception('Invalid request method.'); // Should only be POST
+                $this->setFlashMessage('Invalid request method.', 'warning');
+                $this->redirect('index.php?page=account&section=profile');
+                return;
             }
 
-            $action = $_POST['action'] ?? null;
+            // Validate inputs using SecurityMiddleware via BaseController helper
+            $name = $this->validateInput($_POST['name'] ?? '', 'string', ['min' => 1, 'max' => 100]);
+            $email = $this->validateInput($_POST['email'] ?? '', 'email');
+            // Passwords are not validated here for format, only checked if new one meets requirements later
+            $currentPassword = $_POST['current_password'] ?? '';
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? ''; // Need confirm password
 
-            // --- START: Action-based Logic ---
-            switch ($action) {
-                case 'update_profile':
-                    $this->validateRateLimit('profile_update');
-                    $this->handleUpdateBasicInfo($userId);
-                    break;
-
-                case 'update_password':
-                    $this->validateRateLimit('profile_update'); // Can share limit with basic info
-                    $this->handleUpdatePassword($userId);
-                    break;
-
-                case 'update_address':
-                    $this->validateRateLimit('address_update'); // Use a separate limit if desired
-                    $this->handleUpdateAddress($userId);
-                    break;
-
-                case 'update_preferences':
-                    $this->validateRateLimit('profile_update'); // Share limit or create 'pref_update'
-                    $this->handleUpdateNewsletterPreferences($userId); // Renamed internal method
-                    break;
-
-                default:
-                    throw new Exception('Invalid profile update action specified.');
+            // Validation checks
+            if ($name === false || trim($name) === '') { // Check validation result and empty string
+                throw new Exception('Name is required and cannot be empty.');
             }
-            // --- END: Action-based Logic ---
+            if ($email === false) {
+                 throw new Exception('A valid email address is required.');
+            }
 
-            // If execution reaches here, redirect (success is handled within specific handlers)
-             $this->redirect('index.php?page=account&section=profile');
+            $this->beginTransaction();
 
+            try {
+                // Check if email is taken by another user
+                if ($this->userModel->isEmailTakenByOthers($email, $userId)) {
+                    throw new Exception('Email address is already in use by another account.');
+                }
+
+                // Update basic info
+                $this->userModel->updateBasicInfo($userId, $name, $email);
+                $this->setFlashMessage('Profile information updated successfully.', 'success'); // Separate message
+
+                // Update password logic
+                $passwordChanged = false;
+                if (!empty($newPassword)) {
+                    if (empty($currentPassword)) {
+                        throw new Exception('Current password is required to set a new password.');
+                    }
+                    // Verify current password using UserModel method
+                    if (!$this->userModel->verifyPassword($userId, $currentPassword)) {
+                        $this->logSecurityEvent('profile_update_password_fail', ['user_id' => $userId, 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+                        throw new Exception('Current password provided is incorrect.');
+                    }
+
+                    // Validate new password strength using helper
+                    if (!$this->isPasswordStrong($newPassword)) {
+                         // Fetch requirements from config for error message
+                         $minLength = SECURITY_SETTINGS['password']['min_length'] ?? 12;
+                         $reqs = [];
+                         if (SECURITY_SETTINGS['password']['require_mixed_case'] ?? true) $reqs[] = "upper & lower case";
+                         if (SECURITY_SETTINGS['password']['require_number'] ?? true) $reqs[] = "number";
+                         if (SECURITY_SETTINGS['password']['require_special'] ?? true) $reqs[] = "special char";
+                         $errMsg = sprintf('New password must be at least %d characters long and contain %s.', $minLength, implode(', ', $reqs));
+                        throw new Exception($errMsg);
+                    }
+
+                    // Check if new passwords match
+                    if ($newPassword !== $confirmPassword) {
+                         throw new Exception('New passwords do not match.');
+                    }
+
+                    // Update password using UserModel method
+                    $this->userModel->updatePassword($userId, $newPassword);
+                    $this->setFlashMessage('Password updated successfully.', 'success'); // Add separate message for password
+                    $passwordChanged = true;
+                }
+
+                $this->commit();
+
+                // IMPORTANT: Update session data after successful update
+                if (isset($_SESSION['user'])) {
+                     $_SESSION['user']['name'] = $name;
+                     $_SESSION['user']['email'] = $email;
+                     // Note: Role is not updated here
+                }
+
+                $this->logAuditTrail('profile_update', $userId, ['name' => $name, 'email' => $email, 'password_changed' => $passwordChanged]);
+
+                // Redirect back to profile page
+                $this->redirect('index.php?page=account&section=profile');
+                return;
+
+            } catch (Exception $e) {
+                $this->rollback();
+                // Log the specific error during the transaction
+                error_log("Profile update transaction error for user {$userId}: " . $e->getMessage());
+                throw $e; // Rethrow to be caught by the outer catch
+            }
 
         } catch (Exception $e) {
             $userId = $userId ?? ($this->getUserId() ?? 'unknown'); // Ensure userId is set for logging
             error_log("Profile update failed for user {$userId}: " . $e->getMessage());
             $this->setFlashMessage($e->getMessage(), 'error'); // Show specific error message from exception
             $this->redirect('index.php?page=account&section=profile'); // Redirect back to profile page
-        }
-    }
-
-    // --- Private Handlers for Profile Updates ---
-
-    private function handleUpdateBasicInfo(int $userId): void {
-        $name = $this->validateInput($_POST['name'] ?? '', 'string', ['min' => 1, 'max' => 100]);
-        $email = $this->validateInput($_POST['email'] ?? '', 'email');
-
-        if ($name === false || trim($name) === '') {
-            throw new Exception('Name is required and cannot be empty.');
-        }
-        if ($email === false) {
-            throw new Exception('A valid email address is required.');
-        }
-
-        $this->beginTransaction();
-        try {
-            if ($this->userModel->isEmailTakenByOthers($email, $userId)) {
-                throw new Exception('Email address is already in use by another account.');
-            }
-            $this->userModel->updateBasicInfo($userId, $name, $email);
-            $this->commit();
-
-            // Update session
-            if (isset($_SESSION['user'])) {
-                 $_SESSION['user']['name'] = $name;
-                 $_SESSION['user']['email'] = $email;
-            }
-
-            $this->logAuditTrail('profile_info_update', $userId, ['name' => $name, 'email' => $email]);
-            $this->setFlashMessage('Profile information updated successfully.', 'success');
-        } catch (Exception $e) {
-            $this->rollback();
-            error_log("Basic info update transaction error for user {$userId}: " . $e->getMessage());
-            throw $e; // Re-throw to be caught by updateProfile
-        }
-    }
-
-    private function handleUpdatePassword(int $userId): void {
-        $currentPassword = $_POST['current_password'] ?? '';
-        $newPassword = $_POST['new_password'] ?? '';
-        $confirmPassword = $_POST['confirm_password'] ?? '';
-
-        // Password update only happens if new password is provided
-        if (empty($newPassword)) {
-             // No action needed if new password is empty
-             // Optionally, set a flash message indicating no change if desired
-             // $this->setFlashMessage('No new password provided.', 'info');
-             return; // Exit this handler
-        }
-
-        if (empty($currentPassword)) {
-            throw new Exception('Current password is required to set a new password.');
-        }
-        if (!$this->userModel->verifyPassword($userId, $currentPassword)) {
-            $this->logSecurityEvent('profile_update_password_fail', ['user_id' => $userId, 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
-            throw new Exception('Current password provided is incorrect.');
-        }
-        if (!$this->isPasswordStrong($newPassword)) {
-            $minLength = SECURITY_SETTINGS['password']['min_length'] ?? 12;
-            $reqs = [];
-            if (SECURITY_SETTINGS['password']['require_mixed_case'] ?? true) $reqs[] = "upper & lower case";
-            if (SECURITY_SETTINGS['password']['require_number'] ?? true) $reqs[] = "number";
-            if (SECURITY_SETTINGS['password']['require_special'] ?? true) $reqs[] = "special char";
-            $errMsg = sprintf('New password must be at least %d characters long and contain %s.', $minLength, implode(', ', $reqs));
-            throw new Exception($errMsg);
-        }
-        if ($newPassword !== $confirmPassword) {
-            throw new Exception('New passwords do not match.');
-        }
-
-        $this->beginTransaction();
-        try {
-            $this->userModel->updatePassword($userId, $newPassword);
-            $this->commit();
-            $this->logAuditTrail('profile_password_update', $userId);
-            $this->setFlashMessage('Password updated successfully.', 'success');
-        } catch (Exception $e) {
-            $this->rollback();
-            error_log("Password update transaction error for user {$userId}: " . $e->getMessage());
-            throw $e; // Re-throw
-        }
-    }
-
-    private function handleUpdateAddress(int $userId): void {
-        $addressData = [];
-        $required = ['address_line1', 'city', 'state', 'postal_code', 'country'];
-        $optional = ['address_line2'];
-        $errors = [];
-
-        foreach ($required as $field) {
-             $value = $this->validateInput($_POST[$field] ?? '', 'string', ['max' => 255]); // Basic string validation
-             if ($value === false || trim($value) === '') {
-                 $errors[] = ucwords(str_replace('_', ' ', $field)) . " is required.";
-             }
-             $addressData[$field] = $value; // Store validated or original value
-        }
-        foreach ($optional as $field) {
-             $addressData[$field] = $this->validateInput($_POST[$field] ?? null, 'string', ['max' => 255]);
-        }
-
-        if (!empty($errors)) {
-            throw new Exception(implode(' ', $errors));
-        }
-
-        // Basic country code validation (can be expanded)
-        if (strlen($addressData['country']) > 50) { // Adjusted length check based on DB schema
-             throw new Exception("Invalid country format.");
-        }
-
-        $this->beginTransaction();
-        try {
-             // Pass the validated (or at least sanitized) data to the model
-            if (!$this->userModel->updateAddress($userId, $addressData)) {
-                 throw new Exception('Failed to save address. Please try again.');
-            }
-            $this->commit();
-            $this->logAuditTrail('profile_address_update', $userId, ['country' => $addressData['country']]);
-            $this->setFlashMessage('Shipping address updated successfully.', 'success');
-        } catch (Exception $e) {
-             $this->rollback();
-             error_log("Address update transaction error for user {$userId}: " . $e->getMessage());
-             throw $e; // Re-throw
-        }
-    }
-
-    // Renamed from updateNewsletterPreferences for clarity
-    private function handleUpdateNewsletterPreferences(int $userId): void {
-        $newsletterSubscribed = isset($_POST['newsletter_subscribed']); // True if checked
-
-        $this->beginTransaction();
-        try {
-            $this->userModel->updateNewsletterPreference($userId, $newsletterSubscribed);
-            $this->commit();
-
-            $action = $newsletterSubscribed ? 'newsletter_subscribe_profile' : 'newsletter_unsubscribe_profile';
-            $this->logAuditTrail($action, $userId);
-
-            // Update session if user data is stored there
-            if (isset($_SESSION['user'])) {
-                 $_SESSION['user']['newsletter_subscribed'] = (int)$newsletterSubscribed;
-            }
-
-            $this->setFlashMessage('Newsletter preferences updated.', 'success');
-        } catch (Exception $e) {
-            $this->rollback();
-            error_log("Newsletter preference update transaction error for user {$userId}: " . $e->getMessage());
-            throw new Exception('Failed to update preferences. Database error.'); // Re-throw
         }
     }
 
@@ -501,7 +400,7 @@ class AccountController extends BaseController {
             }
 
             $password = $_POST['password'] ?? '';
-            $confirmPassword = $_POST['confirm_password'] ?? ''; // Changed name to match view
+            $confirmPassword = $_POST['confirm_password'] ?? '';
 
             if (empty($password)) {
                 throw new Exception('Password cannot be empty.');
@@ -544,13 +443,59 @@ class AccountController extends BaseController {
             error_log("Password reset processing error: " . $e->getMessage());
             $this->logSecurityEvent('password_reset_error', ['error' => $e->getMessage(), 'token' => $token, 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
             $this->setFlashMessage($e->getMessage(), 'error');
-            // Ensure token is passed back to the redirect URL
             $this->redirect('index.php?page=reset_password&token=' . urlencode($token ?: ''));
             return;
         }
     }
 
-    // Removed updateNewsletterPreferences - moved logic into handleUpdateNewsletterPreferences private method
+
+    public function updateNewsletterPreferences() {
+        $userId = null; // Initialize for logging
+        try {
+            $this->requireLogin();
+            $userId = $this->getUserId();
+            $this->validateCSRF();
+             // --- START FIX: Add rate limiting ---
+             $this->validateRateLimit('profile_update'); // Reuse profile update limit or create 'pref_update'
+             // --- END FIX ---
+
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                 $this->setFlashMessage('Invalid request method.', 'warning');
+                 $this->redirect('index.php?page=account&action=profile');
+                 return;
+            }
+
+            // --- MODIFIED: Checkbox handling ---
+            // Checkbox value is only sent if checked. Check its existence.
+            $newsletterSubscribed = isset($_POST['newsletter_subscribed']); // True if checked, false if not present
+            // --- END MODIFICATION ---
+
+            $this->beginTransaction();
+            try {
+                // Assuming UserModel handles boolean correctly
+                $this->userModel->updateNewsletterPreference($userId, $newsletterSubscribed);
+
+                $action = $newsletterSubscribed ? 'newsletter_subscribe_profile' : 'newsletter_unsubscribe_profile';
+                $this->logAuditTrail($action, $userId);
+
+                $this->commit();
+                $this->setFlashMessage('Newsletter preferences updated.', 'success');
+
+            } catch (Exception $e) {
+                $this->rollback();
+                error_log("Newsletter preference update transaction error for user {$userId}: " . $e->getMessage());
+                // Throw more specific or generic error as needed
+                throw new Exception('Failed to update preferences. Database error.');
+            }
+
+        } catch (Exception $e) {
+            $userId = $userId ?? ($this->getUserId() ?? 'unknown');
+            error_log("Newsletter preference update failed for user {$userId}: " . $e->getMessage());
+            $this->logSecurityEvent('newsletter_update_fail', ['user_id' => $userId, 'error' => $e->getMessage(), 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN']);
+            $this->setFlashMessage('Failed to update newsletter preferences. Please try again.', 'error');
+        }
+        $this->redirect('index.php?page=account&section=profile');
+    }
 
     // --- Authentication (Login / Register) ---
 
@@ -604,15 +549,7 @@ class AccountController extends BaseController {
                  'id' => $user['id'],
                  'name' => $user['name'],
                  'email' => $user['email'],
-                 'role' => $_SESSION['user_role'],
-                 // Add address fields to session user array IF they exist in $user
-                 'address_line1' => $user['address_line1'] ?? null,
-                 'address_line2' => $user['address_line2'] ?? null,
-                 'city' => $user['city'] ?? null,
-                 'state' => $user['state'] ?? null,
-                 'postal_code' => $user['postal_code'] ?? null,
-                 'country' => $user['country'] ?? null,
-                 'newsletter_subscribed' => $user['newsletter_subscribed'] ?? 0 // Include newsletter status
+                 'role' => $_SESSION['user_role']
             ];
              $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
              $_SESSION['ip_address'] = $ipAddress;
@@ -627,7 +564,7 @@ class AccountController extends BaseController {
 
             $this->logAuditTrail('login_success', $user['id']);
 
-            $redirectUrl = $_SESSION['redirect_after_login'] ?? (BASE_URL . 'index.php?page=account'); // Changed default redirect
+            $redirectUrl = $_SESSION['redirect_after_login'] ?? (BASE_URL . 'index.php?page=account&action=dashboard');
             unset($_SESSION['redirect_after_login']);
 
             $this->jsonResponse(['success' => true, 'redirect' => $redirectUrl]); // Exit
@@ -771,9 +708,7 @@ class AccountController extends BaseController {
      */
     private function getResetPasswordUrl(string $token): string {
         $baseUrl = rtrim(BASE_URL, '/');
-        // Ensure the URL includes the 'page' parameter correctly
         return $baseUrl . "/index.php?page=reset_password&token=" . urlencode($token);
     }
-
 
 } // End of AccountController class

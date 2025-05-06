@@ -1,5 +1,5 @@
 <?php
-// models/User.php (Updated to implement updateAddress)
+// models/User.php (Updated to implement updateAddress correctly)
 
 class User {
     private $pdo;
@@ -243,12 +243,12 @@ class User {
      *
      * @param int $userId The ID of the user to update.
      * @param array $addressData Associative array containing address components
-     *        (e.g., ['shipping_address' => '...', 'shipping_city' => '...', ...]).
-     *        Keys should match the relevant $_POST keys from checkout form.
+     *        (e.g., ['address_line1' => '...', 'city' => '...', ...]).
+     *        Keys should match the form field names.
      * @return bool True on success, false on failure.
      */
     public function updateAddress(int $userId, array $addressData): bool {
-        // --- START FIX: Add updateAddress method ---
+        // --- START FIX: Correct key mapping ---
         try {
             $sql = "
                 UPDATE users SET
@@ -263,15 +263,14 @@ class User {
             ";
             $stmt = $this->pdo->prepare($sql);
 
+            // Use the keys directly from the form data passed by the controller
             $success = $stmt->execute([
-                // Use validated data passed from controller if possible, or extract directly
-                // Extracting directly here for simplicity, assuming controller validated $addressData values
-                ':address_line1' => $addressData['shipping_address'] ?? null, // Map form field names to DB columns
-                ':address_line2' => $addressData['shipping_address2'] ?? null, // Add if you have address_line2
-                ':city' => $addressData['shipping_city'] ?? null,
-                ':state' => $addressData['shipping_state'] ?? null,
-                ':postal_code' => $addressData['shipping_zip'] ?? null,
-                ':country' => $addressData['shipping_country'] ?? null,
+                ':address_line1' => $addressData['address_line1'] ?? null,
+                ':address_line2' => $addressData['address_line2'] ?? null,
+                ':city' => $addressData['city'] ?? null,
+                ':state' => $addressData['state'] ?? null,
+                ':postal_code' => $addressData['postal_code'] ?? null,
+                ':country' => $addressData['country'] ?? null,
                 ':user_id' => $userId
             ]);
             return $success;

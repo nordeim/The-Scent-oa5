@@ -493,7 +493,7 @@ class CartController extends BaseController {
 # controllers/ProductController.php  
 ```php
 <?php
-// controllers/ProductController.php (Updated: Pass Named Parameters to Model)
+// controllers/ProductController.php (Updated: Pass Named Parameters to Model, Added JSON Textarea Parsing)
 
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Product.php';
@@ -788,7 +788,7 @@ class ProductController extends BaseController {
       * Handles saving (create or update) product data submitted via POST.
       */
      public function saveAdminProduct() {
-         // --- START: NEW METHOD TO HANDLE POST FOR CREATE/EDIT ---
+         // --- START: NEW METHOD TO HANDLE POST FOR CREATE/EDIT (with JSON parsing) ---
          $productId = null; // Initialize for logging/redirect
          try {
              $this->requireAdmin();
@@ -819,10 +819,21 @@ class ProductController extends BaseController {
                  'origin' => $this->validateInput($_POST['origin'] ?? null, 'string', ['max' => 100]),
                  'ingredients' => $this->validateInput($_POST['ingredients'] ?? null, 'string'), // Allow longer text
                  'usage_instructions' => $this->validateInput($_POST['usage_instructions'] ?? null, 'string') // Allow longer text
-                 // JSON fields need special handling if not simple textareas
-                 // 'benefits' => ...,
-                 // 'gallery_images' => ...,
+                 // 'benefits' and 'gallery_images' will be handled next
              ];
+
+             // --- START: Parse Textareas for JSON Fields ---
+             $benefitsInput = $_POST['benefits'] ?? '';
+             $data['benefits'] = !empty($benefitsInput)
+                 ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $benefitsInput)))) // Split by any newline, trim, filter empty, re-index
+                 : []; // Default to empty array
+
+             $galleryInput = $_POST['gallery_images'] ?? '';
+             $data['gallery_images'] = !empty($galleryInput)
+                 ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $galleryInput))))
+                 : []; // Default to empty array
+             // --- END: Parse Textareas for JSON Fields ---
+
 
              // Assign initial stock if not explicitly set during creation
              if (!$productId && $data['initial_stock'] === null) {
@@ -877,7 +888,7 @@ class ProductController extends BaseController {
              $redirectUrl = 'index.php?page=admin&section=products' . ($productId ? '&task=edit&id='.$productId : '&task=create');
              $this->redirect($redirectUrl);
          }
-          // --- END: NEW METHOD TO HANDLE POST FOR CREATE/EDIT ---
+          // --- END: NEW METHOD TO HANDLE POST FOR CREATE/EDIT (with JSON parsing) ---
      }
 
     /**

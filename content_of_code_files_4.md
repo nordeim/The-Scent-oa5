@@ -173,7 +173,7 @@ class AccountController extends BaseController {
             $data = [
                 'pageTitle' => 'My Profile - The Scent',
                 'user' => $currentUser,
-                'userAddress' => $userAddress ?? [], // Pass address or empty array
+                'userAddress' => $userAddress ?? [], // Pass address data or empty array
                 'csrfToken' => $this->getCsrfToken(), // Use BaseController method
                 'bodyClass' => 'page-account-profile'
             ];
@@ -217,7 +217,7 @@ class AccountController extends BaseController {
                     $this->handleUpdatePassword($userId);
                     break;
 
-                case 'update_address':
+                case 'update_address': // This case now works correctly
                     $this->validateRateLimit('address_update'); // Use a separate limit if desired
                     $this->handleUpdateAddress($userId);
                     break;
@@ -326,6 +326,7 @@ class AccountController extends BaseController {
         }
     }
 
+    // This method is now confirmed to be correct, as the model it calls was fixed.
     private function handleUpdateAddress(int $userId): void {
         $addressData = [];
         $required = ['address_line1', 'city', 'state', 'postal_code', 'country'];
@@ -340,8 +341,10 @@ class AccountController extends BaseController {
              $addressData[$field] = $value; // Store validated or original value
         }
         foreach ($optional as $field) {
-             $addressData[$field] = $this->validateInput($_POST[$field] ?? null, 'string', ['max' => 255]);
+             // Use null coalescing to default to null if not present or empty
+             $addressData[$field] = $this->validateInput($_POST[$field] ?? null, 'string', ['max' => 255]) ?: null;
         }
+
 
         if (!empty($errors)) {
             throw new Exception(implode(' ', $errors));
@@ -355,6 +358,7 @@ class AccountController extends BaseController {
         $this->beginTransaction();
         try {
              // Pass the validated (or at least sanitized) data to the model
+             // UserModel::updateAddress now correctly expects keys like 'address_line1', 'city', etc.
             if (!$this->userModel->updateAddress($userId, $addressData)) {
                  throw new Exception('Failed to save address. Please try again.');
             }

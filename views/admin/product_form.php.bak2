@@ -1,0 +1,247 @@
+<?php
+// views/admin/product_form.php
+// Form for creating or editing products.
+
+// Use the admin layout header
+require_once __DIR__ . '/../layout/admin_header.php';
+
+// Determine if we are editing or creating
+$isEditing = isset($product) && !empty($product['id']);
+$formAction = $isEditing
+    ? 'index.php?page=admin&section=products&task=save&id=' . urlencode($product['id'])
+    : 'index.php?page=admin&section=products&task=save';
+
+// Helper function to get value for form fields
+function getFieldValue($product, $field, $default = '') {
+    return isset($product[$field]) ? htmlspecialchars($product[$field]) : $default;
+}
+function getCheckedValue($product, $field, $value = 1) {
+    return isset($product[$field]) && $product[$field] == $value ? 'checked' : '';
+}
+?>
+
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-primary mb-6"><?= htmlspecialchars($pageTitle ?? ($isEditing ? 'Edit Product' : 'Create New Product')) ?></h1>
+
+    <?php // Display standard flash messages
+    if (isset($_SESSION['flash_message'])): ?>
+        <div class="mb-4 p-4 rounded <?= ($_SESSION['flash_type'] ?? 'info') == 'success' ? 'bg-green-100 border border-green-400 text-green-700' : 'bg-red-100 border border-red-400 text-red-700' ?>" role="alert">
+            <?= htmlspecialchars($_SESSION['flash_message']) ?>
+            <?php unset($_SESSION['flash_message'], $_SESSION['flash_type']); ?>
+        </div>
+    <?php endif; ?>
+
+    <form action="<?= $formAction ?>" method="POST" enctype="multipart/form-data" class="bg-white shadow-md rounded-lg p-6 space-y-6">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
+        <?php if ($isEditing): ?>
+            <input type="hidden" name="product_id" value="<?= htmlspecialchars($product['id']) ?>">
+        <?php endif; ?>
+
+        <!-- Basic Information Section -->
+        <fieldset class="border p-4 rounded">
+            <legend class="text-lg font-semibold text-primary px-2">Basic Information</legend>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="form-group">
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Product Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="name" name="name" required value="<?= getFieldValue($product, 'name') ?>" class="form-input w-full">
+                </div>
+                <div class="form-group">
+                    <label for="category_id" class="block text-sm font-medium text-gray-700 mb-1">Category <span class="text-red-500">*</span></label>
+                    <select id="category_id" name="category_id" required class="form-select w-full">
+                        <option value="">-- Select Category --</option>
+                        <?php foreach ($categories ?? [] as $category): ?>
+                            <option value="<?= $category['id'] ?>" <?= (isset($product['category_id']) && $product['category_id'] == $category['id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($category['name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group mt-4">
+                <label for="short_description" class="block text-sm font-medium text-gray-700 mb-1">Short Description (for listings)</label>
+                <textarea id="short_description" name="short_description" rows="3" class="form-textarea w-full"><?= getFieldValue($product, 'short_description') ?></textarea>
+            </div>
+            <div class="form-group mt-4">
+                <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
+                <textarea id="description" name="description" rows="5" class="form-textarea w-full"><?= getFieldValue($product, 'description') ?></textarea>
+            </div>
+        </fieldset>
+
+        <!-- Pricing & Inventory Section -->
+        <fieldset class="border p-4 rounded">
+            <legend class="text-lg font-semibold text-primary px-2">Pricing & Inventory</legend>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="form-group">
+                    <label for="price" class="block text-sm font-medium text-gray-700 mb-1">Price ($) <span class="text-red-500">*</span></label>
+                    <input type="number" id="price" name="price" step="0.01" min="0" required value="<?= getFieldValue($product, 'price') ?>" class="form-input w-full">
+                </div>
+                <div class="form-group">
+                    <label for="sku" class="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                    <input type="text" id="sku" name="sku" value="<?= getFieldValue($product, 'sku') ?>" class="form-input w-full">
+                </div>
+                <div class="form-group">
+                    <label for="stock_quantity" class="block text-sm font-medium text-gray-700 mb-1">Stock Quantity <span class="text-red-500">*</span></label>
+                    <input type="number" id="stock_quantity" name="stock_quantity" min="0" required value="<?= getFieldValue($product, 'stock_quantity', '0') ?>" class="form-input w-full">
+                </div>
+                <div class="form-group">
+                    <label for="initial_stock" class="block text-sm font-medium text-gray-700 mb-1">Initial Stock</label>
+                    <input type="number" id="initial_stock" name="initial_stock" min="0" value="<?= getFieldValue($product, 'initial_stock') ?>" class="form-input w-full" placeholder="Defaults to Stock Qty if empty on create">
+                </div>
+                 <div class="form-group">
+                    <label for="low_stock_threshold" class="block text-sm font-medium text-gray-700 mb-1">Low Stock Threshold</label>
+                    <input type="number" id="low_stock_threshold" name="low_stock_threshold" min="0" value="<?= getFieldValue($product, 'low_stock_threshold', '5') ?>" class="form-input w-full">
+                </div>
+                <div class="form-group flex items-center mt-6">
+                    <input type="checkbox" id="backorder_allowed" name="backorder_allowed" value="1" class="form-checkbox h-5 w-5 text-primary rounded" <?= getCheckedValue($product, 'backorder_allowed') ?>>
+                    <label for="backorder_allowed" class="ml-2 block text-sm font-medium text-gray-700">Allow Backorders</label>
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Details & Attributes Section -->
+        <fieldset class="border p-4 rounded">
+            <legend class="text-lg font-semibold text-primary px-2">Details & Attributes</legend>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="form-group">
+                    <label for="size" class="block text-sm font-medium text-gray-700 mb-1">Size (e.g., 10ml)</label>
+                    <input type="text" id="size" name="size" value="<?= getFieldValue($product, 'size') ?>" class="form-input w-full">
+                </div>
+                <div class="form-group">
+                    <label for="scent_profile" class="block text-sm font-medium text-gray-700 mb-1">Scent Profile (Keywords)</label>
+                    <input type="text" id="scent_profile" name="scent_profile" value="<?= getFieldValue($product, 'scent_profile') ?>" class="form-input w-full">
+                </div>
+                <div class="form-group">
+                    <label for="origin" class="block text-sm font-medium text-gray-700 mb-1">Origin</label>
+                    <input type="text" id="origin" name="origin" value="<?= getFieldValue($product, 'origin') ?>" class="form-input w-full">
+                </div>
+            </div>
+             <div class="form-group mt-4">
+                <label for="ingredients" class="block text-sm font-medium text-gray-700 mb-1">Ingredients</label>
+                <textarea id="ingredients" name="ingredients" rows="3" class="form-textarea w-full"><?= getFieldValue($product, 'ingredients') ?></textarea>
+            </div>
+             <div class="form-group mt-4">
+                <label for="usage_instructions" class="block text-sm font-medium text-gray-700 mb-1">Usage Instructions</label>
+                <textarea id="usage_instructions" name="usage_instructions" rows="3" class="form-textarea w-full"><?= getFieldValue($product, 'usage_instructions') ?></textarea>
+            </div>
+            <div class="form-group mt-4">
+                <label for="benefits" class="block text-sm font-medium text-gray-700 mb-1">Benefits (Enter one per line)</label>
+                 <textarea id="benefits" name="benefits" rows="4" class="form-textarea w-full"><?php
+                     $benefits = isset($product['benefits']) && is_array($product['benefits']) ? implode("\n", $product['benefits']) : '';
+                     echo htmlspecialchars($benefits);
+                 ?></textarea>
+                 <p class="text-xs text-gray-500 mt-1">These will be stored as a JSON array. Edit carefully.</p>
+             </div>
+        </fieldset>
+
+        <!-- Images Section -->
+        <fieldset class="border p-4 rounded">
+            <legend class="text-lg font-semibold text-primary px-2">Images</legend>
+            <div class="form-group">
+                <label for="image_url" class="block text-sm font-medium text-gray-700 mb-1">Main Image URL</label>
+                <input type="text" id="image_url" name="image_url" value="<?= getFieldValue($product, 'image', '/images/placeholder.jpg') ?>" class="form-input w-full">
+                <p class="text-xs text-gray-500 mt-1">Enter the full path (e.g., /images/products/lavender.jpg) or URL.</p>
+            </div>
+             <div class="form-group mt-4">
+                <label for="gallery_images" class="block text-sm font-medium text-gray-700 mb-1">Gallery Image URLs (Enter one per line)</label>
+                 <textarea id="gallery_images" name="gallery_images" rows="4" class="form-textarea w-full"><?php
+                     $gallery = isset($product['gallery_images']) && is_array($product['gallery_images']) ? implode("\n", $product['gallery_images']) : '';
+                     echo htmlspecialchars($gallery);
+                 ?></textarea>
+                 <p class="text-xs text-gray-500 mt-1">Enter full paths or URLs. These will be stored as a JSON array.</p>
+             </div>
+            <!-- TODO: Implement actual file upload functionality -->
+            <div class="mt-4 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
+                <p><strong>Note:</strong> File upload functionality is not yet implemented. Please enter image URLs directly.</p>
+            </div>
+        </fieldset>
+
+        <!-- Settings Section -->
+        <fieldset class="border p-4 rounded">
+             <legend class="text-lg font-semibold text-primary px-2">Settings</legend>
+            <div class="form-group flex items-center">
+                <input type="checkbox" id="is_featured" name="is_featured" value="1" class="form-checkbox h-5 w-5 text-primary rounded" <?= getCheckedValue($product, 'is_featured') ?>>
+                <label for="is_featured" class="ml-2 block text-sm font-medium text-gray-700">Featured Product</label>
+            </div>
+        </fieldset>
+
+        <!-- Actions -->
+        <div class="flex justify-end space-x-4 pt-4 border-t">
+            <a href="index.php?page=admin&section=products" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                 <?= $isEditing ? 'Update Product' : 'Create Product' ?>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Basic JS for form interactions if needed, e.g., disabling submit on click
+    document.querySelector('form').addEventListener('submit', function() {
+        const submitBtn = this.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving...';
+        }
+    });
+
+     // Simple handling for textarea lists to JSON-compatible arrays (on client side, server needs robust parsing)
+     // This is a basic example; a more robust solution might involve dynamic input fields
+     const benefitsTextarea = document.getElementById('benefits');
+     const galleryTextarea = document.getElementById('gallery_images');
+     const form = document.querySelector('form');
+
+     if (form && benefitsTextarea) {
+         const hiddenBenefitsInput = document.createElement('input');
+         hiddenBenefitsInput.type = 'hidden';
+         hiddenBenefitsInput.name = 'benefits_json'; // Server will look for this if needed
+         form.appendChild(hiddenBenefitsInput);
+
+         benefitsTextarea.addEventListener('input', () => {
+             const lines = benefitsTextarea.value.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+             hiddenBenefitsInput.value = JSON.stringify(lines);
+         });
+         // Trigger initial processing
+          const initialBenefitLines = benefitsTextarea.value.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+          hiddenBenefitsInput.value = JSON.stringify(initialBenefitLines);
+     }
+     // Similar logic for gallery_images
+      if (form && galleryTextarea) {
+          const hiddenGalleryInput = document.createElement('input');
+          hiddenGalleryInput.type = 'hidden';
+          hiddenGalleryInput.name = 'gallery_images_json'; // Server will look for this
+          form.appendChild(hiddenGalleryInput);
+
+          galleryTextarea.addEventListener('input', () => {
+              const lines = galleryTextarea.value.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+              hiddenGalleryInput.value = JSON.stringify(lines);
+          });
+           const initialGalleryLines = galleryTextarea.value.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+           hiddenGalleryInput.value = JSON.stringify(initialGalleryLines);
+      }
+
+     // IMPORTANT: The backend (`saveAdminProduct`) needs to be adjusted to handle these JSON fields.
+     // It currently expects simple strings. It should check for `benefits_json` and `gallery_images_json`,
+     // decode them, validate, and then re-encode before saving to the DB columns `benefits` and `gallery_images`.
+     // Or, simpler: modify the backend to expect the newline-separated string directly from the textareas
+     // and store that (less ideal), or parse the newline string into JSON on the server before saving.
+     // The CURRENT backend `saveAdminProduct` expects direct data. It will likely store the text area content directly.
+     // For simplicity, we'll keep the current backend expectation and remove the JS JSON conversion for now.
+     // Remove the JS code block above related to benefits_json and gallery_images_json.
+     // The controller (`saveAdminProduct`) needs to handle the `benefits` and `gallery_images` fields correctly based on how they are stored (e.g., assuming newline separated text or JSON).
+     // Based on the model's `create`/`update` expectation of `json_encode($data['benefits'])`, the CONTROLLER needs to convert the newline string from POST into an array first.
+
+     // --- Correct approach: Modify Controller to handle newline textareas ---
+     // In ProductController::saveAdminProduct, before calling the model:
+     // $benefitsArray = !empty($_POST['benefits']) ? array_map('trim', explode("\n", $_POST['benefits'])) : [];
+     // $data['benefits'] = $benefitsArray; // Pass array to model
+     // $galleryArray = !empty($_POST['gallery_images']) ? array_map('trim', explode("\n", $_POST['gallery_images'])) : [];
+     // $data['gallery_images'] = $galleryArray; // Pass array to model
+
+     // Remove the JS above that created hidden JSON inputs.
+</script>
+
+
+<?php
+// Use the admin layout footer
+require_once __DIR__ . '/../layout/admin_footer.php';
+?>

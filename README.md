@@ -1,4 +1,4 @@
-# 🌿 The Scent - Premium Aromatherapy E-commerce Platform (v4.0 - Core Stable, UI Enhanced)
+# 🌿 The Scent - Premium Aromatherapy E-commerce Platform
 
 Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-commerce platform built to showcase and sell premium natural aromatherapy products. This project is designed from the ground up for extensibility, security, and seamless user experience, featuring a custom MVC-inspired PHP architecture.
 
@@ -12,32 +12,39 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
 
 ---
 
-## ✨ Current Status (v4.0 - Core Stable, Key Standardizations, Address UI Added)
+## ✨ Current Status (v16.1 - Core Stable, Admin Product CRUD Added)
 
-*   ✅ **Core Functionality Stable:** Product Browsing (**Filtering/Sorting/Pagination OK**), Add-to-Cart (AJAX OK), Cart Management (AJAX OK), User Login/Registration (AJAX OK), Password Reset OK, Profile Update (Name/Email/Password/Newsletter OK), **Quiz Flow OK**, **Checkout Load OK**, **Order Confirmation OK**.
+*   ✅ **Core Functionality Stable:** Product Browsing (Filtering/Sorting/Pagination OK), Add-to-Cart (AJAX OK), Cart Management (AJAX OK), User Login/Registration (**Registration OK**), Password Reset OK, Profile Update (Name, Email, Password, Newsletter, **Address OK**), Quiz Flow OK, Checkout Load OK, Order Confirmation OK.
 *   ✅ **Critical Bug Fixes Implemented:**
-    *   Resolved **fatal error preventing checkout page load**.
-    *   Resolved **critical flaw in Order Confirmation flow** (now uses Stripe API verification).
-    *   Resolved **broken UI on Account pages** (`/index.php?page=account*`). Layout now consistent.
-    *   Resolved **CSRF error on Scent Quiz submission**. Quiz flow is now functional.
-    *   Resolved **SQL error on Product Category filtering** (Mixed named/positional parameters fixed).
-    *   Resolved **Incorrect Quiz Results Display** (Now correctly shows products recommended during submission via session).
-    *   Resolved **Redirect error after Quiz submission**.
-    *   Mobile navigation CSS bug fixed.
+    *   Resolved Checkout Page Load failure.
+    *   Resolved Order Confirmation flow inaccuracies.
+    *   Resolved Account Pages UI inconsistencies.
+    *   Resolved Quiz CSRF Error & Redirects.
+    *   Resolved Product Filter SQL Error (Mixed Placeholders).
+    *   Resolved Quiz Results display inaccuracies.
+    *   Resolved **Registration Failure** (DB Logging Error).
+    *   Resolved **Profile Address Saving** (`UserModel` key mapping).
 *   ✅ **Standardizations Applied:**
-    *   **Cart Storage:** Now consistently uses `$_SESSION` for Guests and the Database (`cart_items` table) for Logged-in users, managed by `CartController`. `$_SESSION['cart_count']` is reliably updated for header display.
-    *   **Rate Limiting:** Now consistently applied via `BaseController::validateRateLimit()` to key sensitive endpoints (Login, Register, Password Reset Request/Attempt, Profile Update, Newsletter Subscribe, Coupon Apply, Checkout Submit). Relies on APCu extension.
-    *   **Database Placeholders:** Standardized on named placeholders (`:param`) in `ProductModel` filtering methods to prevent SQL errors.
+    *   **Cart Storage:** Consistent Session (Guest) vs. DB (User) handling via `CartController`.
+    *   **Rate Limiting:** Applied consistently to key endpoints via `BaseController`.
+    *   **Database Placeholders:** Standardized on named placeholders for filtering.
 *   ✅ **UI Enhancements:**
-    *   **Address Management UI Added:** The user profile page (`views/account/profile.php`) now includes a form section for users to view and *enter* their shipping address.
-*   🚧 **Partially Implemented Features:**
-    *   **Address Saving Logic (Backend Pending):** While the UI exists to *enter* an address on the profile page, the backend logic in `AccountController` to *process and save* this address from the profile form is **required**. The logic to *pre-fill* the checkout form from the DB and the logic to optionally *save* the address *during* checkout submission (`CheckoutController` calling `User::updateAddress`) exist.
-*   ⚠️ **Other Known Issues/TODOs:**
-    *   **Error Handling ("Headers Already Sent"):** Issue mitigated in `ErrorHandler.php`, but potential edge cases might remain if output starts before error handling. Consider making `views/error.php` self-contained.
-    *   **Content Security Policy (CSP):** Needs review/tightening for production.
-    *   **Rate Limiting Coverage:** While applied to key areas, a full review for other potentially sensitive endpoints (e.g., admin actions) is recommended.
-    *   **Admin Panel Features:** Basic features exist (Coupons, Quiz Analytics, Product List/Form); full CRUD for Products/Orders/Users needed.
-    *   **Code Quality/Refactoring:** Composer integration, dedicated router, templating engine, `.env` files, migrations, and tests are recommended for future maintainability.
+    *   Account pages UI fixed.
+    *   **Address Management UI on profile page fully functional (View/Edit/Save).**
+    *   **Admin Product CRUD UI implemented** (List, Create, Edit, Delete views).
+*   ✅ **Admin Functionality:**
+    *   **Product CRUD functional** (List, Create, Edit, Delete via UI & Controller). JSON fields handled.
+    *   Coupon CRUD functional.
+    *   Quiz Analytics functional.
+*   ⚠️ **Known Issues/TODOs:**
+    *   **Error Handling ("Headers Already Sent"):** Minor issue mitigated, but potential edge cases remain. Consider making `views/error.php` self-contained.
+    *   **Content Security Policy (CSP):** Needs review/tightening for production deployment.
+    *   **Rate Limiting Coverage:** Review admin endpoints and other less critical areas.
+    *   **Admin Panel Features:** Extend CRUD features (Orders, Users). Improve Quiz Analytics detail. Add Admin Dashboard content.
+    *   **Code Quality/Refactoring:** Composer, Router, Templating, .env, Migrations, Tests recommended for future maintainability.
+    *   **File Uploads:** Admin product form currently uses URL input; actual file upload needs implementation.
+
+This document provides a comprehensive overview of the current architecture, logic, and flow, serving as an onboarding guide and reference for ongoing development.
 
 ---
 
@@ -48,7 +55,7 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
 ![Apache](https://img.shields.io/badge/Apache-2.4+-red?logo=apache)
 ![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-CDN-blue?logo=tailwindcss)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Core%20Stable/Dev-yellowgreen)
+![Status](https://img.shields.io/badge/Status-Core%20Stable/Admin%20Dev-yellowgreen)
 
 ---
 
@@ -77,78 +84,80 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
 **The Scent** is more than just an e-commerce platform — it’s an experience. Built specifically to support the sale and recommendation of **premium aromatherapy products**, the platform integrates:
 
 *   A clean, modern, responsive UI/UX powered by Tailwind CSS and subtle animations.
-*   Personalized shopping via an interactive scent finder quiz (**Functional**, **Results Display Fixed**).
-*   Dynamic product catalog with categories, filtering, sorting, and functional pagination (**Functional, Filtering Fixed**).
-*   A functional shopping cart with AJAX updates and a **standardized storage mechanism** (Session for guests, DB for users).
-*   Secure user authentication (Login/Registration/Password Reset/Profile Update) with robust validation and **consistent rate limiting** applied to sensitive actions.
+*   Personalized shopping via an interactive scent finder quiz (**Functional**).
+*   Dynamic product catalog with categories, filtering, sorting, and functional pagination (**Functional**).
+*   A functional shopping cart with AJAX updates and a **standardized storage mechanism**.
+*   Secure user authentication (**Registration Functional**, Login, Password Reset, Profile Update including **Address Management Functional**) with robust validation and **consistent rate limiting**.
 *   A modular PHP codebase (MVC-inspired) for customization and growth.
-*   A **stable core checkout process**, including page load (**Fixed**), AJAX interactions, payment intent creation, and **reliable order confirmation display (Fixed)**.
-*   Functional user account pages with a **fixed, consistent UI** and **address management UI**.
+*   A **stable core checkout process**, including page load, AJAX interactions, payment intent creation, and **reliable order confirmation display**.
+*   Functional user account pages with a **fixed, consistent UI** and **functional address management**.
+*   **Basic Admin panel** with functional **Product CRUD**, Coupon management, and Quiz Analytics.
 
-Designed for extensibility, performance, and user-centric experience, The Scent provides a solid foundation for wellness or natural product businesses. This README reflects the current state (**v4.0**), including critical fixes, UI enhancements, and standardizations, while highlighting areas like backend address saving that require further implementation.
+Designed for extensibility, performance, and user-centric experience, The Scent provides a solid foundation for wellness or natural product businesses. This README reflects the current state (**v16.1**).
 
 ---
 
 ## 🎯 Features
 
 ### 🛍️ Core E-commerce
-*   ✅ **Modern Landing Page:** Engaging design with video background, particle effects, scroll animations.
-*   ✅ **Product Catalog:** Browse products with category filtering (**Fixed**), sorting (name, price), price range filtering, basic search.
-*   ✅ **Product List Pagination:** Fully functional pagination.
-*   ✅ **Product Detail Pages:** Rich content including image gallery, descriptions, attributes, related products.
-*   ✅ **AJAX Add-to-Cart:** Add items from Home, Product List, Detail pages without page reloads.
-*   ✅ **Functional Cart Page:** Updated grid layout, supports AJAX quantity updates and item removal.
-*   🔄 **Standardized Cart Storage:** Uses Session for guests, Database for logged-in users, managed reliably via `CartController`. Header count reliable.
-*   ✅ **Mini-Cart:** Header dropdown showing cart contents, updated via AJAX (reflects standardized count).
-*   ✅ **Stock Validation:** Checks availability during Add-to-Cart and before rendering Checkout page.
-*   ✅ **Responsive Design:** Adapts to various screen sizes. Mobile navigation fixed.
+*   ✅ Modern Landing Page.
+*   ✅ Product Catalog (Filtering, Sorting, Pagination, Search).
+*   ✅ Product Detail Pages (Gallery, Description, Related).
+*   ✅ AJAX Add-to-Cart.
+*   ✅ Functional Cart Page (AJAX Quantity/Remove).
+*   ✅ Standardized Cart Storage (Session vs. DB).
+*   ✅ Mini-Cart (AJAX Updated).
+*   ✅ Stock Validation (Add-to-Cart, Checkout).
+*   ✅ Responsive Design (Mobile Nav Fixed).
 
 ### 🔐 User Management
-*   ✅ **User Authentication:** Functional Login and Registration (AJAX-based, secure password handling).
-*   ✅ **Password Reset System:** Functional "Forgot Password" email flow and token-based password reset.
-*   ✅ **User Profile Management:** View and update name, email, password, newsletter preferences.
-*   ✅ **Order History:** View past orders and details.
-*   ✅ **Account Pages UI:** Consistent layout applied (**Fixed**).
-*   🚧 **Address Management:** **UI Added** to profile page for viewing/entering address. Backend method `User::updateAddress` exists. Checkout includes "Save Address" checkbox and logic to save *during checkout*. **Backend logic to save address *from profile form* needs implementation.**
+*   ✅ User Authentication (**Registration Functional**, Login Functional - AJAX).
+*   ✅ Password Reset System (Functional).
+*   ✅ User Profile Management (Name, Email, Password, Newsletter Prefs - **Functional**).
+*   ✅ **Address Management (View/Edit/Save via Profile Page - Functional)**.
+*   ✅ Order History & Details View (Functional).
+*   ✅ Account Pages UI (Fixed & Consistent).
 
 ### ✨ Personalization
-*   ✅ **Scent Finder Quiz:** Interactive quiz to guide users to suitable products (**Functional, CSRF & Redirect Fixed**).
-*   ✅ **Product Recommendations:** Displays relevant products based on quiz results (**Results Display Fixed**) or related items.
+*   ✅ Scent Finder Quiz (Functional Flow & Results Display).
+*   ✅ Product Recommendations (Quiz-based & Related Items).
 
 ### 🛒 Shopping Experience
-*   ✅ **Checkout Page Load:** Requires login, collects shipping info, **loads correctly**, pre-fills address if available in DB.
-*   ✅ **Checkout AJAX:** Coupon application and tax calculation estimates functional via AJAX.
-*   ✅ **Checkout Submission:** Server-side logic correctly validates stock/coupons, creates order, decrements inventory, creates Stripe Payment Intent within a transaction. Optionally saves address.
-*   ✅ **Order Confirmation Page:** View exists, **logic is now reliable (Fixed)**, verifying payment via Stripe API before display.
+*   ✅ Checkout Page Load (Requires Login, Address Pre-fill).
+*   ✅ Checkout AJAX (Coupon Apply, Tax Estimate).
+*   ✅ Checkout Submission (Validation, Order Creation, Stripe PI, Inventory Decrement, Optional Address Save).
+*   ✅ Order Confirmation Page (Functional & Reliable via Stripe Verification).
 
-### 💼 Business Features *(Partially Implemented / Needs Integration)*
-*   ✅ **Inventory Management:** Basic stock tracking fields (`products` table) and DB update logic (`InventoryController::updateStock` uses audit trail).
-*   ✅ **Tax System:** Basic tax calculation logic via `TaxController` functional for AJAX estimates.
-*   ✅ **Coupon System:** Admin CRUD interface functional. Validation logic (`CouponController`) functional. Applied via AJAX in checkout. Server-side re-validation during final submission implemented.
-*   ✅ **Email Notifications:** Functional system (`EmailService`) for Welcome, Password Reset. Order Confirmation sending via webhook functional. *(Shipping Update sending logic exists but depends on admin action)*. Requires SMTP configuration.
+### 💼 Business Features
+*   ✅ Inventory Management (Stock Tracking, Basic Admin Updates via Product Form, Audited movements via `InventoryController`).
+*   ✅ Tax System (Basic Calculation via `TaxController`).
+*   ✅ Coupon System (Admin CRUD, Checkout Application & Validation Functional).
+*   ✅ Email Notifications (System Functional - Welcome, Reset, Order Confirmation via Webhook).
 
 ### 👑 Admin Features *(Modular, Basic)*
-*   ✅ Requires 'admin' role. Basic RBAC checks in place.
-*   ✅ **Quiz Analytics:** View basic quiz statistics (time-range filter functional).
-*   ✅ **Coupon Management:** Basic CRUD interface functional, including AJAX toggle/delete.
-*   ✅ **Product Management:** Basic list, create, edit, delete forms/logic functional.
+*   ✅ Requires 'admin' role.
+*   ✅ **Product Management (CRUD Interface Functional - List, Create, Edit, Delete Views & Logic)**.
+*   ✅ Coupon Management (CRUD Interface Functional).
+*   ✅ Quiz Analytics (Basic View Functional).
 *   🚧 *Further admin panels (Orders, Users) require development.*
 
 ### 🛡️ Security Features
-*   ✅ **CSRF Protection:** Synchronizer Token Pattern globally enforced on POST requests.
-*   ✅ **Input Validation/Sanitization:** Applied via `SecurityMiddleware::validateInput`.
-*   ✅ **Secure Session Management:** HttpOnly, Secure flags, SameSite=Lax, ID Regeneration, IP/UA binding checks.
-*   ✅ **Prepared Statements:** Protection against SQL Injection (**Named placeholders** used for filtering).
-*   ✅ **Security Headers:** Standard headers applied (CSP needs review).
-*   ✅ **Password Hashing:** Uses `password_hash`/`password_verify`.
-*   ✅ **Webhook Security:** Stripe signature verification implemented.
-*   🔄 **Rate Limiting:** **Applied consistently** to Login, Register, Password Reset, Profile Update, Newsletter Subscribe, Coupon Apply, Checkout Submit via `BaseController::validateRateLimit()`. (Relies on APCu).
+*   ✅ CSRF Protection (Global POST Validation).
+*   ✅ Input Validation/Sanitization (`SecurityMiddleware`).
+*   ✅ Secure Session Management (Flags, Regen, Integrity Checks).
+*   ✅ Security Headers (CSP needs review).
+*   ✅ Password Hashing (`password_hash`/`verify`).
+*   ✅ Webhook Security (Stripe Signature Verification).
+*   ✅ Rate Limiting (Applied Consistently to Key Endpoints - Requires APCu).
+*   ✅ SQL Injection Prevention (PDO Prepared Statements - Named Placeholders).
+*   ✅ Audit Logging.
+*   ✅ Error Handling (Production safe).
 
 ---
 
 ## 🖼️ Screenshots
 
-> 📸 *Please add updated screenshots reflecting the **fixed Account UI**, **functional Quiz Results**, **functional Product Filtering**, **functional Checkout/Confirmation**, and stable core flows!*
+> 📸 *Please add updated screenshots reflecting the **functional Registration**, **functional Profile Address form**, functional **Admin Product List/Form**, and stable core flows!*
 
 *   *Landing Page:* `[Insert Screenshot: views/home.php]`
 *   *Product List (Filtering Fixed):* `[Insert Screenshot: views/products.php]`
@@ -157,11 +166,14 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 *   *Quiz Page (Functional):* `[Insert Screenshot: views/quiz.php]`
 *   *Quiz Results (Functional):* `[Insert Screenshot: views/quiz_results.php]`
 *   *Login Page:* `[Insert Screenshot: views/login.php]`
+*   **Registration Page (Functional):** `[Insert Screenshot: views/register.php]`
 *   *Checkout Page (Loading Correctly):* `[Insert Screenshot: views/checkout.php]`
 *   *Order Confirmation Page (Functional):* `[Insert Screenshot: views/order_confirmation.php]`
 *   *Account Dashboard (Fixed UI):* `[Insert Screenshot: views/account/dashboard.php]`
-*   *Account Profile (Fixed UI + Address Form):* `[Insert Screenshot: views/account/profile.php]`
+*   **Account Profile (Fixed UI + Functional Address Form):** `[Insert Screenshot: views/account/profile.php]`
 *   *Admin Coupons:* `[Insert Screenshot: views/admin/coupons.php]`
+*   **Admin Product List:** `[Insert Screenshot: views/admin/products.php]`
+*   **Admin Product Form:** `[Insert Screenshot: views/admin/product_form.php]`
 
 ---
 
@@ -173,7 +185,7 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 
 *   **`index.php`:** Central entry point, routing via `switch`, core includes, **global POST CSRF validation**.
 *   **`Controllers`:** Business logic, extend `BaseController`, interact with Models (PDO), select View/Response. **Apply rate limiting where needed.**
-*   **`Models`:** Database interaction via **PDO Prepared Statements (primarily named placeholders)**.
+*   **`Models`:** Database interaction via **PDO Prepared Statements (primarily named placeholders now)**.
 *   **`Views`:** PHP templates, HTML output, receive data from Controllers.
 *   **`Includes`:** Core utilities (DB, Auth, Security, Error Handling, Email).
 *   **`config.php`:** Configuration (DB, Security, API Keys).
@@ -187,7 +199,7 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 
 | Layer            | Technology                                                                                                | Notes                                                                            |
 | :--------------- | :-------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------- |
-| Frontend         | HTML5, Tailwind CSS (CDN), Custom CSS (`css/style.css`), JavaScript (Vanilla), Font Awesome 6 (CDN)           | Uses AOS.js & Particles.js. **Account UI fixed.**                                |
+| Frontend         | HTML5, Tailwind CSS (CDN), Custom CSS (`css/style.css`), JavaScript (Vanilla), Font Awesome 6 (CDN)           | Uses AOS.js & Particles.js. Account UI fixed. Admin Product UI added.            |
 | Backend          | PHP 8.0+                                                                                                  | Core logic, MVC-inspired structure.                                            |
 | Web Server       | Apache 2.4+                                                                                               | Requires `mod_rewrite`.                                                        |
 | Database         | MySQL 5.7+ / 8.0+ (or MariaDB equivalent)                                                                   | **Requires schema patch for `users` table.**                                     |
@@ -199,9 +211,9 @@ Designed for extensibility, performance, and user-centric experience, The Scent 
 
 ## 📁 Folder Structure
 
-*(Reflects current structure - See TDS v15 for detailed map)*
+*(Reflects current structure - See TDS v15 for detailed map, includes new admin views)*
 
-Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`, `images/`, `videos/`, `logs/`, `db/`.
+Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`, `images/`, `videos/`, `logs/`, `db/`. Includes `views/admin/products.php`, `views/admin/product_form.php`.
 
 ---
 
@@ -210,7 +222,7 @@ Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`
 *   Base schema: [`db/the_scent_schema.sql.txt`](db/the_scent_schema.sql.txt).
 *   **MANDATORY:** Apply the patch script [`db/the_scent_update_users_table.sql`](db/the_scent_update_users_table.sql) to update the `users` table with necessary columns (status, newsletter, reset tokens, address fields, timestamps). **Failure to apply will cause errors.**
 *   **Cart Storage:** `cart_items` table used for logged-in users. Session used for guests. This is the implemented standard.
-*   **Addresses:** Stored directly in the `users` table via added columns. **Profile UI allows editing, backend saving logic pending.** Checkout pre-fills from these columns and can save during order placement.
+*   **Addresses:** Stored directly in the `users` table via added columns. **Profile UI allows viewing/editing, backend saving is functional.** Checkout pre-fills from these columns and can save during order placement.
 
 *(Simplified ER Diagram remains the same)*
 
@@ -242,13 +254,14 @@ Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`
 7.  **(Optional but Recommended) Composer:** Run `composer install` if using Composer for dependencies (e.g., PHPMailer, Stripe SDK). Ensure `index.php` includes `vendor/autoload.php`.
 8.  **Access Site:** Browse to your configured URL.
 9.  **Initial Verification:**
-    *   Check that the site loads without errors.
-    *   Test user registration and login.
-    *   Verify the checkout page loads after logging in.
-    *   **Test the Scent Quiz submission and verify results page shows products.**
-    *   **Test product category filtering.**
-    *   **Check Account Dashboard UI and Profile page UI (including address section).**
-    *   **Test the full checkout flow including successful payment and order confirmation page display.**
+    *   Check site loads.
+    *   Test user **registration** and login.
+    *   Verify checkout page loads.
+    *   Test Scent Quiz submission and results page.
+    *   Test product category filtering.
+    *   Check Account Dashboard UI and **Profile page Address saving**.
+    *   Test the full checkout flow including payment and order confirmation page.
+    *   Verify Admin **Product List, Create, Edit, Delete** functionality.
 
 ---
 
@@ -262,30 +275,29 @@ Key directories: `controllers/`, `models/`, `views/`, `includes/`, `js/`, `css/`
 6.  **Enable HTTPS**. Force HTTPS.
 7.  **Enable APCu** PHP extension on the server.
 8.  Keep server software updated. Enable PHP OPcache.
-9.  **Test thoroughly**, especially the **full checkout and order confirmation flow**, account management (profile info, password, address UI), **quiz flow and results display**, **product filtering**, cart login/logout merge, and rate limits.
+9.  **Test thoroughly**, especially checkout/confirmation, **registration**, **profile address saving**, quiz flow, filtering, cart merge, rate limits, **admin product CRUD**.
 
 ---
 
 ## 🛡️ Security Best Practices Implemented
 
-*   ✅ **SQL Injection Prevention:** PDO Prepared Statements used exclusively (**Named placeholders** for filtering).
-*   ✅ **CSRF Protection:** Synchronizer Token Pattern implemented and enforced globally on POST.
-*   ✅ **XSS Prevention:** Input validation (`SecurityMiddleware`) and output escaping (`htmlspecialchars()`) used. CSP header applied (needs review).
-*   ✅ **Authentication & Authorization:** Secure password hashing, Role checks, secure password reset flow.
-*   ✅ **Session Management:** Secure cookie flags, Session ID regeneration, Session integrity checks.
-*   ✅ **Security Headers:** Standard headers applied (CSP needs review).
-*   ✅ **Password Hashing:** Uses `password_hash`/`password_verify`.
-*   ✅ **Webhook Security:** Stripe signature verification implemented.
-*   ✅ **Error Handling:** Sensitive details suppressed in production. "Headers Already Sent" issue noted.
-*   ✅ **Audit Logging:** Key security/user events logged.
-*   ✅ **Rate Limiting:** **Applied consistently** to key sensitive endpoints (Login, Register, Password Reset, Profile Update, Newsletter Subscribe, Coupon Apply, Checkout Submit). Relies on APCu.
+*   ✅ SQL Injection Prevention (PDO Prepared Statements - Named Placeholders).
+*   ✅ CSRF Protection (Synchronizer Token Pattern, global POST validation).
+*   ✅ XSS Prevention (Input Validation, Output Escaping, CSP header).
+*   ✅ Authentication & Authorization (Secure Hashing, Roles, Secure Reset).
+*   ✅ Session Management (Secure Flags, Regen, Integrity Checks).
+*   ✅ Security Headers (CSP needs review).
+*   ✅ Webhook Security (Stripe Signature Verification).
+*   ✅ Error Handling (Production safe).
+*   ✅ Audit Logging.
+*   ✅ Rate Limiting (Applied Consistently to Key Endpoints - Requires APCu).
 
 ---
 
 ## 🔧 Customization & Extensibility
 
-*   **Adding Features:** Follow MVC pattern: Create Controller (extend `BaseController`), View(s), Model(s). Add route in `index.php`. Implement CSRF token pattern for POST. Apply rate limiting if needed.
-*   **Adding Products/Categories:** Update database. Admin UI is basic.
+*   **Adding Features:** Follow MVC pattern: Controller -> View -> `index.php` route. Implement CSRF token pattern for POST. Extend `BaseController`. Apply rate limiting if needed.
+*   **Adding Products/Categories:** Update database or use Admin UI.
 *   **Styling:** Modify Tailwind classes or `css/style.css`.
 
 ---
@@ -319,45 +331,81 @@ Distributed under the **MIT License**. See the `LICENSE` file for details (assum
 
 ## 📎 Appendix
 
-### ✅ Key Functionality Status Checklist (v4.0)
-*   [✅] User Registration & Login/Logout (AJAX)
-*   [✅] Password Reset Flow (Email + Form)
-*   [✅] User Profile View & Update (Name, Email, Password, Newsletter Pref)
-*   [✅] Product Listing & Pagination
-*   [✅] Product Filtering (Category, Price Range) & Sorting (**Fixed**)
-*   [✅] Product Detail View
-*   [✅] Add to Cart (AJAX - Home, List, Detail)
-*   [✅] Cart Page View (Updated UI)
-*   [✅] Cart Item Quantity Update / Removal (AJAX)
-*   🔄 **Cart Storage Standardized (Session vs. DB)**
-*   ✅ Checkout Page Load (Requires Login, Pre-fills Address, **Loads OK**)
-*   ✅ Checkout AJAX (Coupon Apply, Tax Estimate)
-*   ✅ Checkout Submission (Server-side validation, Order Creation, PI Creation, Inventory Update, Optional Address Save)
-*   🚧 Address Saving (**Profile UI Added**, Backend Saving Logic Pending)
-*   ✅ Order Confirmation Display (**Reliable Flow Implemented**)
-*   ✅ Scent Finder Quiz & Results Display (**Functional, CSRF & Redirect Fixed, Results Fixed**)
-*   ✅ Newsletter Signup (AJAX)
-*   ✅ Basic Admin Coupon Management (CRUD Interface)
-*   ✅ Basic Admin Quiz Analytics UI
-*   ✅ Account Pages UI (**Fixed**)
-*   🔄 **Rate Limiting Applied to Key Endpoints**
+### A. Key File Summaries
 
-### 🔮 Future Enhancements & Recommendations (Prioritized)
-1.  **Implement Profile Address Saving (High Priority):** Add backend logic in `AccountController` to process and save address updates from the profile form.
-2.  **Review & Tighten Content Security Policy (Medium Priority):** Update CSP in `config.php`. Avoid `'unsafe-inline'` if possible.
-3.  **Fix Error Handling ("Headers Already Sent") (Low Priority):** Further investigate and refine `ErrorHandler.php` or make `views/error.php` self-contained.
-4.  **Review Rate Limiting Coverage (Low Priority):** Ensure all potentially sensitive endpoints are covered.
-5.  **Code Quality & Refactoring (Ongoing/Future):** Composer, Autoloader, Routing Component, Templating Engine, .env, Migrations, Tests.
-6.  **Full Admin Panel (Future):** CRUD for Products, Orders, Users, etc.
-7.  **Advanced Features (Future):** Search improvements, user reviews, wishlists.
+*(Updated status notes for v16.1)*
 
----
+| File/Folder                     | Purpose                                                          | Status Notes (v16.1)                                                                             |
+| :------------------------------ | :--------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| `index.php`                     | Entry point, routing, core includes, auto POST CSRF validation   | OK. Admin Product routing functional.                                                            |
+| `config.php`                    | DB credentials, App/Security settings, API keys                | OK. CSP/Rate Limit review needed. Secrets exposure.                                              |
+| `includes/SecurityMiddleware.php`| Static security helpers (validation, CSRF)                     | OK.                                                                                              |
+| `controllers/BaseController.php`| Abstract base helpers (DB, JSON, auth, CSRF, Rate Limit)       | OK. `redirect` fixed. Rate limiting logic OK.                                                    |
+| `controllers/AccountController.php`| User auth/profile logic. AJAX/standard POST.                   | **Functional.** Rate limiting applied. **Registration fixed.** **Profile Address saving fixed.**         |
+| `controllers/CheckoutController.php`| Handles checkout. AJAX interaction.                              | **Loads OK. Confirmation Flow Fixed.** Rate limiting applied.                                    |
+| `controllers/PaymentController.php` | Stripe PI creation, Webhook handling                           | OK. Webhook session dependency removed. `getStripeClient()` available.                         |
+| `controllers/CartController.php`    | Handles cart logic via AJAX.                                     | **Functional.** **Cart storage standardized.** Reliable session count update.                    |
+| `controllers/ProductController.php`| Product listing/detail/admin.                                  | **Functional.** Filtering uses Named Placeholders. Admin routing/CRUD logic OK. JSON parsing added. |
+| `controllers/QuizController.php`    | Quiz logic.                                                    | **Functional.** **CSRF fixed. Results logic uses Session.**                                        |
+| `controllers/NewsletterController.php`| Newsletter signup/unsubscribe.                               | OK. Rate limiting applied.                                                                       |
+| `models/User.php`               | User DB logic (**PDO Prepared Statements**).                     | **Updated & Functional.** **`updateAddress` fixed.** `getAddress` OK. Requires patch.                |
+| `models/Order.php`              | Order DB logic (**PDO Prepared Statements**).                    | OK.                                                                                              |
+| `models/Product.php`            | Product DB logic (**PDO Prepared Statements**).                  | **Functional.** Filtering uses Named Placeholders. Compatible with controller. OK.          |
+| `models/Cart.php`               | DB cart logic (**PDO Prepared Statements**).                     | OK. Used only for logged-in users now.                                                         |
+| `models/Quiz.php`               | Quiz DB logic (**PDO Prepared Statements**).                     | **Functional.** **`recommendations` column selected correctly.**                                 |
+| `views/layout/header.php`       | Header, nav, assets, outputs global CSRF token.                | OK. Cart count logic simplified.                                                                 |
+| `views/account/*.php`           | Account views (Dashboard, Orders, Profile, etc.)                 | **UI Fixed.** Profile address UI functional. Compatible with CSS/JS. OK.                         |
+| `views/admin/products.php`      | Admin: List products view.                                       | **Functional.** Displays data, provides actions.                                                 |
+| `views/admin/product_form.php`  | Admin: Create/Edit product form view.                            | **Functional.** Displays fields, pre-fills on edit. Controller handles JSON fields.              |
+| `views/layout/footer.php`       | Footer, JS init, global AJAX handlers read CSRF token.         | OK.                                                                                              |
+| `views/checkout.php`            | Checkout form view.                                              | **Loads OK.** Uses `$userAddress`. Defensive coding added. AJAX/Stripe OK.                      |
+| `views/order_confirmation.php`  | Confirmation view.                                               | **Functional.** Controller logic fixed.                                                        |
+| `views/quiz.php`                | Quiz form view.                                                  | OK. Controller passes CSRF token.                                                              |
+| `views/quiz_results.php`        | Quiz results view.                                               | OK. Controller passes correct product data.                                                    |
+| `js/main.js`                    | Frontend logic, AJAX handlers, CSRF handling via hidden input.   | OK. Correctly handles CSRF for AJAX. Compatible with controllers.                                |
+| `includes/ErrorHandler.php`     | Global error handling.                                           | OK. "Headers Already Sent" issue noted.                                                        |
+| `includes/EmailService.php`     | Sends emails (Welcome, Reset, Confirmation, etc.)              | **Functional.** **DB logging column fixed.**                                                     |
+| `db/*`                          | Schema files.                                                    | **Update script is mandatory.**                                                                  |
 
-## 📫 Contact
+### B. Glossary
 
-*   Project Maintainer/Support: `[Your Name/Email or GitHub Profile]`
-*   GitHub Issues: `[Link to Project Issues Page]`
+(Standard terms)
 
----
+### C. Code Snippets and Patterns (CSRF, Confirmation, Named Placeholders, Address Handling, JSON Textarea Parsing)
 
-Built with ❤️ for aromatherapy enthusiasts.
+**CSRF Token Pattern:** *(Unchanged)*
+
+**Implemented Order Confirmation Flow:** *(Unchanged - flow description is correct)*
+
+**Named Placeholder Pattern (Example from `ProductModel::getFiltered`)** *(Unchanged)*
+
+**Address Handling Pattern (Functional):** *(Unchanged - pattern description is correct)*
+
+**JSON Textarea Parsing (Implemented in `ProductController::saveAdminProduct`):**
+
+```php
+// Example from ProductController::saveAdminProduct showing parsing logic
+
+// --- START: Parse Textareas for JSON Fields ---
+$benefitsInput = $_POST['benefits'] ?? '';
+// Split by any newline type, trim whitespace from each line, filter out empty lines, re-index numerically
+$data['benefits'] = !empty($benefitsInput)
+    ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $benefitsInput))))
+    : []; // Default to empty array if textarea was empty
+
+$galleryInput = $_POST['gallery_images'] ?? '';
+$data['gallery_images'] = !empty($galleryInput)
+    ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $galleryInput))))
+    : []; // Default to empty array
+// --- END: Parse Textareas for JSON Fields ---
+
+// Pass $data array (now containing PHP arrays for 'benefits' and 'gallery_images')
+// to the ProductModel's create/update methods.
+// The model handles json_encode() before saving to the database.
+// $success = $this->productModel->update($productId, $data); or ->create($data);
+```
+
+### D. Mandatory Database Patch
+
+*(Content remains the same - emphasize its importance)*
+

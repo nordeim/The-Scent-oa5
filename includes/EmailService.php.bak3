@@ -103,20 +103,18 @@ class EmailService {
     // Now uses $this->pdo
     private function logEmail(?int $userId, string $emailType, string $recipientEmail, string $subject, string $status, ?string $errorMessage = null): void {
         try {
-            // --- START FIX: Use 'mailer_error' column instead of 'error_message' ---
             $stmt = $this->pdo->prepare("
                 INSERT INTO email_log
-                (user_id, email_type, to_email, subject, status, mailer_error, sent_at)
+                (user_id, email_type, to_email, subject, status, error_message, sent_at)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
-            // --- END FIX ---
             $stmt->execute([
                 $userId,
                 $emailType,
                 $recipientEmail,
                 $subject,
                 $status,
-                $errorMessage // Value passed here maps to the 'mailer_error' column now
+                $errorMessage
             ]);
         } catch (Exception $e) {
             // Log to PHP error log if DB logging fails

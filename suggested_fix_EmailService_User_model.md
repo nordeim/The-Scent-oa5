@@ -1,3 +1,31 @@
+Okay, I have carefully reviewed the provided code files, logs, and the issues described. Here's a breakdown of the analysis and the necessary fixes:
+
+**Analysis of Issues:**
+
+1.  **Issue 1: Registration Failure (HTTP 400 / DB Error)**
+    *   **Root Cause:** The Apache error log clearly shows the error: `SQLSTATE[42S22]: Column not found: 1054 Unknown column 'error_message' in 'field list'`. This error originates from the `EmailService::logEmail` method (`includes/EmailService.php`). This method attempts to insert into an `error_message` column in the `email_log` table, but the database schema (`the_scent_schema.sql.txt`) defines this column as `mailer_error`.
+    *   **Trigger:** This logging happens *after* the user is successfully created in the database but *during* the attempt to send the welcome email via `AccountController::register` -> `EmailService::sendWelcome` -> `EmailService::sendEmail` -> `EmailService::logEmail`. Even if the email sending *succeeds*, the logging attempt fails, causing the transaction rollback (or appearing as a failure to the frontend AJAX call).
+    *   **Solution:** Modify `includes/EmailService.php` to use the correct column name (`mailer_error`) in the `logEmail` method's SQL INSERT statement.
+
+2.  **Issue 2: Address Saving Failure (Profile Page)**
+    *   **Root Cause:** There's a mismatch between the form field names submitted from `views/account/profile.php` (e.g., `name="address_line1"`, `name="city"`) and the array keys expected by the `UserModel::updateAddress` method when binding parameters for the SQL `UPDATE` statement. The controller (`AccountController::handleUpdateAddress`) correctly uses the POST data based on form names, but the model (`UserModel::updateAddress`) incorrectly tries to access keys like `$addressData['shipping_address']` instead of `$addressData['address_line1']`.
+    *   **Solution:** Modify `models/User.php`, specifically the `updateAddress` method, to use the correct array keys (`address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country`) when mapping `$addressData` to the prepared statement parameters.
+
+**Compatibility Review Summary:**
+
+*   **`index.php` & `js/main.js` vs. `AccountController.php`:** The routing in `index.php` and the AJAX interactions in `js/main.js` for login, registration, password reset, and profile updates **are compatible** with the provided `AccountController.php`. The controller handles both standard POST requests (for profile updates, password resets) and AJAX requests (login, register) appropriately, returning JSON where expected by the JavaScript.
+*   **Other Files:**
+    *   `EmailService.php`: Requires the fix for Issue 1. Otherwise compatible.
+    *   `UserModel.php`: Requires the fix for Issue 2. Otherwise compatible.
+    *   All other controllers, models, views (including layouts), and includes appear compatible with the `AccountController` and the necessary fixes. No other direct modifications are needed based on the `AccountController` refactoring itself or the identified issues, beyond the two specific fixes.
+
+**Implementation of Fixes:**
+
+Here are the updated versions of the necessary files:
+
+**1. `includes/EmailService.php` (Fix for Issue 1)**
+
+```php
 <?php
 // includes/EmailService.php (Updated)
 
@@ -437,3 +465,310 @@ class EmailService {
     // public function processEmailQueue() { ... }
 
 } // End of EmailService class
+
+```
+
+**2. `models/User.php` (Fix for Issue 2)**
+
+```php
+<?php
+// models/User.php (Updated to implement updateAddress correctly)
+
+class User {
+    private $pdo;
+
+    public function __construct($pdo) {
+        $this->pdo = $pdo;
+    }
+
+    /**
+     * Get user details by ID.
+     * @param int $id User ID.
+     * @return array|false User data array or false if not found.
+     */
+    public function getById($id) {
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    /**
+     * Get user details by email address.
+     * @param string $email Email address.
+     * @return array|false User data array or false if not found.
+     */
+    public function getByEmail($email) {
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        return $stmt->fetch();
+    }
+
+    /**
+     * Creates a new user.
+     * Assumes $data['password'] is already hashed.
+     * Assumes 'newsletter_subscribed' and 'status' columns exist.
+     *
+     * @param array $data User data including name, email, password (hashed), role, newsletter preference.
+     * @return int|false The ID of the newly created user or false on failure.
+     */
+    public function create($data) {
+        // Assumes DB schema has: name, email, password, role, status, newsletter_subscribed, created_at, updated_at
+        $sql = "
+            INSERT INTO users (
+                name, email, password, role, status, newsletter_subscribed, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+        ";
+        $stmt = $this->pdo->prepare($sql);
+
+        $success = $stmt->execute([
+            $data['name'],
+            $data['email'],
+            $data['password'], // Expecting already hashed password from controller
+            $data['role'] ?? 'user',
+            $data['status'] ?? 'active', // Default status to 'active'
+            isset($data['newsletter']) ? (int)$data['newsletter'] : 0 // Convert boolean to int (0/1)
+        ]);
+        return $success ? (int)$this->pdo->lastInsertId() : false;
+    }
+
+    /*
+     * Removed generic update method - Replaced by specific update methods below.
+     * public function update($id, $data) { ... }
+     */
+
+    /**
+     * Deletes a user by ID.
+     * @param int $id User ID.
+     * @return bool True on success, false on failure.
+     */
+    public function delete($id) {
+        $stmt = $this->pdo->prepare("DELETE FROM users WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
+    /**
+     * Verifies a user's password.
+     * Renamed from validatePassword for clarity.
+     *
+     * @param int $userId User ID.
+     * @param string $password The plain text password to verify.
+     * @return bool True if the password is valid, false otherwise.
+     */
+    public function verifyPassword($userId, $password) {
+        $user = $this->getById($userId);
+        // Ensure user exists and password field is not empty before verifying
+        return $user && !empty($user['password']) && password_verify($password, $user['password']);
+    }
+
+    /**
+     * Gets the user's address details from the database.
+     * Uses the address columns added to the 'users' table.
+     *
+     * @param int $userId User ID.
+     * @return array|null Address data array or null if user not found.
+     */
+    public function getAddress(int $userId): ?array {
+        // --- START FIX: Implement getAddress ---
+        try {
+            // Select the specific address columns from the users table
+            $sql = "SELECT address_line1, address_line2, city, state, postal_code, country
+                    FROM users
+                    WHERE id = ?";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$userId]);
+            $address = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            // fetch() returns false if no row is found. Return null in that case.
+            return $address ?: null;
+
+        } catch (PDOException $e) {
+            // Log the error and return null if the query fails
+            error_log("Error fetching address for user ID {$userId}: " . $e->getMessage());
+            return null;
+        }
+        // --- END FIX ---
+    }
+
+    /**
+     * Updates a user's basic information (name and email).
+     * Assumes 'updated_at' column exists with ON UPDATE CURRENT_TIMESTAMP or is updated manually.
+     *
+     * @param int $userId User ID.
+     * @param string $name New full name.
+     * @param string $email New email address.
+     * @return bool True on success, false on failure.
+     */
+    public function updateBasicInfo(int $userId, string $name, string $email): bool {
+        // Assumes updated_at is handled by DB trigger or needs explicit update
+        $sql = "UPDATE users SET name = ?, email = ?, updated_at = NOW() WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$name, $email, $userId]);
+    }
+
+    /**
+     * Checks if an email address is already registered by another user.
+     *
+     * @param string $email Email address to check.
+     * @param int $currentUserId The ID of the user *currently* being updated (to exclude them from the check).
+     * @return bool True if the email is taken by someone else, false otherwise.
+     */
+    public function isEmailTakenByOthers(string $email, int $currentUserId): bool {
+        $stmt = $this->pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
+        $stmt->execute([$email, $currentUserId]);
+        // If fetchColumn returns a value (an ID), it means the email is taken by another user.
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
+     * Sets or updates the password reset token and its expiry time for a user.
+     * Assumes 'reset_token' and 'reset_token_expires_at' columns exist in the 'users' table.
+     *
+     * @param int $userId User ID.
+     * @param string $token The secure reset token.
+     * @param string $expiry SQL formatted DATETIME string for expiry.
+     * @return bool True on success, false on failure.
+     */
+    public function setResetToken(int $userId, string $token, string $expiry): bool {
+        // Assumes DB schema has: reset_token VARCHAR(255) NULL, reset_token_expires_at DATETIME NULL
+        // Assumes updated_at is handled by DB trigger or needs explicit update
+        $sql = "UPDATE users SET reset_token = ?, reset_token_expires_at = ?, updated_at = NOW() WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$token, $expiry, $userId]);
+    }
+
+    /**
+     * Retrieves user data based on a valid (non-null and non-expired) password reset token.
+     * Assumes 'reset_token' and 'reset_token_expires_at' columns exist.
+     *
+     * @param string $token The password reset token to search for.
+     * @return array|false User data array or false if token is invalid/expired.
+     */
+    public function getUserByValidResetToken(string $token): ?array {
+        // Assumes DB schema has: reset_token VARCHAR(255) NULL, reset_token_expires_at DATETIME NULL
+        $sql = "SELECT * FROM users WHERE reset_token = ? AND reset_token_expires_at > NOW()";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$token]);
+        $user = $stmt->fetch();
+        return $user ?: null; // Return null instead of false for consistency
+    }
+
+    /**
+     * Updates a user's password and clears the reset token information.
+     * Assumes 'reset_token' and 'reset_token_expires_at' columns exist.
+     *
+     * @param int $userId User ID.
+     * @param string $newPassword The new plain text password (will be hashed).
+     * @return bool True on success, false on failure.
+     */
+    public function resetPassword(int $userId, string $newPassword): bool {
+        // Assumes DB schema has: reset_token VARCHAR(255) NULL, reset_token_expires_at DATETIME NULL
+        // Assumes updated_at is handled by DB trigger or needs explicit update
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        if ($hashedPassword === false) {
+            error_log("Password hashing failed during password reset for user ID: {$userId}");
+            return false; // Indicate failure
+        }
+
+        $sql = "UPDATE users SET password = ?, reset_token = NULL, reset_token_expires_at = NULL, updated_at = NOW() WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$hashedPassword, $userId]);
+    }
+
+    /**
+     * Updates the user's newsletter subscription preference.
+     * Assumes 'newsletter_subscribed' column (BOOLEAN/TINYINT) exists.
+     *
+     * @param int $userId User ID.
+     * @param bool $isSubscribed True to subscribe, false to unsubscribe.
+     * @return bool True on success, false on failure.
+     */
+    public function updateNewsletterPreference(int $userId, bool $isSubscribed): bool {
+        // Assumes DB schema has: newsletter_subscribed BOOLEAN or TINYINT(1)
+        // Assumes updated_at is handled by DB trigger or needs explicit update
+        $sql = "UPDATE users SET newsletter_subscribed = ?, updated_at = NOW() WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([(int)$isSubscribed, $userId]); // Cast boolean to 0 or 1
+    }
+
+    /**
+     * Updates only the user's password. Called after verifying the current password.
+     *
+     * @param int $userId User ID.
+     * @param string $newPassword New plain text password (will be hashed).
+     * @return bool True on success, false on failure.
+     */
+    public function updatePassword(int $userId, string $newPassword): bool {
+        // Assumes updated_at is handled by DB trigger or needs explicit update
+        $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+        if ($hashedPassword === false) {
+            error_log("Password hashing failed during password update for user ID: {$userId}");
+            return false;
+        }
+
+        $sql = "UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$hashedPassword, $userId]);
+    }
+
+    /**
+     * Updates the user's shipping address details.
+     * Assumes address columns exist in the 'users' table.
+     *
+     * @param int $userId The ID of the user to update.
+     * @param array $addressData Associative array containing address components
+     *        (e.g., ['address_line1' => '...', 'city' => '...', ...]).
+     *        Keys should match the form field names.
+     * @return bool True on success, false on failure.
+     */
+    public function updateAddress(int $userId, array $addressData): bool {
+        // --- START FIX: Correct key mapping ---
+        try {
+            $sql = "
+                UPDATE users SET
+                    address_line1 = :address_line1,
+                    address_line2 = :address_line2,
+                    city = :city,
+                    state = :state,
+                    postal_code = :postal_code,
+                    country = :country,
+                    updated_at = NOW()
+                WHERE id = :user_id
+            ";
+            $stmt = $this->pdo->prepare($sql);
+
+            // Use the keys directly from the form data passed by the controller
+            $success = $stmt->execute([
+                ':address_line1' => $addressData['address_line1'] ?? null,
+                ':address_line2' => $addressData['address_line2'] ?? null,
+                ':city' => $addressData['city'] ?? null,
+                ':state' => $addressData['state'] ?? null,
+                ':postal_code' => $addressData['postal_code'] ?? null,
+                ':country' => $addressData['country'] ?? null,
+                ':user_id' => $userId
+            ]);
+            return $success;
+        } catch (PDOException $e) {
+            error_log("Error updating address for user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+        // --- END FIX ---
+    }
+
+} // End of User class
+
+```
+
+**Summary and Conclusion:**
+
+The compatibility review confirmed that `index.php` and `js/main.js` are generally compatible with the refactored `AccountController.php`.
+
+The two primary issues were addressed:
+
+1.  **Registration Failure:** Fixed by correcting the column name used for logging errors in `EmailService::logEmail` (`mailer_error` instead of `error_message`).
+2.  **Address Saving Failure:** Fixed by correcting the array key mapping in `UserModel::updateAddress` to match the form field names submitted from the profile page.
+
+With these fixes applied to `includes/EmailService.php` and `models/User.php`, the user registration and profile address saving functionalities should now work correctly. No further changes were deemed necessary in the other reviewed PHP files based on the provided context and issues.
+
+---
+https://drive.google.com/file/d/13cnU0K3iV4uoQ_hK_6MLCEQJFavXk1a7/view?usp=sharing, https://drive.google.com/file/d/15UuqPd300pvQtIbjeiAFmmx-v1lt-374/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221BXJr2ZEy_12xEUWBNMQAJJ6lsG8Xreyt%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1FJUG_bFZpk6aSqSVanpQ5b_M2HpJkf1B/view?usp=sharing, https://drive.google.com/file/d/1LN2smIAIulUbGlGB9azT639n5F6b6CXy/view?usp=sharing, https://drive.google.com/file/d/1LXoRUMFJIjxumBGynOu0czpvY5_Hxciu/view?usp=sharing, https://drive.google.com/file/d/1NY8gQLxASAx-ntvFyR1NGlm_dCD67i_b/view?usp=sharing, https://drive.google.com/file/d/1TMKOd51RdN_9ne3G5ARWggDuG1ZbA9MX/view?usp=sharing, https://drive.google.com/file/d/1X_dUzJ1xA1TVTLFvktpHtIYO5Tz3hKCk/view?usp=sharing, https://drive.google.com/file/d/1ZaQhr2HCrtb_hWMrAaLSGA001U-JWNRV/view?usp=sharing, https://drive.google.com/file/d/1bvY_fzmpBEA9run9gpGZ7pK078f9MEz2/view?usp=sharing, https://drive.google.com/file/d/1dN8Jtgcdb1a9UgShndc9XymbFVZ32g1v/view?usp=sharing, https://drive.google.com/file/d/1rFkxMDPINub-YRgsLOIQx6PFlYQOtqve/view?usp=sharing, https://drive.google.com/file/d/1sbCw95Gz20ya4f6XNzQUpClvhuoQTQqN/view?usp=sharing, https://drive.google.com/file/d/1vh-9-onOu0V_Mvas9RECdY7ttsZNxhJd/view?usp=sharing, https://drive.google.com/file/d/1xl03suMcOQBni3A6f4vrkrQjAGME8rx0/view?usp=sharing
+

@@ -1,4 +1,6 @@
 <?php
+// models/User.php (Updated to implement updateAddress)
+
 class User {
     private $pdo;
 
@@ -86,22 +88,32 @@ class User {
     }
 
     /**
-     * Placeholder method to get user address.
-     * Requires database schema changes (e.g., address fields in 'users' table or a separate 'user_addresses' table).
-     * Currently returns null as the schema doesn't support addresses.
+     * Gets the user's address details from the database.
+     * Uses the address columns added to the 'users' table.
      *
      * @param int $userId User ID.
-     * @return array|null Address data array or null if not implemented/found.
+     * @return array|null Address data array or null if user not found.
      */
     public function getAddress(int $userId): ?array {
-        // TODO: Implement address fetching logic once database schema supports it.
-        // Example (if fields were added to users table):
-        // $stmt = $this->pdo->prepare("SELECT address_line1, address_line2, city, state, postal_code, country FROM users WHERE id = ?");
-        // $stmt->execute([$userId]);
-        // return $stmt->fetch() ?: null;
+        // --- START FIX: Implement getAddress ---
+        try {
+            // Select the specific address columns from the users table
+            $sql = "SELECT address_line1, address_line2, city, state, postal_code, country
+                    FROM users
+                    WHERE id = ?";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$userId]);
+            $address = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Current placeholder:
-        return null;
+            // fetch() returns false if no row is found. Return null in that case.
+            return $address ?: null;
+
+        } catch (PDOException $e) {
+            // Log the error and return null if the query fails
+            error_log("Error fetching address for user ID {$userId}: " . $e->getMessage());
+            return null;
+        }
+        // --- END FIX ---
     }
 
     /**
@@ -223,6 +235,51 @@ class User {
         $sql = "UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?";
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute([$hashedPassword, $userId]);
+    }
+
+    /**
+     * Updates the user's shipping address details.
+     * Assumes address columns exist in the 'users' table.
+     *
+     * @param int $userId The ID of the user to update.
+     * @param array $addressData Associative array containing address components
+     *        (e.g., ['shipping_address' => '...', 'shipping_city' => '...', ...]).
+     *        Keys should match the relevant $_POST keys from checkout form.
+     * @return bool True on success, false on failure.
+     */
+    public function updateAddress(int $userId, array $addressData): bool {
+        // --- START FIX: Add updateAddress method ---
+        try {
+            $sql = "
+                UPDATE users SET
+                    address_line1 = :address_line1,
+                    address_line2 = :address_line2,
+                    city = :city,
+                    state = :state,
+                    postal_code = :postal_code,
+                    country = :country,
+                    updated_at = NOW()
+                WHERE id = :user_id
+            ";
+            $stmt = $this->pdo->prepare($sql);
+
+            $success = $stmt->execute([
+                // Use validated data passed from controller if possible, or extract directly
+                // Extracting directly here for simplicity, assuming controller validated $addressData values
+                ':address_line1' => $addressData['shipping_address'] ?? null, // Map form field names to DB columns
+                ':address_line2' => $addressData['shipping_address2'] ?? null, // Add if you have address_line2
+                ':city' => $addressData['shipping_city'] ?? null,
+                ':state' => $addressData['shipping_state'] ?? null,
+                ':postal_code' => $addressData['shipping_zip'] ?? null,
+                ':country' => $addressData['shipping_country'] ?? null,
+                ':user_id' => $userId
+            ]);
+            return $success;
+        } catch (PDOException $e) {
+            error_log("Error updating address for user ID {$userId}: " . $e->getMessage());
+            return false;
+        }
+        // --- END FIX ---
     }
 
 } // End of User class

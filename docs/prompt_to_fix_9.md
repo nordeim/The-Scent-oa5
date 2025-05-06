@@ -124,34 +124,44 @@ always double check and validate your work before replying the successful comple
 you have done an awesome job! Using the same rigorous and meticulous methodology / approach to carefully review the README.md shared earlier and then think deeply and thoroughly to systematically to create a complete updated version incorporating your current understanding of the current state of the codebase and to incorporate your findings and recommendations as well. Be very clear and detailed when generating a complete and updated version of the README.md for the project's GitHub repository. Always double check and validate your work before replying the successful completion of this given task.
 
 ---
+awesome job so far! now use the same rigorous and meticulous approach to carefully review your previously updated technical design specification document and update it again with the added changes made since. you have to carefully update it with the current status of the codebase (including the newly updated files) to ensure accuracy and completeness of the TDS. Make the the updated TDS as detailed as possible with more explanations and examples and code snippets to make it useful as a handbook to onboard new developers to the project.
+
+---
 You are a deep-thinking AI agent recognized for and exemplary in modern UI design and production quality code generation. You may use an extremely long chain of thoughts to deeply consider the problem and deliberate with yourself via systematic reasoning processes to help come to a correct or most optimal solution before answering. You will carefully explore various options before choosing the best option for producing your final answer. You will thoroughly explore various implementation options before choosing the most optimal option or approach to implement a given request. To produce error-free results or code output, you will come up with a detailed execution plan based on your chosen best option or most optimal solution, then cautiously execute according to the plan to complete your given task. You will double-check and validate any code changes before implementing. You should enclose your thoughts and internal monologue inside <think> </think> tags, and then provide your solution or response to the problem. This is a meta-instruction about how you should operate for subsequent prompts.
 
-I recently refactored AccountController.php (code file enclosed inside attached file content_of_code_files_4.md). Please help me to carefully review index.php (enclosed inside attached file content_of_code_files_1.md) and main.js (enclosed in content_of_code_files_3.md file) to check whether the index.php and main.js code files are compatible with the reworked AccountController.php. After carefully validating the compatibility of index.php and main.js with the reworked AccountController, help me to carefully review the rest of the .php files (enclosed inside content_of_code_files_1.md,  content_of_code_files_2.md,  content_of_code_files_3.md, content_of_code_files_4.md,  content_of_code_files_5.md and content_of_code_files_6.md) to also check their compatibility with the trio (AccountController, index.php and main.js), starting with header.php.
+I recently refactored `controllers/AccountController.php` (code file enclosed inside attached file `content_of_code_files_4.md`). Please help me to carefully review `index.php` (enclosed inside attached file `content_of_code_files_1.md`) and `js/main.js` (enclosed in the attached `content_of_code_files_3.md` file) to check whether the `index.php` and `main.js` code files are compatible with the reworked `AccountController.php`. After carefully validating the compatibility of `index.php` and `main.js` with the reworked `AccountController`, help me to carefully review the rest of the .php files (enclosed inside `content_of_code_files_1.md`,  `content_of_code_files_2.md`,  `content_of_code_files_3.md`, `content_of_code_files_4.md`,  `content_of_code_files_5.md` and `content_of_code_files_6.md`) to also check their compatibility with the trio (`controllers/AccountController`, `index.php` and `js/main.js`), starting with `views/layout/header.php`.
 
-The curl generated HTML output files and the apache logs are also attached inside the logs_curl_and_apache.md file for your review if necessary.
+The curl generated HTML output files and the apache logs are also attached for your review. You need to refer to the attached `the_scent_schema.sql.txt` for the current database schema; so do not guess or try to make up the schema. 
 
-*Current issues:*
-Issue 1)  After successful login, I was redirected to /index.php?page=account&action=dashboard , the page looks messy and does not match the UI of the landing page. See attached image. Please carefully review the views/account/dashboard.php  views/account/order_details.php  views/account/orders.php  views/account/profile.php enclosed in content_of_code_files_6.md to check whether they need updating. Also check the attached css/style.css and css/admin.css.
-
-Files that were updated recently:
--rw-rw-r-- 1 pete pete     33013 May  3 08:05 controllers/CheckoutController.php
--rw-rw-r-- 1 pete pete     21931 May  3 08:08 controllers/PaymentController.php
--rw-rw-r-- 1 pete pete     23588 May  3 11:59 controllers/ProductController.php
--rw-rw-r-- 1 pete pete     16595 May  3 11:46 index.php
--rw-rw-r-- 1 pete pete     21779 May  3 12:02 models/Product.php
--rw-rw-r-- 1 pete pete     15925 May  3 16:35 models/Quiz.php
--rw-rw-r-- 1 pete pete     13234 May  3 20:45 views/account/dashboard.php
--rw-rw-r-- 1 pete pete     19977 May  3 20:44 views/account/order_details.php
--rw-rw-r-- 1 pete pete     15998 May  3 20:43 views/account/orders.php
--rw-rw-r-- 1 pete pete     18587 May  3 20:41 views/account/profile.php
--rw-rw-r-- 1 pete pete     13794 May  3 11:42 views/admin/product_form.php
--rw-rw-r-- 1 pete pete      6685 May  3 11:43 views/admin/products.php
--rw-rw-r-- 1 pete pete     11026 May  3 20:40 views/cart.php
--rw-rw-r-- 1 pete pete     29343 May  3 07:58 views/checkout.php
--rw-rw-r-- 1 pete pete      2269 May  3 11:40 views/layout/admin_header.php
--rw-rw-r-- 1 pete pete      4460 May  3 16:56 views/quiz.php
--rw-rw-r-- 1 pete pete      6978 May  3 16:54 views/quiz_results.php
-
-You will carefully generate a complete updated (replacement) version of the relevant files (use the ones in content_of_code_files_?.md as your starting point ) - don't make up the file, with the necessary fixes. Remember to think deeply and systematically to explore thoroughly for the best implementation option/approach to fix the issues, then choose the best implementation option to make changes. Use line by line "diff"  with the original file while you are applying changes to each file to ensure that no other features and functions are accidentally left out while applying changes. we don't want to introduce regression failure while updating the code. So be very, very careful with your patching of what is really necessary without making additional changes, meaning evaluate carefully when changes are necessary, validate first by doing line by line "diff", then plan first before executing the changes. Do testing and simulation if possible. enclose your complete and updated version of the updated files within the ```php and ``` tags. After generating each new and complete version of a file, do a thorough review with the original version. Complete the review and validation before giving your summary and conclusion of task completion.
+You will carefully generate a complete updated (replacement) version of the relevant files (use the ones in content_of_code_files_?.md as your starting point ) - don't make up the file, with the necessary fixes. Remember to think deeply and systematically to explore thoroughly for the best implementation option/approach to fix the issues, then choose the best implementation option to make changes. Use line by line "diff"  with the original file while you are applying changes to each file to ensure that no other features and functions are accidentally left out while applying changes. we don't want to introduce regression failure while updating the code. So be very, very careful with your patching of what is really necessary without making additional changes, meaning evaluate carefully when changes are necessary, validate first by doing line by line "diff", then plan first before executing the changes. Do testing and simulation if possible. enclose your complete and updated version of each of the updated files within the ```php and ``` tags. After generating each new and complete version of a file, do a thorough review and validation against the original version. Complete the review and validation before giving your summary and conclusion of task completion.
 
 Remember to the use the original versions of the files in the attached content_of_code_files_1.md,  content_of_code_files_2.md,  content_of_code_files_3.md,  content_of_code_files_4.md,  content_of_code_files_5.md and content_of_code_files_6.md files as your starting point to carefully merge your changes. Do not make up the content of the relevant files from scratch.
+
+*Current issues:* 
+Issue 1) User registration failed at the `/index.php?page=register` page failed with server error status 400 - see attached screenshot image.
+
+Issue 2) When I clicked on "Save Address" button at `/index.php?page=account&section=profile` page, it said saved successfully. However, the address fields are empty at the checkout page, the address also does not show up when the "profile" page was refreshed.
+
+$ curl -Lk https://the-scent.com/ -o current_landing_page.html                
+curl -Lk 'https://the-scent.com/index.php?page=product&id=1' -o view_details_product_id-1.html                
+curl -Lk 'https://the-scent.com/index.php?page=products' -o shop_products.html                
+curl -Lk 'https://the-scent.com/index.php?page=contact' -o contact_page.html                
+curl -Lk 'https://the-scent.com/index.php?page=products&page_num=1' -o products_page_1.html                
+curl -Lk 'https://the-scent.com/index.php?page=products&page_num=2' -o products_page_2.html          
+curl -Lk 'https://the-scent.com/index.php?page=about' -o about_page.html          
+curl -Lk 'https://the-scent.com/index.php?page=login' -o login_page.html        
+curl -Lk 'https://the-scent.com/index.php?page=register' -o register_page.html 
+curl -Lk 'https://the-scent.com/index.php?page=products&category=1' -o products_category=1.html
+curl -Lk 'https://the-scent.com/index.php?page=quiz' -o quiz.html
+
+---
+excellent job so far! now use the same rigorous and meticulous approach to help me carefully merge your fixes for the recommendation listed below (taken from your updated technical design specification document) to the original version of  the relevant files in the `content_of_code_files_?.md` (supersede with those files that are updated) file shared earlier. Use the original files as your starting point - do not make up the files from scratch. you have to use the same rigorous and meticulous approach to carefully merge your proposed changes to the files using line-by-line edit to make sure other features and functions are not accidentally omitted when you generate a complete updated version of each file.
+
+Remember to carefully generate a complete updated (replacement) version for the relevant files. Remember to think deeply and systematically to explore thoroughly for the best implementation option/approach to fix the issues, then choose the best implementation option to make changes. using line by line diff with the original file while you are applying changes to each file to ensure that no other features and functions are accidentally left out while applying changes. we don't want to introduce regression failure while updating the code. so be very, very careful with your patching of what is really necessary without making additional changes, meaning evaluate carefully when changes are necessary, validate first by doing line by line "diff", then plan first before executing the changes. Do testing and simulation if possible. enclose your complete and updated version of the updated files within the ```php and ``` tags. After generating each new and complete version of a file, do a thorough review with the original version. Complete the review and validation before giving your summary and conclusion of task completion.
+
+
+Recommendation:
+
+---
+I did not share the original file for  `views/admin/product_form.php` earlier. I now enclosed the original version of `views/admin/product_form.php`in the attached `content_of_code_files_8.md` for your meticulous and systematic review and validation against your newly generated version of `views/admin/product_form.php`. Please use the same rigorous and meticulous approach to create a complete updated version with your intended changes carefully merged.
+

@@ -1270,7 +1270,7 @@ document.addEventListener('DOMContentLoaded', function() {
 # views/account/profile.php  
 ```php
 <?php
-// Updated: views/account/profile.php (v16.0 - Added Address Form)
+// Updated: views/account/profile.php (v16.2 - Added MY, SG countries)
 // Added header and footer includes
 
 require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
@@ -1478,6 +1478,10 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                              <option value="CA" <?= (($userAddress['country'] ?? '') === 'CA') ? 'selected' : '' ?>>Canada</option>
                                              <option value="GB" <?= (($userAddress['country'] ?? '') === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
                                              <option value="AU" <?= (($userAddress['country'] ?? '') === 'AU') ? 'selected' : '' ?>>Australia</option>
+                                             <!-- START: Added Countries -->
+                                             <option value="MY" <?= (($userAddress['country'] ?? '') === 'MY') ? 'selected' : '' ?>>Malaysia</option>
+                                             <option value="SG" <?= (($userAddress['country'] ?? '') === 'SG') ? 'selected' : '' ?>>Singapore</option>
+                                             <!-- END: Added Countries -->
                                              {/* Add more countries as needed */}
                                         </select>
                                    </div>
@@ -1707,8 +1711,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="form-group">
                             <label for="shipping_address">Street Address *</label>
                             <input type="text" id="shipping_address" name="shipping_address" required class="form-input"
-                                   value="<?= htmlspecialchars($userAddress['address_line1'] ?? '') ?>">
+                                   value="<?= htmlspecialchars($userAddress['address_line1'] ?? '') ?>"
+                                   placeholder="Street address, P.O. box, company name, c/o">
                         </div>
+
+                        <!-- START FIX: Add Address Line 2 Input -->
+                        <div class="form-group">
+                             <label for="shipping_address_line2">Address Line 2 (Optional)</label>
+                             <input type="text" id="shipping_address_line2" name="shipping_address_line2" class="form-input"
+                                    value="<?= htmlspecialchars($userAddress['address_line2'] ?? '') ?>"
+                                    placeholder="Apartment, suite, unit, building, floor, etc.">
+                        </div>
+                        <!-- END FIX -->
+
 
                         <div class="form-row">
                             <div class="form-group">
@@ -1738,6 +1753,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <option value="US" <?= (($userAddress['country'] ?? '') === 'US') ? 'selected' : '' ?>>United States</option>
                                     <option value="CA" <?= (($userAddress['country'] ?? '') === 'CA') ? 'selected' : '' ?>>Canada</option>
                                     <option value="GB" <?= (($userAddress['country'] ?? '') === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
+                                    <option value="AU" <?= (($userAddress['country'] ?? '') === 'AU') ? 'selected' : '' ?>>Australia</option>
+                                    <!-- START: Added Countries -->
+                                    <option value="MY" <?= (($userAddress['country'] ?? '') === 'MY') ? 'selected' : '' ?>>Malaysia</option>
+                                    <option value="SG" <?= (($userAddress['country'] ?? '') === 'SG') ? 'selected' : '' ?>>Singapore</option>
+                                    <!-- END: Added Countries -->
                                     <!-- Add more countries as needed -->
                                 </select>
                             </div>
@@ -1748,7 +1768,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             <textarea id="order_notes" name="order_notes" rows="3" class="form-textarea"></textarea>
                         </div>
 
-                        <!-- START FIX: Add "Save Address" Checkbox -->
                         <div class="form-group mt-4">
                             <label class="checkbox-label flex items-center text-sm text-gray-700 cursor-pointer font-body">
                                 <input type="checkbox" name="save_address" value="1"
@@ -1756,8 +1775,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <span>Save this shipping address to my profile</span>
                             </label>
                         </div>
-                        <!-- END FIX -->
-
                         <!-- The submit button is now outside the form, controlled by JS -->
                     </form>
                 </div>
@@ -1860,7 +1877,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // This function would typically be called by the page dispatcher in main.js
     // if the body has class 'page-checkout'
     function initCheckoutPage() {
-        // console.log("Initializing Checkout Page JS..."); // Add console log for debugging
+        console.log("Initializing Checkout Page JS..."); // Add console log for debugging
         // --- Configuration ---
         // Fetch config from body data attributes for better security/flexibility
         const bodyData = document.body.dataset;
@@ -1903,6 +1920,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
         // --- Basic Checks ---
+         console.log("Stripe Public Key:", stripePublicKey); // <<< DEBUG LOG
         if (!stripePublicKey) {
             showMessage("Stripe configuration error. Payment cannot proceed.", true);
             setLoading(false, true); // Disable button permanently
@@ -1918,6 +1936,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- Initialize Stripe ---
         try {
              stripe = Stripe(stripePublicKey);
+             console.log("Stripe object initialized:", stripe); // <<< DEBUG LOG
              const appearance = {
                  theme: 'stripe',
                  variables: {
@@ -1928,9 +1947,9 @@ document.addEventListener('DOMContentLoaded', function() {
              elements = stripe.elements({ appearance });
              const paymentElement = elements.create('payment');
              paymentElement.mount('#payment-element');
-             // console.log("Stripe Payment Element mounted.");
+             console.log("Stripe Payment Element mounted."); // <<< DEBUG LOG
         } catch (stripeError) {
-            console.error("Stripe initialization error:", stripeError);
+            console.error("Stripe initialization error:", stripeError); // <<< DEBUG LOG
             showMessage("Could not initialize payment system. Please refresh.", true);
             setLoading(false, true);
             return;
@@ -2100,6 +2119,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // 1. Client-side validation
             let isValid = true;
+            // --- FIX: Include shipping_address_line2 in required check? No, it's optional. ---
             const requiredFields = ['shipping_name', 'shipping_email', 'shipping_address', 'shipping_city', 'shipping_state', 'shipping_zip', 'shipping_country'];
             requiredFields.forEach(id => {
                 const input = document.getElementById(id);
@@ -2139,9 +2159,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 // Log status and try to parse JSON regardless of status code initially
-                // console.log("Process Checkout Response Status:", response.status);
+                console.log("Process Checkout Response Status:", response.status); // <<< DEBUG LOG
                 const data = await response.json(); // Try to parse JSON
-                // console.log("Process Checkout Response Data:", data);
+                console.log("Process Checkout Response Data:", data); // <<< DEBUG LOG
 
                 if (response.ok && data.success && data.clientSecret && data.orderId) {
                     clientSecret = data.clientSecret;
@@ -2160,7 +2180,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Ensure BASE_URL ends with '/' for correct path joining
                 const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
                 const returnUrl = `${window.location.origin}${formattedBaseUrl}index.php?page=checkout&action=confirmation`;
-                // console.log("Stripe return_url:", returnUrl); // Log the return URL
+                console.log("Stripe return_url:", returnUrl); // Log the return URL
 
                 const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
                     elements,

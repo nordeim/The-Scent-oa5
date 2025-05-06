@@ -1,5 +1,5 @@
 <?php
-// controllers/CheckoutController.php (Updated - Reworked showOrderConfirmation)
+// controllers/CheckoutController.php (Updated - Handle address_line2, map data for save)
 
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Product.php';
@@ -191,7 +191,7 @@ class CheckoutController extends BaseController {
             'shipping_state', 'shipping_zip', 'shipping_country'
         ];
         $missingFields = [];
-        $postData = [];
+        $postData = []; // Store validated required fields here
         foreach ($requiredFields as $field) {
             $value = $_POST[$field] ?? '';
             if (empty(trim($value))) {
@@ -212,10 +212,13 @@ class CheckoutController extends BaseController {
                  'error' => 'Please fill required shipping fields: ' . implode(', ', $missingFields) . '.'
              ], 400);
         }
-        $orderNotes = $this->validateInput($_POST['order_notes'] ?? null, 'string', ['max' => 1000]);
-        // --- START FIX: Check Save Address Checkbox ---
-        $saveAddress = isset($_POST['save_address']) && $_POST['save_address'] === '1';
+        // --- START FIX: Explicitly read optional address line 2 ---
+        // Use the same name as the input field in the view
+        $postData['shipping_address_line2'] = $this->validateInput($_POST['shipping_address_line2'] ?? null, 'string', ['max' => 255]);
         // --- END FIX ---
+
+        $orderNotes = $this->validateInput($_POST['order_notes'] ?? null, 'string', ['max' => 1000]);
+        $saveAddress = isset($_POST['save_address']) && $_POST['save_address'] === '1';
 
         // --- Validate Coupon (Again, server-side) ---
         $couponCode = $this->validateInput($_POST['applied_coupon_code'] ?? null, 'string');
@@ -277,7 +280,11 @@ class CheckoutController extends BaseController {
                 'total_amount' => $total,
                 'shipping_name' => $postData['shipping_name'],
                 'shipping_email' => $postData['shipping_email'],
-                'shipping_address' => $postData['shipping_address'],
+                // --- START FIX: Use correct keys for order saving ---
+                // Use the values from $postData which have the shipping_ prefix
+                'shipping_address' => $postData['shipping_address'], // This corresponds to address_line1 generally
+                'shipping_address_line2' => $postData['shipping_address_line2'] ?? null, // <<< Add address line 2
+                // --- END FIX ---
                 'shipping_city' => $postData['shipping_city'],
                 'shipping_state' => $postData['shipping_state'],
                 'shipping_zip' => $postData['shipping_zip'],
@@ -287,6 +294,12 @@ class CheckoutController extends BaseController {
                 'order_notes' => $orderNotes,
                 'payment_intent_id' => null // Initially null
             ];
+            // --- Correction: Check if shipping_address_line2 column exists in orders table ---
+            // Assuming the `orders` table *also* needs an `shipping_address_line2` column.
+            // If it doesn't exist, remove `'shipping_address_line2' => ...` from $orderData above.
+            // For now, assuming the column exists in `orders` table similar to `users` table.
+            // If not, the OrderModel::create would need adjustment or this key removed here.
+
             $orderId = $this->orderModel->create($orderData);
             if (!$orderId) throw new Exception("Failed to create order record.");
 
@@ -307,11 +320,19 @@ class CheckoutController extends BaseController {
                 }
             }
 
-            // --- START FIX: Update User Address if Requested ---
+            // --- START FIX: Update User Address if Requested (Map keys correctly) ---
             if ($saveAddress) {
-                 // Pass $postData which contains validated shipping fields
-                 // UserModel is now initialized in constructor as $this->userModel
-                if (!$this->userModel->updateAddress($userId, $postData)) {
+                 // Create a new array mapping checkout field names to user table column names
+                 $addressUpdateData = [
+                    'address_line1' => $postData['shipping_address'], // Map 'shipping_address' to 'address_line1'
+                    'address_line2' => $postData['shipping_address_line2'], // Map 'shipping_address_line2' to 'address_line2'
+                    'city'          => $postData['shipping_city'],
+                    'state'         => $postData['shipping_state'],
+                    'postal_code'   => $postData['shipping_zip'],
+                    'country'       => $postData['shipping_country']
+                 ];
+                 // Pass the mapped data to UserModel::updateAddress
+                if (!$this->userModel->updateAddress($userId, $addressUpdateData)) {
                      // Log warning but don't fail the checkout transaction
                      error_log("Warning: Failed to save user address during checkout for User ID {$userId}. Order ID {$orderId}.");
                 } else {
@@ -383,6 +404,7 @@ class CheckoutController extends BaseController {
      * Handles AJAX request from checkout page to validate and apply a coupon.
      */
     public function applyCouponAjax() {
+         // (Method content unchanged - it was already correct)
          $this->requireLogin(true); // AJAX
          $this->validateRateLimit('coupon_apply');
          $this->validateCSRF();

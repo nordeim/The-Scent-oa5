@@ -1487,7 +1487,7 @@ function initProductDetailPage() {
 
     // Set initial active thumbnail based on class (more reliable if structure changes)
     const activeThumbnailDiv = document.querySelector('.thumbnail-grid .border-primary');
-    if (activeThumbnailDiv && !mainImage.src.endsWith('placeholder.jpg')) { // Ensure first image isn't placeholder before potentially resetting
+    if (activeThumbnailDiv && mainImage && !mainImage.src.includes('placeholder.jpg')) { // Ensure first image isn't placeholder before potentially resetting
         const activeThumbImg = activeThumbnailDiv.querySelector('img');
         // Optional: Set main image source based on initially active thumb if needed
         // if (activeThumbImg) updateMainImage(activeThumbImg);
@@ -1613,12 +1613,18 @@ function initCartPage() {
 
         // Update summary totals
         const subtotalDisplay = cartForm.querySelector('.cart-summary .summary-row:nth-child(1) span:last-child');
-        const totalDisplay = cartForm.querySelector('.cart-summary .summary-row.total span:last-child');
-        const shippingDisplay = cartForm.querySelector('.cart-summary .summary-row.shipping span:last-child'); // Assume FREE for now
+        const totalDisplay = document.getElementById('cart-grand-total'); // Use specific ID for grand total
+        const shippingDisplay = cartForm.querySelector('.cart-summary .summary-row.shipping span:last-child');
+        const freeShippingThreshold = parseFloat(document.body.dataset.freeShippingThreshold || '50');
+        const baseShippingCost = parseFloat(document.body.dataset.baseShippingCost || '5.99');
+
+        const shippingCost = subtotal >= freeShippingThreshold ? 0 : baseShippingCost;
+
 
         if (subtotalDisplay) subtotalDisplay.textContent = '$' + subtotal.toFixed(2);
-        if (shippingDisplay) shippingDisplay.textContent = 'FREE'; // Add logic if shipping cost changes
-        if (totalDisplay) totalDisplay.textContent = '$' + subtotal.toFixed(2); // Add shipping/tax if applicable
+        if (shippingDisplay) shippingDisplay.innerHTML = shippingCost === 0 ? '<span class="text-green-600">FREE</span>' : '$' + shippingCost.toFixed(2);
+        if (totalDisplay) totalDisplay.textContent = '$' + (subtotal + shippingCost).toFixed(2); // Update grand total
+
 
         updateCartCountHeader(itemCount);
 
@@ -2216,28 +2222,34 @@ function initQuizPage() {
                  const selectedOption = e.target.closest('.quiz-option');
                  if (!selectedOption) return;
 
-                 optionsContainer.querySelectorAll('.quiz-option').forEach(opt => {
-                     const innerDiv = opt.querySelector('div');
-                     innerDiv?.classList.remove('border-primary', 'bg-primary/10', 'ring-2', 'ring-primary');
-                     innerDiv?.classList.add('border-gray-300');
-                 });
+                 // Find the actual radio button within the clicked label
+                 const radioInput = selectedOption.querySelector('input[type="radio"]');
+                 if (radioInput) {
+                     radioInput.checked = true; // Ensure the radio button is checked
 
-                 const selectedInnerDiv = selectedOption.querySelector('div');
-                 selectedInnerDiv?.classList.add('border-primary', 'bg-primary/10', 'ring-2', 'ring-primary');
-                 selectedInnerDiv?.classList.remove('border-gray-300');
-
-                 const hiddenInput = quizForm.querySelector('input[name="mood"]');
-                 if (hiddenInput) {
-                    hiddenInput.value = selectedOption.dataset.value;
+                     // Update visual states for all options
+                     optionsContainer.querySelectorAll('.quiz-option').forEach(opt => {
+                         const innerDiv = opt.querySelector('div');
+                         const optRadio = opt.querySelector('input[type="radio"]');
+                         if (innerDiv && optRadio) {
+                              if (optRadio.checked) {
+                                 innerDiv.classList.add('border-primary', 'bg-primary/10', 'ring-2', 'ring-primary');
+                                 innerDiv.classList.remove('border-gray-200');
+                              } else {
+                                 innerDiv.classList.remove('border-primary', 'bg-primary/10', 'ring-2', 'ring-primary');
+                                 innerDiv.classList.add('border-gray-200');
+                              }
+                         }
+                     });
                  }
              });
          }
 
         quizForm.addEventListener('submit', (e) => {
-             const selectedValue = quizForm.querySelector('input[name="mood"]')?.value;
-             const selectedRadio = quizForm.querySelector('input[name="mood_radio"]:checked');
+             // Check if any radio button in the group is checked
+             const selectedRadio = quizForm.querySelector('input[name="mood"]:checked');
 
-             if (!selectedValue && !selectedRadio) {
+             if (!selectedRadio) {
                  e.preventDefault();
                  showFlashMessage('Please select an option.', 'warning');
                  optionsContainer?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2270,9 +2282,18 @@ function initAdminQuizAnalyticsPage() {
     }
     let charts = {};
     const timeRangeSelect = document.getElementById('timeRange');
-    const statsContainer = document.getElementById('statsContainer');
-    const chartsContainer = document.getElementById('chartsContainer');
-    const recommendationsTableBody = document.getElementById('recommendationsTableBody');
+    const statsContainer = document.getElementById('statsContainer'); // Corrected ID if necessary
+    const chartsContainer = document.getElementById('chartsContainer'); // Corrected ID if necessary
+    const recommendationsTableBody = document.getElementById('recommendationsTable'); // Corrected ID
+
+    // Check if elements exist before proceeding
+     if (!timeRangeSelect || !document.getElementById('totalParticipants') || !document.getElementById('conversionRate') || !document.getElementById('avgCompletionTime') || !document.getElementById('scentChart') || !document.getElementById('moodChart') || !document.getElementById('completionsChart') || !recommendationsTableBody) {
+          console.warn("One or more analytics elements not found. Analytics may not function correctly.");
+          // Optionally display a message to the user if critical elements are missing
+          // showFlashMessage("Could not load analytics components.", "error");
+          // return; // Exit if critical elements are missing
+     }
+
 
     Chart.defaults.font.family = "'Montserrat', sans-serif";
     Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0, 0, 0, 0.7)';
@@ -2281,9 +2302,14 @@ function initAdminQuizAnalyticsPage() {
     Chart.defaults.plugins.legend.position = 'bottom';
 
     async function updateAnalytics() {
-        const timeRange = timeRangeSelect ? timeRangeSelect.value : '7d';
-        statsContainer?.classList.add('opacity-50');
-        chartsContainer?.classList.add('opacity-50');
+        const timeRange = timeRangeSelect ? timeRangeSelect.value : '7d'; // Default if select missing
+        // Add visual indication of loading
+        document.getElementById('totalParticipants')?.classList.add('opacity-50');
+        document.getElementById('conversionRate')?.classList.add('opacity-50');
+        document.getElementById('avgCompletionTime')?.classList.add('opacity-50');
+        document.getElementById('scentChart')?.parentElement.classList.add('opacity-50');
+        document.getElementById('moodChart')?.parentElement.classList.add('opacity-50');
+        document.getElementById('completionsChart')?.parentElement.classList.add('opacity-50');
         recommendationsTableBody?.classList.add('opacity-50');
 
         try {
@@ -2303,38 +2329,58 @@ function initAdminQuizAnalyticsPage() {
             // Adjust based on expected JSON structure from QuizController::showAnalytics
             if (data.success) {
                 updateStatCards(data.data?.statistics);
-                updateCharts(data.data?.preferences);
-                updateRecommendationsTable(data.data?.recommendations);
+                updateCharts(data.data?.preferences); // Pass the preferences part
+                updateRecommendationsTable(data.data?.recommendations); // Pass the recommendations part
             } else {
                  throw new Error(data.error || 'Failed to fetch analytics data from the server.');
             }
         } catch (error) {
             console.error('Error fetching or processing analytics data:', error);
             showFlashMessage(`Failed to load analytics: ${error.message}`, 'error');
-            if (statsContainer) statsContainer.innerHTML = '<p class="text-red-500">Could not load stats.</p>';
-            if (chartsContainer) chartsContainer.innerHTML = '<p class="text-red-500">Could not load charts.</p>';
+             // Update UI to show loading failed state
+             document.getElementById('totalParticipants').textContent = 'Error';
+             document.getElementById('conversionRate').textContent = 'Error';
+             document.getElementById('avgCompletionTime').textContent = 'Error';
+             document.getElementById('scentChart').parentElement.innerHTML = '<p class="text-red-500 text-center">Could not load chart.</p>';
+             document.getElementById('moodChart').parentElement.innerHTML = '<p class="text-red-500 text-center">Could not load chart.</p>';
+             document.getElementById('completionsChart').parentElement.innerHTML = '<p class="text-red-500 text-center">Could not load chart.</p>';
             if (recommendationsTableBody) recommendationsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-red-500">Could not load recommendations.</td></tr>';
         } finally {
-             statsContainer?.classList.remove('opacity-50');
-             chartsContainer?.classList.remove('opacity-50');
+             // Remove visual indication of loading
+             document.getElementById('totalParticipants')?.classList.remove('opacity-50');
+             document.getElementById('conversionRate')?.classList.remove('opacity-50');
+             document.getElementById('avgCompletionTime')?.classList.remove('opacity-50');
+             document.getElementById('scentChart')?.parentElement.classList.remove('opacity-50');
+             document.getElementById('moodChart')?.parentElement.classList.remove('opacity-50');
+             document.getElementById('completionsChart')?.parentElement.classList.remove('opacity-50');
              recommendationsTableBody?.classList.remove('opacity-50');
         }
     }
 
     function updateStatCards(stats) {
-        if (!stats || !statsContainer) return;
+        if (!stats) {
+             document.getElementById('totalParticipants').textContent = 'N/A';
+             document.getElementById('conversionRate').textContent = 'N/A';
+             document.getElementById('avgCompletionTime').textContent = 'N/A';
+             return;
+         }
         document.getElementById('totalParticipants').textContent = stats.total_quizzes ?? 'N/A';
         document.getElementById('conversionRate').textContent = stats.conversion_rate != null ? `${stats.conversion_rate}%` : 'N/A';
         document.getElementById('avgCompletionTime').textContent = stats.avg_completion_time != null ? `${stats.avg_completion_time}s` : 'N/A';
     }
 
     function updateCharts(preferences) {
-         if (!preferences || !chartsContainer) return;
+         if (!preferences) {
+              document.getElementById('scentChart').parentElement.innerHTML = '<p class="text-center text-gray-500">No preference data.</p>';
+              document.getElementById('moodChart').parentElement.innerHTML = '<p class="text-center text-gray-500">No preference data.</p>';
+              document.getElementById('completionsChart').parentElement.innerHTML = '<p class="text-center text-gray-500">No completion data.</p>';
+              return;
+         }
          Object.values(charts).forEach(chart => chart?.destroy());
          charts = {};
          const chartColors = ['#1A4D5A', '#A0C1B1', '#D4A76A', '#6B7280', '#F59E0B', '#10B981'];
 
-         // Scent Preference Chart
+         // Scent Preference Chart (Assuming 'scent_types' is correct key from controller)
          const scentCtx = document.getElementById('scentChart')?.getContext('2d');
          if (scentCtx && preferences.scent_types?.length > 0) {
              charts.scent = new Chart(scentCtx, {
@@ -2344,22 +2390,22 @@ function initAdminQuizAnalyticsPage() {
              });
          } else if (scentCtx) { scentCtx.canvas.parentElement.innerHTML = '<p class="text-center text-gray-500">No scent preference data.</p>'; }
 
-         // Mood Effect Chart
+         // Mood Effect Chart (Assuming 'mood_effects' is correct key from controller)
          const moodCtx = document.getElementById('moodChart')?.getContext('2d');
          if (moodCtx && preferences.mood_effects?.length > 0) {
             charts.mood = new Chart(moodCtx, {
                 type: 'bar',
-                data: { labels: preferences.mood_effects.map(p => p.effect), datasets: [{ data: preferences.mood_effects.map(p => p.count), backgroundColor: chartColors[1], borderColor: chartColors[1], borderWidth: 1 }] },
+                data: { labels: preferences.mood_effects.map(p => p.effect), datasets: [{ label: 'Count', data: preferences.mood_effects.map(p => p.count), backgroundColor: chartColors[1], borderColor: chartColors[1], borderWidth: 1 }] },
                 options: { indexAxis: 'y', responsive: true, scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false }, title: { display: true, text: 'Desired Mood Effects' } } }
             });
          } else if (moodCtx) { moodCtx.canvas.parentElement.innerHTML = '<p class="text-center text-gray-500">No mood effect data.</p>'; }
 
-         // Daily Completions Chart
+         // Daily Completions Chart (Assuming 'daily_completions' is correct key)
           const completionsCtx = document.getElementById('completionsChart')?.getContext('2d');
           if (completionsCtx && preferences.daily_completions?.length > 0) {
              charts.completions = new Chart(completionsCtx, {
                  type: 'line',
-                 data: { labels: preferences.daily_completions.map(d => d.date), datasets: [{ data: preferences.daily_completions.map(d => d.count), borderColor: chartColors[0], backgroundColor: 'rgba(26, 77, 90, 0.1)', fill: true, tension: 0.1 }] },
+                 data: { labels: preferences.daily_completions.map(d => d.date), datasets: [{ label: 'Completions', data: preferences.daily_completions.map(d => d.count), borderColor: chartColors[0], backgroundColor: 'rgba(26, 77, 90, 0.1)', fill: true, tension: 0.1 }] },
                  options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false }, title: { display: true, text: 'Quiz Completions Over Time' } } }
              });
          } else if (completionsCtx) { completionsCtx.canvas.parentElement.innerHTML = '<p class="text-center text-gray-500">No completion data for this period.</p>'; }
@@ -2368,9 +2414,10 @@ function initAdminQuizAnalyticsPage() {
     function updateRecommendationsTable(recommendations) {
         if (!recommendations || !recommendationsTableBody) return;
         if (recommendations.length === 0) {
-            recommendationsTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No recommendations data.</td></tr>';
+            recommendationsTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No recommendations data available for this period.</td></tr>';
             return;
         }
+         // Assuming `recommendations` array has objects with keys like: name, category, recommendation_count, conversion_rate, id
         recommendationsTableBody.innerHTML = recommendations.map(product => `
             <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${product.name || 'N/A'}</td>
@@ -2378,17 +2425,17 @@ function initAdminQuizAnalyticsPage() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${product.recommendation_count ?? 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">${product.conversion_rate != null ? `${product.conversion_rate}%` : 'N/A'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                    <a href="index.php?page=admin&action=products&view=${product.id}" class="text-indigo-600 hover:text-indigo-900" title="View Details"><i class="fas fa-eye"></i></a>
+                    <a href="index.php?page=admin&section=products&task=edit&id=${product.id || '#'}" class="text-indigo-600 hover:text-indigo-900" title="View/Edit Product"><i class="fas fa-eye"></i></a>
                 </td>
             </tr>`).join('');
     }
 
     if (timeRangeSelect) {
         timeRangeSelect.addEventListener('change', updateAnalytics);
-        updateAnalytics();
+        updateAnalytics(); // Initial load
     } else {
         console.warn("Time range selector not found. Loading default analytics.");
-        updateAnalytics();
+        updateAnalytics(); // Attempt initial load with default range
     }
 }
 
@@ -2416,8 +2463,8 @@ function initAdminCouponsPage() {
             couponForm.querySelector('input[name="code"]').value = couponData.code || '';
             couponForm.querySelector('textarea[name="description"]').value = couponData.description || '';
             couponForm.querySelector('select[name="discount_type"]').value = couponData.discount_type || 'fixed';
-            couponForm.querySelector('input[name="value"]').value = couponData.value || '';
-            couponForm.querySelector('input[name="min_spend"]').value = couponData.min_spend || '';
+            couponForm.querySelector('input[name="value"]').value = couponData.discount_value || ''; // Use correct key
+            couponForm.querySelector('input[name="min_spend"]').value = couponData.min_purchase_amount || ''; // Use correct key
             couponForm.querySelector('input[name="usage_limit"]').value = couponData.usage_limit || '';
             if (couponData.valid_from) couponForm.querySelector('input[name="valid_from"]').value = couponData.valid_from.replace(' ', 'T').substring(0, 16);
             if (couponData.valid_to) couponForm.querySelector('input[name="valid_to"]').value = couponData.valid_to.replace(' ', 'T').substring(0, 16);
@@ -2457,7 +2504,7 @@ function initAdminCouponsPage() {
         if (confirmationMessage && !confirm(confirmationMessage)) {
             return; // Abort if user cancels confirmation
         }
-        const csrfToken = document.querySelector('input[name="csrf_token_list"]')?.value; // Get CSRF from list area if needed
+        const csrfToken = couponForm.querySelector('input[name="csrf_token"]')?.value; // Get CSRF from form for POST
 
         fetch(url, {
             method: 'POST', // Use POST for actions that change state
@@ -2550,17 +2597,25 @@ function initAdminCouponsPage() {
 }
 
 
-// --- Checkout Page Initialization (Updated) ---
+// --- Checkout Page Initialization (Updated with Debug Logs) ---
 function initCheckoutPage() {
-    // console.log("Initializing Checkout Page");
-    const stripePublicKey = document.body.dataset.stripePublicKey || '<?= defined(\'STRIPE_PUBLIC_KEY\') ? STRIPE_PUBLIC_KEY : \'\' ?>';
+    console.log("Initializing Checkout Page JS..."); // <<< DEBUG LOG
+    // --- Configuration ---
+    // Fetch config from body data attributes for better security/flexibility
+    const bodyData = document.body.dataset;
+    const stripePublicKey = bodyData.stripePublicKey || '';
+    const freeShippingThreshold = parseFloat(bodyData.freeShippingThreshold || '50');
+    const baseShippingCost = parseFloat(bodyData.baseShippingCost || '5.99');
+    const baseUrl = bodyData.baseUrl || '/'; // Use base URL for return_url
+
+    // --- Element Selectors ---
     const checkoutForm = document.getElementById('checkoutForm');
     const submitButton = document.getElementById('submit-button');
     const spinner = document.getElementById('spinner');
     const buttonText = document.getElementById('button-text');
     const paymentElementContainer = document.getElementById('payment-element');
     const paymentMessage = document.getElementById('payment-message');
-    const csrfToken = document.getElementById('csrf-token-value')?.value; // Use optional chaining
+    const csrfToken = document.getElementById('csrf-token-value')?.value;
     const couponCodeInput = document.getElementById('coupon_code');
     const applyCouponButton = document.getElementById('apply-coupon');
     const couponMessageEl = document.getElementById('coupon-message');
@@ -2575,40 +2630,53 @@ function initCheckoutPage() {
     const summarySubtotalEl = document.getElementById('summary-subtotal');
     const summaryShippingEl = document.getElementById('summary-shipping');
     const summaryTotalEl = document.getElementById('summary-total');
-    const freeShippingThreshold = parseFloat(document.body.dataset.freeShippingThreshold || '50'); // Get threshold from data attribute or fallback
-    const baseShippingCost = parseFloat(document.body.dataset.baseShippingCost || '5.99'); // Get base cost from data attribute or fallback
 
+    // --- State Variables ---
     let elements;
     let stripe;
-    let currentSubtotal = parseFloat(summarySubtotalEl?.textContent || '0');
-    let currentShippingCost = baseShippingCost; // Initial assumption
-    let currentTaxAmount = parseFloat(taxAmountEl?.textContent.replace('$', '') || '0');
-    let currentDiscountAmount = 0;
+    // Initialize state from PHP output, using parseFloat defensively
+    let currentSubtotal = parseFloat(summarySubtotalEl?.textContent?.replace('$', '') || '0');
+    let currentShippingCost = parseFloat(summaryShippingEl?.textContent?.replace('$', '') || baseShippingCost.toString()); // Use parsed value or default
+    let currentTaxAmount = parseFloat(taxAmountEl?.textContent?.replace('$', '') || '0');
+    let currentDiscountAmount = parseFloat(discountAmountEl?.textContent?.replace('-$', '') || '0'); // Handle initial discount if page reloads with coupon
 
+
+    // --- Basic Checks ---
+    console.log("Stripe Public Key:", stripePublicKey); // <<< DEBUG LOG
     if (!stripePublicKey) {
-        showMessage("Stripe configuration error. Payment cannot proceed.");
+        showMessage("Stripe configuration error. Payment cannot proceed.", true);
         setLoading(false, true); // Disable button permanently
         return;
     }
-    stripe = Stripe(stripePublicKey);
-
-    if (!checkoutForm || !submitButton || !paymentElementContainer || !csrfToken) {
+    if (!checkoutForm || !submitButton || !paymentElementContainer || !csrfToken || !summarySubtotalEl) {
         console.error("Checkout form critical elements missing. Aborting initialization.");
-        showMessage("Checkout form error. Please refresh the page.", true);
+        // Don't show generic message here, could be confusing if Stripe hasn't loaded yet
+        // showMessage("Checkout form error. Please refresh the page.", true);
         return;
     }
 
-    // --- Initialize Stripe Elements ---
-    const appearance = {
-         theme: 'stripe',
-         variables: {
-             colorPrimary: '#1A4D5A', colorBackground: '#ffffff', colorText: '#374151',
-             colorDanger: '#dc2626', fontFamily: 'Montserrat, sans-serif', borderRadius: '0.375rem'
-         }
-     };
-    elements = stripe.elements({ appearance });
-    const paymentElement = elements.create('payment');
-    paymentElement.mount('#payment-element');
+    // --- Initialize Stripe ---
+    try {
+         stripe = Stripe(stripePublicKey);
+         console.log("Stripe object initialized:", stripe); // <<< DEBUG LOG
+         const appearance = {
+             theme: 'stripe',
+             variables: {
+                 colorPrimary: '#1A4D5A', colorBackground: '#ffffff', colorText: '#374151',
+                 colorDanger: '#dc2626', fontFamily: 'Montserrat, sans-serif', borderRadius: '0.375rem'
+             }
+         };
+         elements = stripe.elements({ appearance });
+         const paymentElement = elements.create('payment');
+         paymentElement.mount('#payment-element');
+         console.log("Stripe Payment Element mounted."); // <<< DEBUG LOG
+    } catch (stripeError) {
+        console.error("Stripe initialization error:", stripeError); // <<< DEBUG LOG
+        showMessage("Could not initialize payment system. Please refresh.", true);
+        setLoading(false, true);
+        return;
+    }
+
 
     // --- Helper Functions ---
     function setLoading(isLoading, disablePermanently = false) {
@@ -2643,10 +2711,8 @@ function initCheckoutPage() {
     function updateOrderSummaryUI() {
         if (!summarySubtotalEl || !discountRow || !discountAmountEl || !appliedCouponCodeDisplay || !summaryShippingEl || !taxAmountEl || !summaryTotalEl) return;
 
-        // Update subtotal (should reflect initial load)
         summarySubtotalEl.textContent = parseFloat(currentSubtotal).toFixed(2);
 
-        // Update discount display
         if (currentDiscountAmount > 0 && appliedCouponHiddenInput?.value) {
             discountAmountEl.textContent = parseFloat(currentDiscountAmount).toFixed(2);
             appliedCouponCodeDisplay.textContent = appliedCouponHiddenInput.value;
@@ -2657,17 +2723,14 @@ function initCheckoutPage() {
             discountRow.classList.add('hidden');
         }
 
-         // Update shipping cost display (based on subtotal AFTER discount)
          const subtotalAfterDiscount = Math.max(0, currentSubtotal - currentDiscountAmount);
          currentShippingCost = subtotalAfterDiscount >= freeShippingThreshold ? 0 : baseShippingCost;
          summaryShippingEl.innerHTML = currentShippingCost > 0 ? '$' + parseFloat(currentShippingCost).toFixed(2) : '<span class="text-green-600">FREE</span>';
 
-        // Update tax amount display (based on AJAX call result)
         taxAmountEl.textContent = '$' + parseFloat(currentTaxAmount).toFixed(2);
 
-        // Update total
         const grandTotal = subtotalAfterDiscount + currentShippingCost + currentTaxAmount;
-        summaryTotalEl.textContent = parseFloat(Math.max(0.50, grandTotal)).toFixed(2); // Ensure min $0.50 display if rounding down
+        summaryTotalEl.textContent = parseFloat(Math.max(0.50, grandTotal)).toFixed(2); // Ensure min $0.50 display
     }
 
     // --- Tax Calculation ---
@@ -2676,27 +2739,25 @@ function initCheckoutPage() {
         const state = shippingStateEl?.value;
 
         if (!country || !taxRateEl || !taxAmountEl) {
-            // Reset tax if no country selected or elements missing
              if (taxRateEl) taxRateEl.textContent = 'N/A';
              currentTaxAmount = 0;
-             updateOrderSummaryUI(); // Update total
+             updateOrderSummaryUI();
             return;
         }
 
         try {
             taxAmountEl.textContent = '...'; // Loading indicator
-
-            // --- VERIFIED ENDPOINT ---
             const response = await fetch('index.php?page=checkout&action=calculateTax', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json', 'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
                  },
-                body: JSON.stringify({ country, state, subtotal: currentSubtotal, discount: currentDiscountAmount }) // Send current context if needed
+                // Pass current subtotal and discount for accurate tax calculation
+                body: JSON.stringify({ country, state, subtotal: currentSubtotal, discount: currentDiscountAmount })
             });
 
-            if (!response.ok) throw new Error('Tax calculation failed');
+            if (!response.ok) throw new Error(`Tax calculation failed (${response.status})`);
             const data = await response.json();
 
             if (data.success) {
@@ -2712,12 +2773,12 @@ function initCheckoutPage() {
             taxRateEl.textContent = 'Error';
             currentTaxAmount = 0;
         } finally {
-             updateOrderSummaryUI(); // Update totals after tax calculation attempt
+             updateOrderSummaryUI(); // Always update totals after tax calculation attempt
         }
     }
 
     if(shippingCountryEl) shippingCountryEl.addEventListener('change', updateTax);
-    if(shippingStateEl) shippingStateEl.addEventListener('input', updateTax); // Use input for faster response
+    if(shippingStateEl) shippingStateEl.addEventListener('input', updateTax);
 
     // --- Coupon Application ---
     if (applyCouponButton && couponCodeInput && appliedCouponHiddenInput) {
@@ -2731,7 +2792,6 @@ function initCheckoutPage() {
             applyCouponButton.disabled = true;
 
             try {
-                 // --- VERIFIED ENDPOINT ---
                 const response = await fetch('index.php?page=checkout&action=applyCouponAjax', {
                     method: 'POST',
                     headers: {
@@ -2745,14 +2805,14 @@ function initCheckoutPage() {
                     })
                 });
 
-                 if (!response.ok) throw new Error(`Server error: ${response.status}`);
+                 if (!response.ok) throw new Error(`Server error applying coupon (${response.status})`);
                  const data = await response.json();
 
                 if (data.success) {
                     showCouponMessage(data.message || 'Coupon applied!', 'success');
                     currentDiscountAmount = parseFloat(data.discount_amount) || 0;
                     appliedCouponHiddenInput.value = data.coupon_code || couponCode;
-                    // Re-calculate tax and update summary UI after applying discount
+                    // Recalculate tax and update summary UI after applying discount
                      updateTax(); // Triggers tax recalc and UI update
                 } else {
                     showCouponMessage(data.message || 'Invalid coupon code.', 'error');
@@ -2774,7 +2834,6 @@ function initCheckoutPage() {
         console.warn("Coupon elements not found. Coupon functionality disabled.");
     }
 
-
     // --- Checkout Form Submission ---
     submitButton.addEventListener('click', async function(e) {
         setLoading(true);
@@ -2790,9 +2849,10 @@ function initCheckoutPage() {
             } else { input?.classList.remove('input-error'); }
         });
         if (!isValid) {
-            showMessage('Please fill in all required shipping fields.'); setLoading(false);
-            checkoutForm.querySelector('.input-error')?.focus();
-            checkoutForm.querySelector('.input-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            showMessage('Please fill in all required shipping fields.', true); setLoading(false);
+            const firstError = checkoutForm.querySelector('.input-error');
+             firstError?.focus();
+             firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
 
@@ -2800,56 +2860,74 @@ function initCheckoutPage() {
         let clientSecret = null;
         let serverOrderId = null;
         try {
-            const checkoutFormData = new FormData(checkoutForm); // Includes CSRF, applied coupon, shipping fields
+            const checkoutFormData = new FormData(checkoutForm);
+            // Ensure applied coupon code is included if set
+            if (appliedCouponHiddenInput && appliedCouponHiddenInput.value) {
+                checkoutFormData.set('applied_coupon_code', appliedCouponHiddenInput.value); // Ensure it's set correctly
+            } else {
+                checkoutFormData.delete('applied_coupon_code'); // Remove if empty
+            }
+             // Add save_address checkbox value
+             const saveAddressCheckbox = checkoutForm.querySelector('input[name="save_address"]');
+             if (saveAddressCheckbox && saveAddressCheckbox.checked) {
+                 checkoutFormData.set('save_address', '1');
+             }
 
-             // --- VERIFIED ENDPOINT ---
             const response = await fetch('index.php?page=checkout&action=processCheckout', {
                 method: 'POST',
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: checkoutFormData
             });
-            const data = await response.json();
+
+            // Log status and try to parse JSON regardless of status code initially
+            console.log("Process Checkout Response Status:", response.status); // <<< DEBUG LOG
+            const data = await response.json(); // Try to parse JSON
+            console.log("Process Checkout Response Data:", data); // <<< DEBUG LOG
 
             if (response.ok && data.success && data.clientSecret && data.orderId) {
                 clientSecret = data.clientSecret;
-                serverOrderId = data.orderId; // Store the order ID if needed elsewhere
+                serverOrderId = data.orderId;
             } else {
-                throw new Error(data.error || 'Failed to process order on server. Please try again.');
+                // Throw error using message from JSON if available
+                throw new Error(data.error || `Failed to process order on server (Status: ${response.status}).`);
             }
         } catch (serverError) {
             console.error('Server processing error:', serverError);
-            showMessage(serverError.message); setLoading(false); return; // Stop checkout
+            showMessage(serverError.message, true); setLoading(false); return;
         }
 
         // 3. Confirm payment with Stripe using the obtained clientSecret
-        if (clientSecret) {
-            // --- VERIFIED RETURN URL ---
-            // Use BASE_URL defined in config.php (should be available globally or passed via data attribute)
-            const baseUrl = window.location.origin + (document.body.dataset.baseUrl || '/'); // Get base URL
-            const returnUrl = `${baseUrl}index.php?page=checkout&action=confirmation`;
+        if (clientSecret && stripe && elements) {
+            // Ensure BASE_URL ends with '/' for correct path joining
+            const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
+            const returnUrl = `${window.location.origin}${formattedBaseUrl}index.php?page=checkout&action=confirmation`;
+            console.log("Stripe return_url:", returnUrl); // Log the return URL
 
             const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
                 elements,
                 clientSecret: clientSecret,
                 confirmParams: { return_url: returnUrl },
-                redirect: 'if_required' // Handles 3DS etc. Stripe redirects on success.
+                redirect: 'if_required'
             });
 
-            // If error occurs (e.g., card decline, network issue before redirect)
             if (stripeError) {
-                 console.error("Stripe Error:", stripeError);
-                 showMessage(stripeError.message || "Payment failed. Please check your card details or try another method.");
-                 setLoading(false); // Re-enable button on failure
-                 // Optionally: Update order status on server to 'payment_failed' via another AJAX call if needed immediately
+                 console.error("Stripe confirmPayment Error:", stripeError);
+                 showMessage(stripeError.message || "Payment failed. Please check your card details or try another method.", true);
+                 setLoading(false);
             }
+            // If no error, Stripe handles the redirect on success.
+        } else {
+            if (!clientSecret) showMessage('Failed to get payment details from server.', true);
+            if (!stripe || !elements) showMessage('Payment system not initialized correctly.', true);
+            setLoading(false);
         }
     });
 
-    // Optional: Handle form reset or other UI interactions
-    checkoutForm.addEventListener('reset', function() {
-        setLoading(false); // Re-enable button if form is reset
-        showMessage(''); // Clear messages on form reset
-    });
+    // Initial UI calculations
+    updateOrderSummaryUI();
+    if (shippingCountryEl?.value) {
+        updateTax(); // Initial tax calculation if country pre-filled
+    }
 }
 
 
@@ -2860,26 +2938,37 @@ function initAdminOrdersPage() {
     const orderStatusSelects = document.querySelectorAll('.order-status-select');
 
     function updateOrderStatus(orderId, status) {
-        fetch('index.php?page=admin&action=updateOrderStatus', {
+        fetch('index.php?page=admin&action=updateOrderStatus', { // Need to ensure index.php routes this correctly
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 // 'X-```javascript
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': document.getElementById('csrf-token-value')?.value // Include CSRF token
             },
-            body: `order_id=${encodeURIComponent(orderId)}&status=${encodeURIComponent(status)}`
+            body: `order_id=${encodeURIComponent(orderId)}&status=${encodeURIComponent(status)}&csrf_token=${encodeURIComponent(document.getElementById('csrf-token-value')?.value || '')}` // Send CSRF token
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 showFlashMessage('Order status updated successfully.', 'success');
+                 // Maybe visually update the status in the table without full reload
+                 const selectElement = document.querySelector(`.order-status-select[data-order-id="${orderId}"]`);
+                 if (selectElement) {
+                     // Optionally add a visual cue like a temporary background color change
+                     selectElement.closest('tr')?.classList.add('bg-green-100');
+                     setTimeout(() => selectElement.closest('tr')?.classList.remove('bg-green-100'), 2000);
+                 }
             } else {
                 showFlashMessage('Failed to update order status. Please try again.', 'error');
+                 // Optionally revert the select dropdown if the update failed
+                 // location.reload(); // Or force reload on failure
             }
         })
         .catch(error => {
             console.error('Error updating order status:', error);
             showFlashMessage('An error occurred while updating the order status.', 'error');
+             // location.reload(); // Or force reload on failure
         });
     }
 
@@ -2888,9 +2977,15 @@ function initAdminOrdersPage() {
             const orderId = this.dataset.orderId;
             const newStatus = this.value;
             if (orderId && newStatus) {
-                updateOrderStatus(orderId, newStatus);
+                if (confirm(`Change order #${orderId} status to "${this.options[this.selectedIndex].text}"?`)) {
+                     updateOrderStatus(orderId, newStatus);
+                } else {
+                    this.value = this.dataset.currentStatus; // Revert dropdown if cancelled
+                }
             }
         });
+         // Store initial status for potential revert
+         select.dataset.currentStatus = select.value;
     });
 
     // Optional: Add more admin-specific functions and handlers as needed
@@ -2934,10 +3029,11 @@ document.addEventListener('DOMContentLoaded', function() {
     for (const pageClass in pageInitializers) {
         if (body.classList.contains(pageClass)) {
 	    // Assign data attributes using PHP variables for use in page initializers
-            body.dataset.baseUrl = '<?= BASE_URL ?>';
-            body.dataset.stripePublicKey = '<?= STRIPE_PUBLIC_KEY ?>';
-            body.dataset.freeShippingThreshold = '<?= FREE_SHIPPING_THRESHOLD ?>';
-            body.dataset.baseShippingCost = '<?= SHIPPING_COST ?>';
+            // These are now read directly from header output
+            // body.dataset.baseUrl = '<?= BASE_URL ?>';
+            // body.dataset.stripePublicKey = '<?= STRIPE_PUBLIC_KEY ?>';
+            // body.dataset.freeShippingThreshold = '<?= FREE_SHIPPING_THRESHOLD ?>';
+            // body.dataset.baseShippingCost = '<?= SHIPPING_COST ?>';
             pageInitializers[pageClass]();
             initialized = true;
             // console.log(`Initialized: ${pageClass}`); // For debugging

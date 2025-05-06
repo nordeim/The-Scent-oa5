@@ -493,7 +493,7 @@ class CartController extends BaseController {
 # controllers/ProductController.php  
 ```php
 <?php
-// controllers/ProductController.php (Updated: Pass Named Parameters to Model, Added JSON Textarea Parsing)
+// controllers/ProductController.php (Updated: Added JSON Textarea Parsing in saveAdminProduct)
 
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Product.php';
@@ -824,9 +824,10 @@ class ProductController extends BaseController {
 
              // --- START: Parse Textareas for JSON Fields ---
              $benefitsInput = $_POST['benefits'] ?? '';
+             // Split by any newline type, trim whitespace from each line, filter out empty lines, re-index numerically
              $data['benefits'] = !empty($benefitsInput)
-                 ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $benefitsInput)))) // Split by any newline, trim, filter empty, re-index
-                 : []; // Default to empty array
+                 ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $benefitsInput))))
+                 : []; // Default to empty array if textarea was empty
 
              $galleryInput = $_POST['gallery_images'] ?? '';
              $data['gallery_images'] = !empty($galleryInput)

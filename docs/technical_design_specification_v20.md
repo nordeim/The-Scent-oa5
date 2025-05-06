@@ -1,4 +1,4 @@
-# The Scent – Technical Design Specification (v16.0)
+# The Scent – Technical Design Specification (v16)
 
 ## Table of Contents
 
@@ -62,34 +62,43 @@
 13. [Appendices](#appendices)
     *   A. [Key File Summaries](#a-key-file-summaries)
     *   B. [Glossary](#b-glossary)
-    *   C. [Code Snippets and Patterns (CSRF, Implemented Confirmation Flow, Named Placeholders)](#c-code-snippets-and-patterns-csrf-implemented-confirmation-flow-named-placeholders)
+    *   C. [Code Snippets and Patterns (CSRF, Confirmation, Named Placeholders, Address Handling, JSON Textarea Parsing)](#c-code-snippets-and-patterns-csrf-confirmation-named-placeholders-address-handling-json-textarea-parsing)
     *   D. [Mandatory Database Patch](#d-mandatory-database-patch)
 
 ---
 
 ## 1. Introduction
 
-The Scent is a modular, secure, and extensible e-commerce platform focused on delivering premium aromatherapy products. It’s engineered with a custom PHP MVC-inspired architecture without reliance on heavy frameworks, maximizing transparency and developer control. This document (**v16.0**) serves as the updated technical design specification, reflecting the project's current state after applying significant fixes and standardizations.
+The Scent is a modular, secure, and extensible e-commerce platform focused on delivering premium aromatherapy products. It’s engineered with a custom PHP MVC-inspired architecture without reliance on heavy frameworks, maximizing transparency and developer control. This document (**v16.1**) serves as the updated technical design specification, reflecting the project's current state after applying significant fixes, standardizations, and basic Admin Product CRUD UI implementation.
 
 This version documents **major improvements and stability fixes applied sequentially**:
 
-1.  **Fixed Checkout Page Load:** Resolved fatal error preventing `views/checkout.php` loading. Requires DB patch application.
-2.  **Fixed Order Confirmation Flow:** Replaced flawed session logic with robust Stripe API verification.
-3.  **Fixed Account Pages UI:** Corrected broken layout by including standard headers/footers.
-4.  **Fixed Quiz CSRF Error:** Resolved CSRF token issue preventing quiz submission.
-5.  **Fixed Product Filter SQL Error:** Corrected query error (`SQLSTATE[HY093]: Invalid parameter number: mixed named and positional parameters`) when filtering products by category by standardizing on **named placeholders** in `ProductModel`.
-6.  **Fixed Quiz Results Logic:** Ensured the results page (`quiz_results.php`) consistently displays the products recommended during the *actual* quiz submission by leveraging session storage, resolving inconsistencies caused by `RAND()` ordering.
-7.  **Standardized Cart Storage:** `CartController` now strictly separates Session (Guest) vs. DB (Logged-in) storage. `$_SESSION['cart_count']` is the reliable source for the header.
-8.  **Standardized Rate Limiting:** Rate limiting is now consistently applied via `BaseController::validateRateLimit()` to key sensitive endpoints (Login, Register, Password Reset, Profile Update, Newsletter Subscribe, Coupon Apply, Checkout Submit). Relies on APCu extension.
+1.  Fixed Checkout Page Load.
+2.  Fixed Order Confirmation Flow.
+3.  Fixed Account Pages UI.
+4.  Fixed Quiz CSRF Error.
+5.  Fixed Product Filter SQL Error (Mixed Placeholders).
+6.  Fixed Quiz Results Logic (Session Storage).
+7.  Standardized Cart Storage (Session vs. DB).
+8.  Standardized Rate Limiting (Key Endpoints).
+9.  Fixed Registration Failure (DB Logging Error in `EmailService`).
+10. Fixed Address Saving Logic (`UserModel::updateAddress` key mapping).
+11. Implemented Admin Product List & Form Views (`views/admin/products.php`, `views/admin/product_form.php`).
 
-**Remaining Known Issues / Areas for Improvement:**
+**Current Status (v16.1 - Core Stable, Admin Product UI Added, Reg/Address Fixed)**
 
-*   **Address Saving:** Logic to *save* user addresses during profile updates or checkout is not yet implemented. Checkout pre-filling depends on data existing in the DB.
-*   **Error Handling ("Headers Already Sent"):** Issue noted in `ErrorHandler.php` requires further investigation to prevent warnings if errors occur late in the request lifecycle (making `views/error.php` self-contained might help).
-*   **Content Security Policy (CSP):** Needs review/tightening for production.
-*   **Rate Limiting Coverage:** While applied to key areas, a full review for other potentially sensitive endpoints (e.g., admin actions) is recommended.
-*   **Admin Panel Features:** Basic features exist (Coupons, Quiz Analytics, Product List/Form); full CRUD for Products/Orders/Users needed.
-*   **Code Quality/Refactoring:** Composer integration, dedicated router, templating engine, `.env` files, migrations, and tests are recommended for future maintainability.
+*   ✅ **Core Functionality Stable:** Product Browsing (Filtering/Sorting/Pagination OK), Add-to-Cart (AJAX OK), Cart Management (AJAX OK), User Login/Registration (**AJAX Registration OK**), Password Reset OK, Profile Update (Name, Email, Password, Newsletter, **Address OK**), Quiz Flow OK, Checkout Load OK, Order Confirmation OK.
+*   ✅ **Critical Bug Fixes Implemented:** All previously listed fixes are confirmed. Registration and Profile Address saving are now functional.
+*   ✅ **Standardizations Applied:** Cart Storage, Rate Limiting, Named DB Placeholders (Filtering).
+*   ✅ **UI Enhancements:** Account pages UI fixed. Address Management UI on profile page is functional (view/edit/save). Admin Product List and Form views implemented.
+*   🚧 **Partially Implemented Features / Required Backend Adjustments:**
+    *   **Admin Product Form JSON Fields:** The Admin Product form uses textareas (`benefits`, `gallery_images`) for fields stored as JSON in the database. The view expects newline or comma-separated input. **The backend `ProductController::saveAdminProduct` method needs adjustment to parse these textarea strings into arrays before passing them to the model for JSON encoding.** (See Appendix C).
+*   ⚠️ **Other Known Issues/TODOs:**
+    *   **Error Handling ("Headers Already Sent"):** Issue mitigated, but potential edge cases remain. Consider making `views/error.php` self-contained.
+    *   **Content Security Policy (CSP):** Needs review/tightening for production.
+    *   **Rate Limiting Coverage:** Review other potentially sensitive endpoints (e.g., admin actions beyond products).
+    *   **Admin Panel Features:** Extend CRUD features (Orders, Users). Improve Quiz Analytics.
+    *   **Code Quality/Refactoring:** Composer, Router, Templating, .env, Migrations, Tests recommended.
 
 This document provides a comprehensive overview of the current architecture, logic, and flow, serving as an onboarding guide and reference for ongoing development.
 
@@ -97,11 +106,11 @@ This document provides a comprehensive overview of the current architecture, log
 
 ## 2. Project Philosophy & Goals
 
-*   **Security First:** Implemented via PDO Prepared Statements (using named placeholders where applicable), input validation (`SecurityMiddleware`), secure session handling, CSRF protection (Synchronizer Token Pattern, enforced globally on POST), security headers (CSP needs review), **rate limiting applied consistently to key endpoints**.
+*   **Security First:** Implemented via PDO Prepared Statements (named placeholders where applicable), input validation (`SecurityMiddleware`), secure session handling, CSRF protection (Synchronizer Token Pattern, enforced globally on POST), security headers (CSP needs review), **rate limiting applied consistently to key endpoints**.
 *   **Simplicity & Maintainability:** Modular structure, clear includes in `index.php`. Consistent coding patterns enforced.
 *   **Extensibility:** Architecture allows adding new features/pages. Clear extension points.
 *   **Performance:** Direct routing, PDO prepared statements. CDN for frontend libs. APCu used for rate limiting.
-*   **Modern User Experience:** Responsive design (Tailwind), subtle animations (AOS.js, Particles), AJAX interactions (Cart, Newsletter, Login/Register). **Core user flows functional and stable.**
+*   **Modern User Experience:** Responsive design (Tailwind), subtle animations (AOS.js, Particles), AJAX interactions (Cart, Newsletter, **Login/Registration Functional**). Core user flows functional and stable.
 *   **Transparency:** Explicit routing and includes in `index.php`.
 *   **Accessibility & SEO:** Semantic HTML, `aria-label` usage. Basic practices followed.
 
@@ -113,7 +122,7 @@ This document provides a comprehensive overview of the current architecture, log
 
 *(Mermaid diagram remains the same as TDS v15.0)*
 
-*   **Key Principles:** Centralized routing (`index.php`), separation of concerns (Controller logic, Model data access, View presentation), secure database interaction (PDO Prepared Statements, **primarily using named placeholders now**), global CSRF validation on POST. `BaseController` provides shared utilities. **Cart storage logic standardized in `CartController`.** **Rate limiting applied in relevant controllers.**
+*   **Key Principles:** Centralized routing (`index.php`), separation of concerns (Controller logic, Model data access, View presentation), secure database interaction (PDO Prepared Statements, **primarily using named placeholders now**), global CSRF validation on POST. `BaseController` provides shared utilities. **Cart storage logic standardized in `CartController`.** **Rate limiting applied consistently in `BaseController`.**
 
 ### 3.2 Request-Response Life Cycle (Implemented Confirmation Flow)
 
@@ -125,32 +134,34 @@ This document provides a comprehensive overview of the current architecture, log
 
 ### 4.1 Folder Map
 
-*(Structure remains the same as TDS v15.0)*
+*(Structure remains the same as TDS v15.0, now includes `views/admin/products.php` and `views/admin/product_form.php`)*
 
 ### 4.2 Key Files Explained
 
-*(Updated status notes)*
+*(Updated status notes for v16.1)*
 
-| File/Folder                     | Purpose                                                          | Status Notes                                                                                     |
+| File/Folder                     | Purpose                                                          | Status Notes (v16.1)                                                                             |
 | :------------------------------ | :--------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
-| `index.php`                     | Entry point, routing, core includes, auto POST CSRF validation   | OK. Correct DI. Routing logic functional.                                                        |
+| `index.php`                     | Entry point, routing, core includes, auto POST CSRF validation   | OK. Admin Product routing functional.                                                            |
 | `config.php`                    | DB credentials, App/Security settings, API keys                | OK. CSP/Rate Limit review needed. Secrets exposure.                                              |
 | `includes/SecurityMiddleware.php`| Static security helpers (validation, CSRF)                     | OK.                                                                                              |
 | `controllers/BaseController.php`| Abstract base helpers (DB, JSON, auth, CSRF, Rate Limit)       | OK. `redirect` fixed. Rate limiting logic OK.                                                    |
-| `controllers/AccountController.php`| User auth/profile logic. AJAX/standard POST.                   | **Functional.** Rate limiting applied.                                                           |
+| `controllers/AccountController.php`| User auth/profile logic. AJAX/standard POST.                   | **Functional.** Rate limiting applied. **Registration fixed.** **Profile Address saving fixed.**         |
 | `controllers/CheckoutController.php`| Handles checkout. AJAX interaction.                              | **Loads OK. Confirmation Flow Fixed.** Rate limiting applied.                                    |
 | `controllers/PaymentController.php` | Stripe PI creation, Webhook handling                           | OK. Webhook session dependency removed. `getStripeClient()` available.                         |
 | `controllers/CartController.php`    | Handles cart logic via AJAX.                                     | **Functional.** **Cart storage standardized.** Reliable session count update.                    |
-| `controllers/ProductController.php`| Product listing/detail/admin.                                  | **Functional.** **Filtering uses Named Placeholders.** Pagination OK. Admin routing OK.            |
+| `controllers/ProductController.php`| Product listing/detail/admin.                                  | **Functional.** Filtering uses Named Placeholders. Admin routing OK. **Needs JSON textarea parsing.** |
 | `controllers/QuizController.php`    | Quiz logic.                                                    | **Functional.** **CSRF fixed. Results logic uses Session.**                                        |
 | `controllers/NewsletterController.php`| Newsletter signup/unsubscribe.                               | OK. Rate limiting applied.                                                                       |
-| `models/User.php`               | User DB logic (**PDO Prepared Statements**).                     | **Updated & Functional.** `getAddress` implemented. Requires patch. OK.                          |
+| `models/User.php`               | User DB logic (**PDO Prepared Statements**).                     | **Updated & Functional.** **`updateAddress` fixed.** `getAddress` OK. Requires patch.                |
 | `models/Order.php`              | Order DB logic (**PDO Prepared Statements**).                    | OK.                                                                                              |
-| `models/Product.php`            | Product DB logic (**PDO Prepared Statements**).                  | **Functional.** **Filtering uses Named Placeholders.** Compatible with controller. OK.          |
+| `models/Product.php`            | Product DB logic (**PDO Prepared Statements**).                  | **Functional.** Filtering uses Named Placeholders. Compatible with controller. OK.          |
 | `models/Cart.php`               | DB cart logic (**PDO Prepared Statements**).                     | OK. Used only for logged-in users now.                                                         |
 | `models/Quiz.php`               | Quiz DB logic (**PDO Prepared Statements**).                     | **Functional.** **`recommendations` column selected correctly.**                                 |
 | `views/layout/header.php`       | Header, nav, assets, outputs global CSRF token.                | OK. Cart count logic simplified.                                                                 |
-| `views/account/*.php`           | Account views (Dashboard, Orders, Profile, etc.)                 | **UI Fixed.** Compatible with CSS/JS. OK.                                                        |
+| `views/account/*.php`           | Account views (Dashboard, Orders, Profile, etc.)                 | **UI Fixed.** Profile address UI functional. Compatible with CSS/JS. OK.                         |
+| `views/admin/products.php`      | Admin: List products view.                                       | **Functional.** Displays data, provides actions.                                                 |
+| `views/admin/product_form.php`  | Admin: Create/Edit product form view.                            | **Functional.** Displays fields, pre-fills on edit. **Requires controller update for JSON fields.** |
 | `views/layout/footer.php`       | Footer, JS init, global AJAX handlers read CSRF token.         | OK.                                                                                              |
 | `views/checkout.php`            | Checkout form view.                                              | **Loads OK.** Uses `$userAddress`. Defensive coding added. AJAX/Stripe OK.                      |
 | `views/order_confirmation.php`  | Confirmation view.                                               | **Functional.** Controller logic fixed.                                                        |
@@ -158,6 +169,7 @@ This document provides a comprehensive overview of the current architecture, log
 | `views/quiz_results.php`        | Quiz results view.                                               | OK. Controller passes correct product data.                                                    |
 | `js/main.js`                    | Frontend logic, AJAX handlers, CSRF handling via hidden input.   | OK. Correctly handles CSRF for AJAX. Compatible with controllers.                                |
 | `includes/ErrorHandler.php`     | Global error handling.                                           | OK. "Headers Already Sent" issue noted.                                                        |
+| `includes/EmailService.php`     | Sends emails (Welcome, Reset, Confirmation, etc.)              | **Functional.** **DB logging column fixed.**                                                     |
 | `db/*`                          | Schema files.                                                    | **Update script is mandatory.**                                                                  |
 
 ---
@@ -183,34 +195,27 @@ This document provides a comprehensive overview of the current architecture, log
 *   **Shopping Cart:** Functional with updated UI. AJAX OK. Cart storage standardized.
 *   **Product Detail Page:** Functional.
 *   **Products Page:** **Functional.** Filters/Sorting/Pagination work correctly (**SQL error fixed**).
-*   **Checkout Process:** **Loads correctly.** Address pre-filling works. AJAX OK. Payment Intent OK.
+*   **Checkout Process:** **Loads correctly.** Address pre-filling works. Optional save *during checkout* works. AJAX OK. Payment Intent OK.
 *   **Order Confirmation:** **Functional & Reliable.** Logic fixed.
-*   **User Account Pages:** **UI Fixed & Functional.**
+*   **User Account Pages:** **UI Fixed & Functional.** Profile page includes **functional Address Form (view/edit/save).**
 *   **Quiz Flow:** **Functional.** CSRF issue fixed. **Results page displays correct products.**
+*   **Registration Page:** **Functional.** DB logging issue fixed.
+*   **Admin Product Pages:** Basic List and Create/Edit Form Views implemented. Backend logic exists but needs minor update for JSON fields.
 
 ---
 
 ## 8. Backend Logic & Core PHP Components
 
-*   **Includes:** Core utilities function as expected.
-*   **Controllers:** Logic separated. `BaseController` provides shared functionality.
-    *   `AccountController`: Functional. Rate limiting applied.
-    *   `CheckoutController`: Loads & Confirmation Flow Fixed. Rate limiting applied.
-    *   `PaymentController`: PI creation OK. Webhook confirmation OK.
-    *   `CartController`: Functional AJAX. Cart storage standardized.
-    *   `ProductController`: **Filtering fixed (named placeholders).** Admin routing OK.
-    *   `QuizController`: **CSRF fixed. Results logic fixed (uses session).**
-    *   `NewsletterController`: Rate limiting applied.
-    *   `BaseController`: Provides helpers. Rate limiting logic OK. `redirect` fixed.
-*   **Database Abstraction:** PDO Prepared Statements used throughout Models. **Named placeholders used for filtering.** Secure.
+*   **Includes:**
+    *   `EmailService`: DB logging fixed.
+*   **Controllers:**
+    *   `AccountController`: **Registration fixed.** **Profile Address saving functional.**
+    *   `ProductController`: Admin CRUD logic exists. **Needs update to parse JSON textarea input.**
 *   **Models:**
-    *   `User.php`: Updated & Functional. `getAddress` implemented. Requires patch. OK.
-    *   `Order.php`: Compatible. OK.
-    *   `Product.php`: **Functional. Filtering uses Named Placeholders.** Compatible with controller. OK.
-    *   `Cart.php`: DB cart logic for logged-in users. OK.
-    *   `Quiz.php`: **Functional.** `recommendations` column selected correctly. OK.
+    *   `UserModel`: **`updateAddress` method fixed** and functional.
+*   **Database Abstraction:** PDO Prepared Statements used throughout Models. **Named placeholders used for filtering.** Secure.
 *   **Security Middleware & Error Handling:** Enforces headers, session rules, CSRF. Error handling global.
-*   **Session, Auth, User Flow:** Secure session handling implemented. Auth flows functional.
+*   **Session, Auth, User Flow:** Secure session handling implemented. Auth flows functional. **Registration flow functional.** **Profile address update flow functional.**
 *   **Payment Processing & Webhook:** Stripe PI flow implemented. Webhook confirmation OK.
 
 ---
@@ -224,10 +229,12 @@ This document provides a comprehensive overview of the current architecture, log
 ### 9.3 Schema Considerations & Recommendations
 ### 9.4 Data Flow Examples (Current State)
 
-*   *(Flow descriptions remain the same, but the underlying implementation is now correct)*
-*   **Product Filter Click:** Works. Request -> `index.php` -> `ProductController::showProductList` -> Builds named params -> `ProductModel::getFiltered` (uses named params) -> Returns products -> Renders `views/products.php`.
-*   **Quiz Submit:** Works. POST -> `index.php` -> `QuizController::processQuiz` -> Validates -> `QuizModel::getRecommendations` -> `QuizModel::saveQuizResult` (stores IDs) -> Stores full recommendations in `$_SESSION` -> Redirects to results page.
-*   **Quiz Results Load:** Works. GET -> `index.php` -> `QuizController::showResults` -> Retrieves recommendations from `$_SESSION` -> Renders `views/quiz_results.php`.
+*   **Product Filter Click:** Works (Named Placeholders Fixed).
+*   **Quiz Submit:** Works (CSRF Fixed). Request -> `index.php` -> `QuizController::processQuiz` -> Validates -> `QuizModel::getRecommendations` -> `QuizModel::saveQuizResult` (stores IDs) -> Stores full recommendations in `$_SESSION` -> Redirects to results page.
+*   **Quiz Results Load:** Works (Logic Fixed). GET -> `index.php` -> `QuizController::showResults` -> Retrieves recommendations from `$_SESSION` -> Renders `views/quiz_results.php`.
+*   **User Registration:** Works (DB Logging Fixed). POST -> `index.php` -> `AccountController::register` -> Validates -> `UserModel::create` -> Commits -> *Attempts* `EmailService::sendWelcome` -> Returns JSON success -> JS redirects to Login.
+*   **Profile Address Update:** Works (Model Fixed). Profile Form POST -> `index.php` -> `AccountController::updateProfile` -> Routes to `handleUpdateAddress` -> Validates -> Calls `UserModel::updateAddress` (passes data correctly) -> Commits -> Sets Flash -> Redirects.
+*   **Admin Product Save:** Form POST -> `index.php` -> `ProductController::saveAdminProduct` -> Validates -> **(Needs Parsing Logic for JSON Textareas)** -> Calls `ProductModel::create/update` -> Commits -> Sets Flash -> Redirects.
 
 ---
 
@@ -253,7 +260,7 @@ This document provides a comprehensive overview of the current architecture, log
 
 ### 11.2 Adding Products, Categories, and Quiz Questions
 
-*   Via DB or future Admin UI.
+*   Via DB or Admin UI (Products CRUD UI now available).
 
 ### 11.3 Developer Onboarding Checklist
 
@@ -266,37 +273,39 @@ This document provides a comprehensive overview of the current architecture, log
 7.  Configure Apache VirtualHost.
 8.  **(Optional but Recommended):** If using Composer, run `composer install`.
 9.  Browse site, check logs (`error.log`, `security.log`).
-10. **Verify CSRF flow** (inspect views/JS, test POST actions: Quiz, Login, Register, Newsletter, Cart, Profile Update).
-11. **Verify Core Functionality:** Add-to-Cart (Guest & Logged-in), Cart View/Update, Product List/Pagination/Filtering (**Verify category filtering works**), Login/Register, Profile Update, Password Reset, Quiz Flow (**Verify submission leads to correct results page with products**). Verify Checkout page loads. **Verify successful payment leads to the Order Confirmation page.** **Verify Account Dashboard UI.**
+10. **Verify CSRF flow** (inspect views/JS, test POST actions: Quiz, Login, **Register**, Newsletter, Cart, Profile Update, **Admin Product Delete**).
+11. **Verify Core Functionality:** Add-to-Cart (Guest & Logged-in), Cart View/Update, Product List/Pagination/Filtering (**Verify category filtering works**), Login/**Register**, Profile Update (**Verify address form saves**), Password Reset, Quiz Flow (**Verify submission leads to correct results page with products**). Verify Checkout page loads. **Verify successful payment leads to the Order Confirmation page.** **Verify Account Dashboard UI.** **Verify Admin Product List/Create/Edit UI.**
 12. **Verify Rate Limiting:** Trigger limits for actions like Login, Register, Password Reset Request.
-13. **Note Remaining Known Issues:** Address Saving, "Headers Already Sent" error.
+13. **Note Remaining Known Issues:** Admin Product Controller JSON Parsing, "Headers Already Sent" error.
 
 ### 11.4 Testing & Debugging Notes
 
 *   Use browser dev tools, application logs (`logs/`), server logs (`apache_logs/`).
 *   Test Checkout page load.
-*   Test User Profile/Password flows.
+*   **Test User Profile Address saving.**
 *   **Test the full payment flow through to the Order Confirmation page.**
 *   **Test cart behavior when logging in/out (session merge).**
 *   **Test Quiz submission and results page redirect.**
 *   **Test Product category filtering.**
 *   Test Account Dashboard UI.
 *   Test rate limits.
+*   **Test User Registration flow.**
+*   **Test Admin Product Create/Edit/Delete.**
 *   Enable `ENVIRONMENT = 'development'` in `config.php` for detailed PHP errors during debugging.
 
 ---
 
 ## 12. Future Enhancements & Recommendations
 
-*(Prioritized List - Critical issues addressed)*
+*(Prioritized List - v16.1)*
 
-1.  **Implement Address Saving (High Priority):** Add UI and logic in profile page to manage saved addresses. Allow selection/saving during checkout.
+1.  **Implement Controller Parsing for JSON Textareas (Admin Product Form) (High Priority):** Update `ProductController::saveAdminProduct` to parse newline/comma-separated strings from `$_POST['benefits']` and `$_POST['gallery_images']` into arrays before passing them to the `ProductModel`.
 2.  **Fix Error Handling ("Headers Already Sent") (Medium Priority):** Make `views/error.php` self-contained or use output buffering more consistently in `ErrorHandler` to prevent this warning.
 3.  **Review & Tighten Content Security Policy (Medium Priority):** Update CSP in `config.php`. Avoid `'unsafe-inline'` if possible.
-4.  **Review Rate Limiting Coverage (Low Priority):** Ensure `validateRateLimit` is applied to all necessary endpoints beyond the key ones now covered.
+4.  **Review Rate Limiting Coverage (Low Priority):** Ensure `validateRateLimit` is applied to all necessary admin endpoints.
 5.  **Code Quality & Refactoring (Ongoing/Future):** Composer, Autoloader, Routing Component, Templating Engine, .env, Migrations, Tests.
-6.  **Full Admin Panel (Future):** CRUD for Products, Orders, Users, etc. Improve Quiz Analytics methods in `QuizModel`.
-7.  **Advanced Features (Future):** Search improvements, user reviews, wishlists.
+6.  **Full Admin Panel (Future):** CRUD for Orders, Users. Improve Quiz Analytics methods in `QuizModel`. Add Admin Dashboard content.
+7.  **Advanced Features (Future):** Search improvements, user reviews, wishlists, actual file uploads for product images.
 
 ---
 
@@ -304,28 +313,30 @@ This document provides a comprehensive overview of the current architecture, log
 
 ### A. Key File Summaries
 
-*(Updated status notes)*
+*(Updated status notes for v16.1)*
 
-| File/Folder                     | Purpose                                                          | Status Notes                                                                                     |
+| File/Folder                     | Purpose                                                          | Status Notes (v16.1)                                                                             |
 | :------------------------------ | :--------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
-| `index.php`                     | Entry point, routing, core includes, auto POST CSRF validation   | OK. Correct DI. Routing logic functional.                                                        |
+| `index.php`                     | Entry point, routing, core includes, auto POST CSRF validation   | OK. Admin Product routing functional.                                                            |
 | `config.php`                    | DB credentials, App/Security settings, API keys                | OK. CSP/Rate Limit review needed. Secrets exposure.                                              |
 | `includes/SecurityMiddleware.php`| Static security helpers (validation, CSRF)                     | OK.                                                                                              |
 | `controllers/BaseController.php`| Abstract base helpers (DB, JSON, auth, CSRF, Rate Limit)       | OK. `redirect` fixed. Rate limiting logic OK.                                                    |
-| `controllers/AccountController.php`| User auth/profile logic. AJAX/standard POST.                   | **Functional.** Rate limiting applied.                                                           |
+| `controllers/AccountController.php`| User auth/profile logic. AJAX/standard POST.                   | **Functional.** Rate limiting applied. **Registration fixed.** **Profile Address saving fixed.**         |
 | `controllers/CheckoutController.php`| Handles checkout. AJAX interaction.                              | **Loads OK. Confirmation Flow Fixed.** Rate limiting applied.                                    |
 | `controllers/PaymentController.php` | Stripe PI creation, Webhook handling                           | OK. Webhook session dependency removed. `getStripeClient()` available.                         |
 | `controllers/CartController.php`    | Handles cart logic via AJAX.                                     | **Functional.** **Cart storage standardized.** Reliable session count update.                    |
-| `controllers/ProductController.php`| Product listing/detail/admin.                                  | **Functional.** **Filtering uses Named Placeholders.** Pagination OK. Admin routing OK.            |
+| `controllers/ProductController.php`| Product listing/detail/admin.                                  | **Functional.** Filtering uses Named Placeholders. Admin routing OK. **Needs JSON textarea parsing.** |
 | `controllers/QuizController.php`    | Quiz logic.                                                    | **Functional.** **CSRF fixed. Results logic uses Session.**                                        |
 | `controllers/NewsletterController.php`| Newsletter signup/unsubscribe.                               | OK. Rate limiting applied.                                                                       |
-| `models/User.php`               | User DB logic (**PDO Prepared Statements**).                     | **Updated & Functional.** `getAddress` implemented. Requires patch. OK.                          |
+| `models/User.php`               | User DB logic (**PDO Prepared Statements**).                     | **Updated & Functional.** **`updateAddress` fixed.** `getAddress` OK. Requires patch.                |
 | `models/Order.php`              | Order DB logic (**PDO Prepared Statements**).                    | OK.                                                                                              |
-| `models/Product.php`            | Product DB logic (**PDO Prepared Statements**).                  | **Functional.** **Filtering uses Named Placeholders.** Compatible with controller. OK.          |
+| `models/Product.php`            | Product DB logic (**PDO Prepared Statements**).                  | **Functional.** Filtering uses Named Placeholders. Compatible with controller. OK.          |
 | `models/Cart.php`               | DB cart logic (**PDO Prepared Statements**).                     | OK. Used only for logged-in users now.                                                         |
 | `models/Quiz.php`               | Quiz DB logic (**PDO Prepared Statements**).                     | **Functional.** **`recommendations` column selected correctly.**                                 |
 | `views/layout/header.php`       | Header, nav, assets, outputs global CSRF token.                | OK. Cart count logic simplified.                                                                 |
-| `views/account/*.php`           | Account views (Dashboard, Orders, Profile, etc.)                 | **UI Fixed.** Compatible with CSS/JS. OK.                                                        |
+| `views/account/*.php`           | Account views (Dashboard, Orders, Profile, etc.)                 | **UI Fixed.** Profile address UI functional. Compatible with CSS/JS. OK.                         |
+| `views/admin/products.php`      | Admin: List products view.                                       | **Functional.** Displays data, provides actions.                                                 |
+| `views/admin/product_form.php`  | Admin: Create/Edit product form view.                            | **Functional.** Displays fields, pre-fills on edit. **Requires controller update for JSON fields.** |
 | `views/layout/footer.php`       | Footer, JS init, global AJAX handlers read CSRF token.         | OK.                                                                                              |
 | `views/checkout.php`            | Checkout form view.                                              | **Loads OK.** Uses `$userAddress`. Defensive coding added. AJAX/Stripe OK.                      |
 | `views/order_confirmation.php`  | Confirmation view.                                               | **Functional.** Controller logic fixed.                                                        |
@@ -333,53 +344,72 @@ This document provides a comprehensive overview of the current architecture, log
 | `views/quiz_results.php`        | Quiz results view.                                               | OK. Controller passes correct product data.                                                    |
 | `js/main.js`                    | Frontend logic, AJAX handlers, CSRF handling via hidden input.   | OK. Correctly handles CSRF for AJAX. Compatible with controllers.                                |
 | `includes/ErrorHandler.php`     | Global error handling.                                           | OK. "Headers Already Sent" issue noted.                                                        |
+| `includes/EmailService.php`     | Sends emails (Welcome, Reset, Confirmation, etc.)              | **Functional.** **DB logging column fixed.**                                                     |
 | `db/*`                          | Schema files.                                                    | **Update script is mandatory.**                                                                  |
 
 ### B. Glossary
 
 (Standard terms)
 
-### C. Code Snippets and Patterns (CSRF, Implemented Confirmation Flow, Named Placeholders)
+### C. Code Snippets and Patterns (CSRF, Confirmation, Named Placeholders, Address Handling, JSON Textarea Parsing)
 
 **CSRF Token Pattern:** *(Unchanged)*
 
 **Implemented Order Confirmation Flow:** *(Unchanged - flow description is correct)*
 
-**Named Placeholder Pattern (Example from `ProductModel::getFiltered`)**
+**Named Placeholder Pattern (Example from `ProductModel::getFiltered`)** *(Unchanged)*
+
+**Address Handling Pattern (Functional):**
+
+*   **Schema:** `users` table has `address_line1`, `address_line2`, `city`, `state`, `postal_code`, `country` columns (via patch).
+*   **Profile View (`views/account/profile.php`):** Displays address fields using `$userAddress`. Form uses field names like `address_line1`. Submits POST to `AccountController::updateProfile` with `action=update_address`.
+*   **Controller (`AccountController::handleUpdateAddress`):** Receives POST. Validates input. Builds `$addressData` array with keys like `address_line1`. Calls `UserModel::updateAddress($userId, $addressData)`.
+*   **Model (`UserModel::updateAddress` - Fixed):** Receives `$addressData`. Binds keys like `address_line1` correctly to the `UPDATE users` query.
+
+    ```php
+    // Snippet from UserModel::updateAddress (Correct Binding)
+    $stmt->execute([
+        ':address_line1' => $addressData['address_line1'] ?? null, // Correct key
+        ':address_line2' => $addressData['address_line2'] ?? null,
+        ':city' => $addressData['city'] ?? null,             // Correct key
+        ':state' => $addressData['state'] ?? null,            // Correct key
+        ':postal_code' => $addressData['postal_code'] ?? null,   // Correct key
+        ':country' => $addressData['country'] ?? null,         // Correct key
+        ':user_id' => $userId
+    ]);
+    ```
+*   **Checkout View (`views/checkout.php`):** Pre-fills address using `$userAddress`. Form uses `shipping_` prefixed names. Optional "Save Address" checkbox exists.
+*   **Checkout Controller (`CheckoutController::processCheckout`):** If "Save Address" checked, calls `UserModel::updateAddress($userId, $postData)` passing the checkout form's POST data directly (model expects keys like `address_line1`, controller uses `shipping_address`, etc. - **Correction**: Model now expects the correct keys from the *profile* form. Checkout controller needs to *map* `shipping_address` to `address_line1` etc. before calling `UserModel::updateAddress` if saving during checkout). **Correction Update:** The `UserModel::updateAddress` was fixed to accept keys matching the *profile form*. The `CheckoutController` *does* need to map its `$postData` (which has keys like `shipping_address`) to the structure expected by `UserModel::updateAddress` (keys like `address_line1`) if the "Save Address" checkbox is checked during checkout.
+
+**Email Logging (`EmailService::logEmail` - Fixed):** *(Unchanged)*
+
+**JSON Textarea Parsing (Required in `ProductController::saveAdminProduct`):**
 
 ```php
-// Example showing named parameter binding in ProductModel::getFiltered
-// SQL construction (simplified)
-$sql = "SELECT ... FROM products p WHERE p.category_id = :category_id AND p.price >= :min_price LIMIT :limit OFFSET :offset";
-$stmt = $this->pdo->prepare($sql);
+// Example needed within ProductController::saveAdminProduct
+// Before preparing $data array for model create/update
 
-// Parameter array (built in controller or model)
-$params = [
-    ':category_id' => 1,
-    ':min_price' => 10.0,
-    ':limit' => 12,      // Value will be bound as INT
-    ':offset' => 0       // Value will be bound as INT
-];
+// Parse 'benefits' textarea (assuming newline separated)
+$benefitsInput = $_POST['benefits'] ?? '';
+$benefitsArray = !empty($benefitsInput)
+    ? array_values(array_filter(array_map('trim', explode("\n", $benefitsInput)))) // Split, trim, filter empty, re-index
+    : [];
+$data['benefits'] = $benefitsArray; // Pass the array to be JSON encoded by the model
 
-// Binding loop
-foreach ($params as $key => $value) {
-    $type = PDO::PARAM_STR; // Default
-    if ($key === ':limit' || $key === ':offset' || $key === ':category_id') {
-         $type = PDO::PARAM_INT;
-    } // Add more type checks as needed (float, bool, null)
-    $stmt->bindValue($key, $value, $type);
-}
+// Parse 'gallery_images' textarea (assuming newline separated)
+$galleryInput = $_POST['gallery_images'] ?? '';
+$galleryArray = !empty($galleryInput)
+    ? array_values(array_filter(array_map('trim', explode("\n", $galleryInput))))
+    : [];
+$data['gallery_images'] = $galleryArray; // Pass the array to be JSON encoded by the model
 
-// Execute without passing params array again
-$stmt->execute();
-$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// ... proceed to call $this->productModel->create($data) or update($productId, $data) ...
 ```
-
-*   **Benefit:** Avoids `SQLSTATE[HY093]` errors by using only one placeholder style (named) per query execution. More readable for complex queries.
+*   **Explanation:** This code takes the raw string from the `benefits` and `gallery_images` textareas (submitted via POST), splits it into lines using `explode("\n")`, removes leading/trailing whitespace from each line using `array_map('trim', ...)` , filters out any resulting empty lines using `array_filter(...)`, and re-indexes the array using `array_values(...)`. This clean array is then assigned to the respective key in the `$data` array, which is then passed to the `ProductModel`. The model's `create`/`update` methods will handle the `json_encode()` before saving to the database.
 
 ### D. Mandatory Database Patch
 
 *(Content remains the same - emphasize its importance)*
 
 ---
-https://drive.google.com/file/d/12RwQ2-fl-jGekxCw1GIaP0fVyIRqL0aT/view?usp=sharing, https://drive.google.com/file/d/15dniiCzQ8TwDd8d0PGfOA_hvF1CYilK7/view?usp=sharing, https://drive.google.com/file/d/17SjET2jWhYUuAfDG4mBBD0NfJ_rOTw15/view?usp=sharing, https://drive.google.com/file/d/18eDCMIfoA9rraVkv_FpmkP2apWbmT6AP/view?usp=sharing, https://drive.google.com/file/d/191gRD6MOMJfMv8lCbVsJ-xpJiBGKfMPF/view?usp=sharing, https://drive.google.com/file/d/1GNpG9mgBIemisQ12H_3po8McVjwQjGBx/view?usp=sharing, https://drive.google.com/file/d/1Mtepal_GgNTlQSY-zYnDEGNBD6e0fXoX/view?usp=sharing, https://drive.google.com/file/d/1cfk5Wj1sC0HxUMLzDExKfKmO9q4884bM/view?usp=sharing, https://drive.google.com/file/d/1d11Ip08ScYnd9mGisaELgq01N3Fs3Pou/view?usp=sharing, https://drive.google.com/file/d/1gm4SE9PDjYEswjvg6OrKnAqPzAFxD2pD/view?usp=sharing, https://drive.google.com/file/d/1jaTMga12DwAewlCLJZ3xrCVUKNvPN7l0/view?usp=sharing, https://drive.google.com/file/d/1mOgo3R6eiz7HBRPJCBTwwf1PoAEoNTTe/view?usp=sharing, https://drive.google.com/file/d/1qhcUpiC0L1W9mbbVCC5RhpGX4FY25KEA/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221rKmt8U0lqA-V1QOi8rnaq1BfD9YvjCRO%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1tQt5eFEXxWEUaHK8OyFDbG7zeEUtTf3C/view?usp=sharing, https://drive.google.com/file/d/1wpcAecbmcf7VFTo_pa03sCQ91FNRPovQ/view?usp=sharing, https://drive.google.com/file/d/1zSjCh4tIUxoEaLsGHg8ePfhdhAVUVSRw/view?usp=sharing
+https://drive.google.com/file/d/13cnU0K3iV4uoQ_hK_6MLCEQJFavXk1a7/view?usp=sharing, https://drive.google.com/file/d/15UuqPd300pvQtIbjeiAFmmx-v1lt-374/view?usp=sharing, https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221BXJr2ZEy_12xEUWBNMQAJJ6lsG8Xreyt%22%5D,%22action%22:%22open%22,%22userId%22:%22103961307342447084491%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing, https://drive.google.com/file/d/1FJUG_bFZpk6aSqSVanpQ5b_M2HpJkf1B/view?usp=sharing, https://drive.google.com/file/d/1FLZ6E-3q1FNTy2G7zT6C-wAa5dP8j0Q4/view?usp=sharing, https://drive.google.com/file/d/1LN2smIAIulUbGlGB9azT639n5F6b6CXy/view?usp=sharing, https://drive.google.com/file/d/1LXoRUMFJIjxumBGynOu0czpvY5_Hxciu/view?usp=sharing, https://drive.google.com/file/d/1NY8gQLxASAx-ntvFyR1NGlm_dCD67i_b/view?usp=sharing, https://drive.google.com/file/d/1PhIyuqG8HpM6ZdDUTJSlHWMy2Pvz9kFP/view?usp=sharing, https://drive.google.com/file/d/1TMKOd51RdN_9ne3G5ARWggDuG1ZbA9MX/view?usp=sharing, https://drive.google.com/file/d/1X_dUzJ1xA1TVTLFvktpHtIYO5Tz3hKCk/view?usp=sharing, https://drive.google.com/file/d/1ZaQhr2HCrtb_hWMrAaLSGA001U-JWNRV/view?usp=sharing, https://drive.google.com/file/d/1bvY_fzmpBEA9run9gpGZ7pK078f9MEz2/view?usp=sharing, https://drive.google.com/file/d/1dN8Jtgcdb1a9UgShndc9XymbFVZ32g1v/view?usp=sharing, https://drive.google.com/file/d/1rFkxMDPINub-YRgsLOIQx6PFlYQOtqve/view?usp=sharing, https://drive.google.com/file/d/1sbCw95Gz20ya4f6XNzQUpClvhuoQTQqN/view?usp=sharing, https://drive.google.com/file/d/1vh-9-onOu0V_Mvas9RECdY7ttsZNxhJd/view?usp=sharing, https://drive.google.com/file/d/1xl03suMcOQBni3A6f4vrkrQjAGME8rx0/view?usp=sharing

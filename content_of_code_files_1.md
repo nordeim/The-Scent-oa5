@@ -368,8 +368,8 @@ define('DB_PASS', 'StrongPassword123');
 define('BASE_URL', '/');
 
 // Stripe Configuration
-define('STRIPE_PUBLIC_KEY', 'pk_test_your_stripe_public_key');
-define('STRIPE_SECRET_KEY', 'sk_test_your_stripe_secret_key');
+define('STRIPE_PUBLIC_KEY', 'pk_test_51xxx');
+define('STRIPE_SECRET_KEY', 'sk_test_51yyy');
 define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret');
 
 // Email Configuration (for next phase)

@@ -1,5 +1,5 @@
 <?php
-// Updated: views/account/profile.php (v16.2 - Added MY, SG countries)
+// Updated: views/account/profile.php (v16.0 - Added Address Form)
 // Added header and footer includes
 
 require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
@@ -207,10 +207,6 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                              <option value="CA" <?= (($userAddress['country'] ?? '') === 'CA') ? 'selected' : '' ?>>Canada</option>
                                              <option value="GB" <?= (($userAddress['country'] ?? '') === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
                                              <option value="AU" <?= (($userAddress['country'] ?? '') === 'AU') ? 'selected' : '' ?>>Australia</option>
-                                             <!-- START: Added Countries -->
-                                             <option value="MY" <?= (($userAddress['country'] ?? '') === 'MY') ? 'selected' : '' ?>>Malaysia</option>
-                                             <option value="SG" <?= (($userAddress['country'] ?? '') === 'SG') ? 'selected' : '' ?>>Singapore</option>
-                                             <!-- END: Added Countries -->
                                              {/* Add more countries as needed */}
                                         </select>
                                    </div>

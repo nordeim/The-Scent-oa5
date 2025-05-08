@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About Us - The Scent</title>
+    <title>My Account - The Scent</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,14 +36,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="page-about bg-light"
+<body class="page-account-dashboard"
       data-base-url="/"
       data-stripe-public-key="pk_test_51RLNNX4axRnYhkNVHz16qi7Gq4UnX5LDalYvXf3lIqneXziRQFrzrk0e4dMyBqaKQ8IxmJhSqtpiApC2TaBcIQqS00NJG40ELn"
       data-free-shipping-threshold="50"
       data-base-shipping-cost="5.99">
 
     <!-- Global CSRF Token Input for JavaScript AJAX Requests -->
-    <input type="hidden" id="csrf-token-value" value="fa96d9f38a23c1c7efb24449e433f71285e0b48e3e4f891ef600119e5a0b7676">
+    <input type="hidden" id="csrf-token-value" value="faeee9f177f217a9be4f1d405ed5c64d8c7833a9024cab8ccde12f0bb1276781">
 
     <header>
         <nav class="main-nav sample-header">
@@ -61,11 +61,11 @@
                 </div>
                 <div class="header-icons">
                     <a href="#" aria-label="Search"><i class="fas fa-search"></i></a>
-                                            <a href="index.php?page=login" aria-label="Login"><i class="fas fa-user"></i></a>
+                                            <a href="index.php?page=account" aria-label="Account"><i class="fas fa-user"></i></a>
                                         <a href="index.php?page=cart" class="cart-link relative group" aria-label="Cart">
                         <i class="fas fa-shopping-bag"></i>
-                                                <span class="cart-count" style="display: none;">
-                            0                        </span>
+                                                <span class="cart-count" style="display: flex;">
+                            2                        </span>
                         <!-- Mini-cart dropdown -->
                         <div class="mini-cart-dropdown absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden group-hover:block group-focus-within:block transition-all duration-200" style="min-width:320px;">
                             <div id="mini-cart-content" class="p-4">
@@ -88,92 +88,129 @@
         <!-- Container for dynamically added flash messages by JS -->
         <div class="flash-message-container fixed top-5 right-5 z-[1100] max-w-sm w-full space-y-2"></div>
 
-<section class="py-16 md:py-24 text-center bg-secondary/10 border-b border-gray-200" data-aos="fade-in">
-    <div class="container mx-auto px-4">
-        <h1 class="text-4xl md:text-5xl font-bold font-heading text-primary mb-4">Our Story</h1>
-        <p class="text-lg md:text-xl text-gray-700 max-w-3xl mx-auto">Discover the passion and principles behind The Scent.</p>
-    </div>
-</section>
+<section class="account-section">
+    <div class="container">
+        <div class="account-grid">
+            <!-- Sidebar Navigation -->
+            <aside class="account-sidebar" data-aos="fade-right">
+                <div class="account-menu">
+                    <div class="user-info">
+                        <i class="fas fa-user-circle"></i>
+                        <h3>Abc Def</h3>
+                        <p>abc@def.com</p>
+                    </div>
 
-<section class="py-16 md:py-20 bg-white">
-    <div class="container mx-auto px-4">
-        <div class="grid md:grid-cols-2 gap-12 items-center mb-16 md:mb-24">
-            <div data-aos="fade-right">
-                <h2 class="text-3xl font-bold font-heading text-primary-dark mb-6">Rooted in Nature, Crafted with Care</h2>
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    At The Scent, we believe in the profound power of nature to restore balance and enhance well-being. Our journey began with a simple desire: to harness the purest botanical essences and share their therapeutic benefits with the world.
-                </p>
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    We meticulously source high-quality, sustainable ingredients from ethical growers globally. Each essential oil, herb, and natural component is selected for its purity, potency, and aromatic profile.
-                </p>
-                <p class="text-gray-700 leading-relaxed">
-                    Our unique and creative formulations are developed by expert aromatherapists, resulting in harmonious, well-rounded products designed to nurture both mind and body.
-                </p>
-            </div>
-            <div class="about-image" data-aos="fade-left">
-                <img src="/images/about_hero.jpg" alt="Natural ingredients and essential oils" class="rounded-lg shadow-xl w-full h-auto object-cover aspect-[4/3]">
-                <!-- Replace with an actual relevant image if available -->
+                    <nav>
+                        <ul>
+                            <li>
+                                <a href="index.php?page=account" class="active">
+                                    <i class="fas fa-home"></i> Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=account&section=orders">
+                                    <i class="fas fa-shopping-bag"></i> My Orders
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=account&section=profile">
+                                    <i class="fas fa-user"></i> Profile Settings
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=account&section=quiz">
+                                    <i class="fas fa-clipboard-list"></i> Quiz History
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=logout">
+                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <div class="account-content">
+                <h1 class="page-title" data-aos="fade-up">My Account Dashboard</h1>
+
+                <!-- Account Overview -->
+                <div class="dashboard-grid">
+                    <!-- Quick Stats -->
+                    <div class="dashboard-card stats" data-aos="fade-up">
+                        <div class="stat-item">
+                            <i class="fas fa-shopping-bag"></i>
+                            <div class="stat-info">
+                                <span class="stat-value">0</span>
+                                <span class="stat-label">Recent Orders</span>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-box"></i>
+                            <div class="stat-info">
+                                                                <span class="stat-value">0</span>
+                                <span class="stat-label">Saved Preferences</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Orders -->
+                    <div class="dashboard-card orders" data-aos="fade-up">
+                        <div class="card-header">
+                            <h2>Recent Orders</h2>
+                            <a href="index.php?page=account&section=orders" class="btn-link">
+                                View All <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+
+                                                    <div class="empty-state">
+                                <i class="fas fa-shopping-bag"></i>
+                                <p>No orders yet</p>
+                                <a href="index.php?page=products" class="btn-primary">Start Shopping</a>
+                            </div>
+                                            </div>
+
+                    <!-- Scent Quiz Results -->
+                    <div class="dashboard-card quiz" data-aos="fade-up">
+                        <div class="card-header">
+                            <h2>Your Scent Profile</h2>
+                            <a href="index.php?page=account&section=quiz" class="btn-link">
+                                View History <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+
+                                                    <div class="empty-state">
+                                <i class="fas fa-clipboard-list"></i>
+                                <p>Take our scent quiz to discover your perfect match</p>
+                                <a href="index.php?page=quiz" class="btn-primary">Take Quiz</a>
+                            </div>
+                                            </div>
+
+                    <!-- Quick Actions -->
+                    <div class="dashboard-card actions" data-aos="fade-up">
+                        <h2>Quick Actions</h2>
+                        <div class="action-buttons">
+                            <a href="index.php?page=quiz" class="btn-action">
+                                <i class="fas fa-sync"></i>
+                                Retake Quiz
+                            </a>
+                            <a href="index.php?page=account&section=profile" class="btn-action">
+                                <i class="fas fa-user-edit"></i>
+                                Edit Profile
+                            </a>
+                            <a href="index.php?page=products" class="btn-action">
+                                <i class="fas fa-shopping-cart"></i>
+                                Shop Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-
-        <div class="grid md:grid-cols-2 gap-12 items-center">
-             <div class="about-image order-last md:order-first" data-aos="fade-right">
-                 <img src="/images/about_team.jpg" alt="The Scent Team crafting products" class="rounded-lg shadow-xl w-full h-auto object-cover aspect-[4/3]">
-                 <!-- Replace with an actual relevant image if available -->
-            </div>
-            <div data-aos="fade-left" class="order-first md:order-last">
-                <h2 class="text-3xl font-bold font-heading text-primary-dark mb-6">Our Mission & Values</h2>
-                <ul class="space-y-4 text-gray-700 leading-relaxed">
-                    <li class="flex items-start">
-                        <i class="fas fa-check-circle text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Purity & Quality:</strong> To offer only the finest, 100% natural aromatherapy products without compromise.</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i class="fas fa-leaf text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Sustainability:</strong> To operate responsibly, respecting the environment and supporting ethical sourcing practices.</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i class="fas fa-heart text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Well-being:</strong> To empower our customers to find moments of calm, energy, and balance through the power of scent.</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i class="fas fa-lightbulb text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Expertise & Innovation:</strong> To continually explore and craft unique, effective aromatherapy solutions based on traditional wisdom and modern science.</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
     </div>
 </section>
-
-<section class="py-16 md:py-20 bg-light">
-    <div class="container mx-auto px-4 text-center">
-        <h2 class="text-3xl font-bold font-heading text-primary-dark mb-12" data-aos="fade-up">Meet the Team (Optional)</h2>
-        <p class="text-gray-700 max-w-2xl mx-auto mb-12" data-aos="fade-up" data-aos-delay="100">
-            Behind every blend is a team passionate about natural wellness. (Add team member profiles here if desired).
-        </p>
-        <!-- Placeholder for team members -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            <!-- Example Team Member Card -->
-            <div class="bg-white p-6 rounded-lg shadow text-center" data-aos="fade-up" data-aos-delay="200">
-                <img src="/images/team_placeholder.png" alt="Team Member" class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-secondary object-cover">
-                <h3 class="text-xl font-semibold text-primary mb-1">Jane Doe</h3>
-                <p class="text-sm text-accent font-medium mb-2">Lead Aromatherapist</p>
-                <p class="text-sm text-gray-600">Passionate about blending traditional knowledge with modern techniques to create effective wellness solutions.</p>
-            </div>
-            <!-- Add more team members -->
-        </div>
-    </div>
-</section>
-
-<section class="py-16 md:py-20 bg-secondary text-center text-primary-dark" data-aos="fade-in">
-    <div class="container mx-auto px-4">
-        <h2 class="text-3xl font-bold font-heading mb-6">Ready to Find Your Scent?</h2>
-        <p class="text-lg mb-8 max-w-xl mx-auto">Take our quick quiz to discover personalized recommendations.</p>
-        <a href="index.php?page=quiz" class="btn btn-primary text-lg px-8 py-3 transition duration-300 ease-in-out transform hover:scale-105">Take the Quiz</a>
-    </div>
-</section>
-
 
 </main>
     <footer>
@@ -215,7 +252,7 @@
                     <p><i class="fas fa-phone"></i> +1 (555) 123-4567</p>
                     <p><i class="fas fa-envelope"></i> hello@thescent.com</p>
                     <form id="newsletter-form-footer" class="newsletter-form" style="margin-top:1rem;">
-                        <input type="hidden" name="csrf_token" value="fa96d9f38a23c1c7efb24449e433f71285e0b48e3e4f891ef600119e5a0b7676">
+                        <input type="hidden" name="csrf_token" value="faeee9f177f217a9be4f1d405ed5c64d8c7833a9024cab8ccde12f0bb1276781">
                         <input type="email" name="email" placeholder="Enter your email" required class="newsletter-input">
                         <button type="submit" class="btn btn-primary newsletter-btn">Subscribe</button>
                     </form>

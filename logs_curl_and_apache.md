@@ -11,122 +11,55 @@ curl -Lk 'https://the-scent.com/index.php?page=products&category=1' -o products_
 curl -Lk 'https://the-scent.com/index.php?page=quiz' -o quiz.html
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 29710    0 29710    0     0   813k      0 --:--:-- --:--:-- --:--:--  828k
+100 29710    0 29710    0     0   770k      0 --:--:-- --:--:-- --:--:--  784k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 28032    0 28032    0     0  2481k      0 --:--:-- --:--:-- --:--:-- 2737k
+100 28032    0 28032    0     0  2059k      0 --:--:-- --:--:-- --:--:-- 2105k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 47235    0 47235    0     0  4166k      0 --:--:-- --:--:-- --:--:-- 4612k
+100 47235    0 47235    0     0  4164k      0 --:--:-- --:--:-- --:--:-- 4612k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 10093    0 10093    0     0   224k      0 --:--:-- --:--:-- --:--:--  229k
+100 10093    0 10093    0     0  1193k      0 --:--:-- --:--:-- --:--:-- 1232k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 47235    0 47235    0     0  5184k      0 --:--:-- --:--:-- --:--:-- 5765k
+100 47235    0 47235    0     0  4394k      0 --:--:-- --:--:-- --:--:-- 4612k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 25657    0 25657    0     0  2541k      0 --:--:-- --:--:-- --:--:-- 2783k
+100 25657    0 25657    0     0  2394k      0 --:--:-- --:--:-- --:--:-- 2505k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 14780    0 14780    0     0  1850k      0 --:--:-- --:--:-- --:--:-- 2061k
+100 14780    0 14780    0     0  1700k      0 --:--:-- --:--:-- --:--:-- 1804k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 13054    0 13054    0     0   856k      0 --:--:-- --:--:-- --:--:--  910k
+100 13054    0 13054    0     0   914k      0 --:--:-- --:--:-- --:--:--  980k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 16834    0 16834    0     0  1913k      0 --:--:-- --:--:-- --:--:-- 2054k
+100 16834    0 16834    0     0  1944k      0 --:--:-- --:--:-- --:--:-- 2054k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 28240    0 28240    0     0  2924k      0 --:--:-- --:--:-- --:--:-- 3064k
+100 28240    0 28240    0     0  2950k      0 --:--:-- --:--:-- --:--:-- 3064k
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-100 13686    0 13686    0     0  1596k      0 --:--:-- --:--:-- --:--:-- 1670k
+100 13686    0 13686    0     0  1410k      0 --:--:-- --:--:-- --:--:-- 1485k
 
 $ cat apache_logs/apache-error.log 
-[Tue May 06 16:25:44.888797 2025] [ssl:warn] [pid 757097] AH01906: the-scent.com:443:0 server certificate is a CA certificate (BasicConstraints: CA == TRUE !?)
-[Tue May 06 16:25:44.924814 2025] [ssl:warn] [pid 757098] AH01906: the-scent.com:443:0 server certificate is a CA certificate (BasicConstraints: CA == TRUE !?)
+[Thu May 08 11:16:12.892149 2025] [ssl:warn] [pid 775305] AH01906: the-scent.com:443:0 server certificate is a CA certificate (BasicConstraints: CA == TRUE !?)
+[Thu May 08 11:16:12.929819 2025] [ssl:warn] [pid 775306] AH01906: the-scent.com:443:0 server certificate is a CA certificate (BasicConstraints: CA == TRUE !?)
 
 $ tail -100 apache_logs/apache-access.log | egrep -v 'GET \/images|GET \/videos'
-127.0.0.1 - - [06/May/2025:16:29:04 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=product&id=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:04 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=product&id=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:06 +0800] "POST /index.php?page=cart&action=add HTTP/1.1" 200 980 "https://the-scent.com/index.php?page=product&id=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:06 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1169 "https://the-scent.com/index.php?page=product&id=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:10 +0800] "GET /index.php HTTP/1.1" 200 6461 "https://the-scent.com/index.php?page=product&id=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:11 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1169 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:11 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:16 +0800] "POST /index.php?page=cart&action=add HTTP/1.1" 200 975 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:16 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1398 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:24 +0800] "GET /index.php?page=cart HTTP/1.1" 200 6926 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:24 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1398 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:24 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:27 +0800] "GET /index.php?page=checkout HTTP/1.1" 302 845 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:27 +0800] "GET /index.php?page=login HTTP/1.1" 200 4643 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:27 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1398 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:27 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:49 +0800] "POST /index.php?page=login HTTP/1.1" 200 1396 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:49 +0800] "GET /index.php?page=checkout HTTP/1.1" 200 10485 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:50 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1594 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:29:50 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:15 +0800] "GET /index.php?page=account HTTP/1.1" 200 6128 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:16 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1594 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:16 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:18 +0800] "GET /index.php?page=account&section=orders HTTP/1.1" 200 4493 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:18 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1594 "https://the-scent.com/index.php?page=account&section=orders" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:18 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account&section=orders" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:23 +0800] "GET /index.php?page=account HTTP/1.1" 200 4463 "https://the-scent.com/index.php?page=account&section=orders" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:23 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1594 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:23 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:25 +0800] "GET /index.php?page=account&section=profile HTTP/1.1" 200 7565 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:25 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1594 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:25 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:35 +0800] "GET /index.php?page=cart HTTP/1.1" 200 5688 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:35 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1594 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:36 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:50 +0800] "POST /index.php?page=cart&action=remove HTTP/1.1" 200 2608 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:50 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1377 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:51 +0800] "POST /index.php?page=cart&action=update HTTP/1.1" 200 942 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:51 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1377 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:54 +0800] "GET /index.php?page=checkout HTTP/1.1" 200 10486 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:54 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1377 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:30:55 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:17 +0800] "GET /index.php?page=account HTTP/1.1" 200 4787 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:17 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1377 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:17 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:18 +0800] "GET /index.php?page=logout HTTP/1.1" 302 857 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:18 +0800] "GET /index.php?page=login&loggedout=1 HTTP/1.1" 200 4644 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:19 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=login&loggedout=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:19 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=login&loggedout=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:24 +0800] "GET /index.php?page=register HTTP/1.1" 200 6840 "https://the-scent.com/index.php?page=login&loggedout=1" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:24 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=register" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:31:24 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=register" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:02 +0800] "POST /index.php?page=register HTTP/1.1" 200 1250 "https://the-scent.com/index.php?page=register" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:03 +0800] "GET /index.php?page=login HTTP/1.1" 200 4814 "https://the-scent.com/index.php?page=register" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:03 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:03 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:20 +0800] "POST /index.php?page=login HTTP/1.1" 200 2736 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:21 +0800] "GET /index.php?page=account HTTP/1.1" 200 4468 "https://the-scent.com/index.php?page=login" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:21 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:21 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:24 +0800] "GET /index.php?page=account&section=profile HTTP/1.1" 200 7516 "https://the-scent.com/index.php?page=account" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:24 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:24 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:55 +0800] "POST /index.php?page=account&section=profile HTTP/1.1" 302 1187 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:55 +0800] "GET /index.php?page=account&section=profile HTTP/1.1" 200 7664 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:55 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:32:56 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:02 +0800] "GET /index.php HTTP/1.1" 200 8125 "https://the-scent.com/index.php?page=account&section=profile" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:03 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:03 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:10 +0800] "GET /index.php?page=products HTTP/1.1" 200 6553 "https://the-scent.com/index.php" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:10 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 934 "https://the-scent.com/index.php?page=products" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:10 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=products" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:12 +0800] "POST /index.php?page=cart&action=add HTTP/1.1" 200 975 "https://the-scent.com/index.php?page=products" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:12 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1152 "https://the-scent.com/index.php?page=products" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:20 +0800] "GET /index.php?page=cart HTTP/1.1" 200 6782 "https://the-scent.com/index.php?page=products" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:20 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1152 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:20 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:24 +0800] "GET /index.php?page=checkout HTTP/1.1" 200 10481 "https://the-scent.com/index.php?page=cart" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:24 +0800] "GET /index.php?page=cart&action=mini HTTP/1.1" 200 1152 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-127.0.0.1 - - [06/May/2025:16:33:25 +0800] "GET /favicon.ico HTTP/1.1" 200 653 "https://the-scent.com/index.php?page=checkout" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+127.0.0.1 - - [08/May/2025:11:16:35 +0800] "GET /includes/reset_cache.php HTTP/1.1" 200 2251 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:16:40 +0800] "GET /includes/clear_apcu.php HTTP/1.1" 200 2669 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:16:45 +0800] "GET /includes/clear_apcu_cache.php HTTP/1.1" 200 2689 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET / HTTP/1.1" 200 32879 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=product&id=1 HTTP/1.1" 200 31195 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=products HTTP/1.1" 200 50552 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=contact HTTP/1.1" 200 13108 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=products&page_num=1 HTTP/1.1" 200 50552 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=products&page_num=2 HTTP/1.1" 200 28825 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=about HTTP/1.1" 200 17796 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=login HTTP/1.1" 200 16070 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=register HTTP/1.1" 200 19928 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=products&category=1 HTTP/1.1" 200 31403 "-" "curl/8.5.0"
+127.0.0.1 - - [08/May/2025:11:17:01 +0800] "GET /index.php?page=quiz HTTP/1.1" 200 16702 "-" "curl/8.5.0"
 

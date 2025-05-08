@@ -18,7 +18,7 @@ yarn-error.log
 index*.html
 index.html
 notes.txt
-config.php
+config.php.bak2
 /bak
 /auth.json
 /.fleet

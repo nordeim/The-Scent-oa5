@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About Us - The Scent</title>
+    <title>Scent Finder Quiz</title>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,14 +36,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="page-about bg-light"
+<body class="page-quiz"
       data-base-url="/"
-      data-stripe-public-key="pk_test_51RLNNX4axRnYhkNVHz16qi7Gq4UnX5LDalYvXf3lIqneXziRQFrzrk0e4dMyBqaKQ8IxmJhSqtpiApC2TaBcIQqS00NJG40ELn"
+      data-stripe-public-key="pk_test_51xxx"
       data-free-shipping-threshold="50"
       data-base-shipping-cost="5.99">
 
     <!-- Global CSRF Token Input for JavaScript AJAX Requests -->
-    <input type="hidden" id="csrf-token-value" value="fa96d9f38a23c1c7efb24449e433f71285e0b48e3e4f891ef600119e5a0b7676">
+    <input type="hidden" id="csrf-token-value" value="d5fb926722a4518b0faf3cd8c57e68817a6d850ca2297b65c0c49def4613226e">
 
     <header>
         <nav class="main-nav sample-header">
@@ -87,93 +87,80 @@
         
         <!-- Container for dynamically added flash messages by JS -->
         <div class="flash-message-container fixed top-5 right-5 z-[1100] max-w-sm w-full space-y-2"></div>
+<body class="page-quiz">
 
-<section class="py-16 md:py-24 text-center bg-secondary/10 border-b border-gray-200" data-aos="fade-in">
-    <div class="container mx-auto px-4">
-        <h1 class="text-4xl md:text-5xl font-bold font-heading text-primary mb-4">Our Story</h1>
-        <p class="text-lg md:text-xl text-gray-700 max-w-3xl mx-auto">Discover the passion and principles behind The Scent.</p>
-    </div>
-</section>
+<div class="quiz-container min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 py-20">
+    <!-- Particles Background -->
+    <div id="particles-js" class="absolute inset-0 z-0"></div>
 
-<section class="py-16 md:py-20 bg-white">
-    <div class="container mx-auto px-4">
-        <div class="grid md:grid-cols-2 gap-12 items-center mb-16 md:mb-24">
-            <div data-aos="fade-right">
-                <h2 class="text-3xl font-bold font-heading text-primary-dark mb-6">Rooted in Nature, Crafted with Care</h2>
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    At The Scent, we believe in the profound power of nature to restore balance and enhance well-being. Our journey began with a simple desire: to harness the purest botanical essences and share their therapeutic benefits with the world.
-                </p>
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    We meticulously source high-quality, sustainable ingredients from ethical growers globally. Each essential oil, herb, and natural component is selected for its purity, potency, and aromatic profile.
-                </p>
-                <p class="text-gray-700 leading-relaxed">
-                    Our unique and creative formulations are developed by expert aromatherapists, resulting in harmonious, well-rounded products designed to nurture both mind and body.
-                </p>
-            </div>
-            <div class="about-image" data-aos="fade-left">
-                <img src="/images/about_hero.jpg" alt="Natural ingredients and essential oils" class="rounded-lg shadow-xl w-full h-auto object-cover aspect-[4/3]">
-                <!-- Replace with an actual relevant image if available -->
-            </div>
-        </div>
+    <div class="container mx-auto px-4 relative z-10">
+        <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-8" data-aos="fade-up">
+            <h1 class="text-4xl font-heading font-semibold text-center mb-8">Find Your Perfect Scent</h1>
+            <p class="text-center text-gray-600 mb-12">Let us guide you to the perfect aromatherapy products for your needs.</p>
 
-        <div class="grid md:grid-cols-2 gap-12 items-center">
-             <div class="about-image order-last md:order-first" data-aos="fade-right">
-                 <img src="/images/about_team.jpg" alt="The Scent Team crafting products" class="rounded-lg shadow-xl w-full h-auto object-cover aspect-[4/3]">
-                 <!-- Replace with an actual relevant image if available -->
-            </div>
-            <div data-aos="fade-left" class="order-first md:order-last">
-                <h2 class="text-3xl font-bold font-heading text-primary-dark mb-6">Our Mission & Values</h2>
-                <ul class="space-y-4 text-gray-700 leading-relaxed">
-                    <li class="flex items-start">
-                        <i class="fas fa-check-circle text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Purity & Quality:</strong> To offer only the finest, 100% natural aromatherapy products without compromise.</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i class="fas fa-leaf text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Sustainability:</strong> To operate responsibly, respecting the environment and supporting ethical sourcing practices.</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i class="fas fa-heart text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Well-being:</strong> To empower our customers to find moments of calm, energy, and balance through the power of scent.</span>
-                    </li>
-                    <li class="flex items-start">
-                        <i class="fas fa-lightbulb text-secondary mr-3 mt-1 text-xl"></i>
-                        <span><strong>Expertise & Innovation:</strong> To continually explore and craft unique, effective aromatherapy solutions based on traditional wisdom and modern science.</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</section>
+            <form id="scent-quiz" method="POST" action="index.php?page=quiz&action=submit" class="space-y-8">
+                <!-- CSRF Token: This input is correctly placed. 
+                     The error "CSRF token validation failed" usually means the 
+                     CONTROLLER (QuizController.php -> showQuiz method) 
+                     is NOT passing the '$csrfToken' variable when rendering this view. 
+                     Ensure the controller calls $this->getCsrfToken() and includes it 
+                     in the $data array passed to renderView('quiz', $data). 
+                -->
+                <input type="hidden" name="csrf_token" value="d5fb926722a4518b0faf3cd8c57e68817a6d850ca2297b65c0c49def4613226e">
 
-<section class="py-16 md:py-20 bg-light">
-    <div class="container mx-auto px-4 text-center">
-        <h2 class="text-3xl font-bold font-heading text-primary-dark mb-12" data-aos="fade-up">Meet the Team (Optional)</h2>
-        <p class="text-gray-700 max-w-2xl mx-auto mb-12" data-aos="fade-up" data-aos-delay="100">
-            Behind every blend is a team passionate about natural wellness. (Add team member profiles here if desired).
-        </p>
-        <!-- Placeholder for team members -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            <!-- Example Team Member Card -->
-            <div class="bg-white p-6 rounded-lg shadow text-center" data-aos="fade-up" data-aos-delay="200">
-                <img src="/images/team_placeholder.png" alt="Team Member" class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-secondary object-cover">
-                <h3 class="text-xl font-semibold text-primary mb-1">Jane Doe</h3>
-                <p class="text-sm text-accent font-medium mb-2">Lead Aromatherapist</p>
-                <p class="text-sm text-gray-600">Passionate about blending traditional knowledge with modern techniques to create effective wellness solutions.</p>
-            </div>
-            <!-- Add more team members -->
+                <div class="quiz-step" data-step="1">
+                    <h3 class="text-2xl font-heading mb-6">What are you looking for today?</h3>
+
+                    <!-- Added quiz-options-container div for potential JS targeting -->
+                    <div class="quiz-options-container grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="relaxation" class="hidden" required>
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-spa text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Relaxation</h4>
+                                <p class="text-sm text-gray-600">Find calm and peace in your daily routine</p>
+                            </div>
+                        </label>
+
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="energy" class="hidden">
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-bolt text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Energy</h4>
+                                <p class="text-sm text-gray-600">Boost your vitality and motivation</p>
+                            </div>
+                        </label>
+
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="focus" class="hidden">
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-brain text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Focus</h4>
+                                <p class="text-sm text-gray-600">Enhance concentration and clarity</p>
+                            </div>
+                        </label>
+
+                        <label class="quiz-option group">
+                            <input type="radio" name="mood" value="balance" class="hidden">
+                            <div class="p-6 border-2 border-gray-200 rounded-xl cursor-pointer transition-all duration-300 group-hover:border-primary group-hover:bg-primary/5">
+                                <i class="fas fa-yin-yang text-3xl mb-4 text-primary"></i>
+                                <h4 class="font-heading text-xl mb-2">Balance</h4>
+                                <p class="text-sm text-gray-600">Find harmony in body and mind</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="mt-8 text-center">
+                        <button type="submit" class="btn-primary inline-flex items-center space-x-2">
+                            <span>Find My Perfect Scent</span>
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
-</section>
-
-<section class="py-16 md:py-20 bg-secondary text-center text-primary-dark" data-aos="fade-in">
-    <div class="container mx-auto px-4">
-        <h2 class="text-3xl font-bold font-heading mb-6">Ready to Find Your Scent?</h2>
-        <p class="text-lg mb-8 max-w-xl mx-auto">Take our quick quiz to discover personalized recommendations.</p>
-        <a href="index.php?page=quiz" class="btn btn-primary text-lg px-8 py-3 transition duration-300 ease-in-out transform hover:scale-105">Take the Quiz</a>
-    </div>
-</section>
-
+</div>
 
 </main>
     <footer>
@@ -215,7 +202,7 @@
                     <p><i class="fas fa-phone"></i> +1 (555) 123-4567</p>
                     <p><i class="fas fa-envelope"></i> hello@thescent.com</p>
                     <form id="newsletter-form-footer" class="newsletter-form" style="margin-top:1rem;">
-                        <input type="hidden" name="csrf_token" value="fa96d9f38a23c1c7efb24449e433f71285e0b48e3e4f891ef600119e5a0b7676">
+                        <input type="hidden" name="csrf_token" value="d5fb926722a4518b0faf3cd8c57e68817a6d850ca2297b65c0c49def4613226e">
                         <input type="email" name="email" placeholder="Enter your email" required class="newsletter-input">
                         <button type="submit" class="btn btn-primary newsletter-btn">Subscribe</button>
                     </form>

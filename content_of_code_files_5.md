@@ -445,47 +445,66 @@ class EmailService {
 # views/account/dashboard.php  
 ```php
 <?php
-// views/account/dashboard.php
+// views/account/dashboard.php (Layout Refactored with Tailwind CSS)
 require_once __DIR__ . '/../layout/header.php'; // Standard header include
+
+// Helper to render dashboard cards consistently
+function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'View All', $aosDelay = 0, $extraClasses = '') {
+    echo "<div class='bg-white rounded-lg shadow-md p-6 {$extraClasses}' data-aos='fade-up' data-aos-delay='{$aosDelay}'>";
+    if ($title) {
+        echo "<div class='flex justify-between items-center mb-4 border-b pb-2'>";
+        echo "<h2 class='text-xl font-semibold text-primary font-heading'>{$title}</h2>";
+        if ($linkUrl) {
+            echo "<a href='{$linkUrl}' class='text-sm text-primary hover:text-primary-dark font-semibold flex items-center gap-1'>";
+            echo "{$linkText} <i class='fas fa-arrow-right text-xs'></i>";
+            echo "</a>";
+        }
+        echo "</div>";
+    }
+    echo "<div class='card-content'>"; // Container for content
+    echo $content;
+    echo "</div>";
+    echo "</div>";
+}
 ?>
 
-<section class="account-section">
-    <div class="container">
-        <div class="account-grid">
+<section class="account-section py-10 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
             <!-- Sidebar Navigation -->
-            <aside class="account-sidebar" data-aos="fade-right">
-                <div class="account-menu">
-                    <div class="user-info">
-                        <i class="fas fa-user-circle"></i>
-                        <h3><?= htmlspecialchars($user['name'] ?? 'User') ?></h3>
-                        <p><?= htmlspecialchars($user['email'] ?? '') ?></p>
+            <aside class="lg:col-span-1" data-aos="fade-right">
+                <div class="account-sidebar bg-white p-6 rounded-lg shadow-md sticky top-24">
+                    <div class="user-info text-center border-b pb-4 mb-4">
+                        <i class="fas fa-user-circle text-5xl text-primary mb-2"></i>
+                        <h3 class="font-semibold text-lg text-gray-800"><?= htmlspecialchars($user['name'] ?? 'User') ?></h3>
+                        <p class="text-sm text-gray-500"><?= htmlspecialchars($user['email'] ?? '') ?></p>
                     </div>
 
                     <nav>
-                        <ul>
+                        <ul class="space-y-2">
                             <li>
-                                <a href="index.php?page=account" class="active">
-                                    <i class="fas fa-home"></i> Dashboard
+                                <a href="index.php?page=account" class="flex items-center px-4 py-2 rounded-md text-gray-700 bg-secondary/20 border-l-4 border-primary font-semibold">
+                                    <i class="fas fa-home w-6 text-center mr-3 text-primary"></i> Dashboard
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=account&section=orders">
-                                    <i class="fas fa-shopping-bag"></i> My Orders
+                                <a href="index.php?page=account&section=orders" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-shopping-bag w-6 text-center mr-3"></i> My Orders
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=account&section=profile">
-                                    <i class="fas fa-user"></i> Profile Settings
+                                <a href="index.php?page=account&section=profile" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-user w-6 text-center mr-3"></i> Profile Settings
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=account&section=quiz">
-                                    <i class="fas fa-clipboard-list"></i> Quiz History
+                                <a href="index.php?page=account&section=quiz" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-clipboard-list w-6 text-center mr-3"></i> Quiz History
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=logout">
-                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                <a href="index.php?page=logout" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-sign-out-alt w-6 text-center mr-3"></i> Logout
                                 </a>
                             </li>
                         </ul>
@@ -493,185 +512,138 @@ require_once __DIR__ . '/../layout/header.php'; // Standard header include
                 </div>
             </aside>
 
-            <!-- Main Content -->
-            <div class="account-content">
-                <h1 class="page-title" data-aos="fade-up">My Account Dashboard</h1>
+            <!-- Main Content Area -->
+            <div class="lg:col-span-3">
+                <h1 class="text-3xl font-bold text-primary mb-8 font-heading" data-aos="fade-up">Account Dashboard</h1>
 
-                <!-- Account Overview -->
-                <div class="dashboard-grid">
-                    <!-- Quick Stats -->
-                    <div class="dashboard-card stats" data-aos="fade-up">
-                        <div class="stat-item">
-                            <i class="fas fa-shopping-bag"></i>
-                            <div class="stat-info">
-                                <span class="stat-value"><?= count($recentOrders ?? []) ?></span>
-                                <span class="stat-label">Recent Orders</span>
-                            </div>
-                        </div>
-                        <div class="stat-item">
-                            <i class="fas fa-box"></i>
-                            <div class="stat-info">
-                                <?php // Ensure $quizResults is always an array before counting ?>
-                                <span class="stat-value"><?= is_array($quizResults ?? []) ? count($quizResults) : 0 ?></span>
-                                <span class="stat-label">Saved Preferences</span>
-                            </div>
-                        </div>
-                    </div>
+                <!-- Grid for Dashboard Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                    <!-- Recent Orders -->
-                    <div class="dashboard-card orders" data-aos="fade-up">
-                        <div class="card-header">
-                            <h2>Recent Orders</h2>
-                            <a href="index.php?page=account&section=orders" class="btn-link">
-                                View All <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
+                    <!-- Quick Stats Card -->
+                    <?php
+                    $statsContent = "<div class='flex flex-col sm:flex-row justify-around gap-4'>";
+                    $statsContent .= "<div class='stat-item flex items-center space-x-3 p-3'>";
+                    $statsContent .= "<i class='fas fa-shopping-bag text-3xl text-secondary'></i>";
+                    $statsContent .= "<div class='stat-info'><span class='block text-2xl font-semibold text-primary'>" . count($recentOrders ?? []) . "</span><span class='text-sm text-gray-500'>Recent Orders</span></div>";
+                    $statsContent .= "</div>";
+                    $statsContent .= "<div class='stat-item flex items-center space-x-3 p-3'>";
+                    $statsContent .= "<i class='fas fa-star text-3xl text-secondary'></i>"; // Changed icon
+                    $statsContent .= "<div class='stat-info'><span class='block text-2xl font-semibold text-primary'>" . (is_array($quizResults ?? []) ? count($quizResults) : 0) . "</span><span class='text-sm text-gray-500'>Quiz Results</span></div>"; // Updated label
+                    $statsContent .= "</div>";
+                    $statsContent .= "</div>";
+                    renderDashboardCard(null, $statsContent, null, null, 0, 'md:col-span-2'); // Span full width on medium+
+                    ?>
 
-                        <?php if (empty($recentOrders)): ?>
-                            <div class="empty-state">
-                                <i class="fas fa-shopping-bag"></i>
-                                <p>No orders yet</p>
-                                <a href="index.php?page=products" class="btn-primary">Start Shopping</a>
-                            </div>
-                        <?php else: ?>
-                            <div class="orders-list">
-                                <?php foreach ($recentOrders as $order): ?>
-                                    <div class="order-item">
-                                        <div class="order-info">
-                                            <span class="order-number">
-                                                #<?= str_pad($order['id'], 6, '0', STR_PAD_LEFT) ?>
-                                            </span>
-                                            <span class="order-date">
-                                                <?= date('M j, Y', strtotime($order['created_at'])) ?>
-                                            </span>
-                                        </div>
-                                        <div class="order-details">
-                                            <span class="order-status <?= htmlspecialchars($order['status']) ?>">
-                                                <?= ucfirst(htmlspecialchars($order['status'])) ?>
-                                            </span>
-                                            <span class="order-total">
-                                                $<?= number_format($order['total_amount'], 2) ?>
-                                            </span>
-                                        </div>
-                                        <a href="index.php?page=account&section=orders&id=<?= $order['id'] ?>"
-                                           class="btn-secondary">View Details</a>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
+                    <!-- Recent Orders Card -->
+                    <?php
+                    $ordersContent = '';
+                    if (empty($recentOrders)) {
+                        $ordersContent = "<div class='text-center py-6'>";
+                        $ordersContent .= "<i class='fas fa-shopping-bag text-4xl text-gray-300 mb-3'></i>";
+                        $ordersContent .= "<p class='text-gray-600 mb-4'>No orders found yet.</p>";
+                        $ordersContent .= "<a href='index.php?page=products' class='btn-primary btn-sm'>Start Shopping</a>";
+                        $ordersContent .= "</div>";
+                    } else {
+                        $ordersContent .= "<div class='orders-list space-y-3'>";
+                        foreach ($recentOrders as $order) {
+                            $ordersContent .= "<div class='order-item flex justify-between items-center border p-3 rounded-md hover:bg-gray-50 transition duration-150'>";
+                            $ordersContent .= "<div>";
+                            $ordersContent .= "<span class='font-semibold text-primary block'>#" . str_pad($order['id'], 6, '0', STR_PAD_LEFT) . "</span>";
+                            $ordersContent .= "<span class='text-xs text-gray-500'>" . date('M j, Y', strtotime($order['created_at'])) . "</span>";
+                            $ordersContent .= "</div>";
+                            $ordersContent .= "<div class='text-right'>";
+                            $ordersContent .= "<span class='order-status status-" . htmlspecialchars($order['status']) . " text-xs font-medium px-2 py-0.5 rounded-full'>" . ucfirst(htmlspecialchars($order['status'])) . "</span>";
+                            $ordersContent .= "<span class='text-sm font-semibold ml-2'>$" . number_format($order['total_amount'], 2) . "</span>";
+                            $ordersContent .= "</div>";
+                             $ordersContent .= "<div><a href='index.php?page=account&section=orders&id={$order['id']}' class='btn-secondary btn-xs'>Details</a></div>";
+                            $ordersContent .= "</div>";
+                        }
+                        $ordersContent .= "</div>";
+                    }
+                    renderDashboardCard('Recent Orders', $ordersContent, 'index.php?page=account&section=orders', 'View All', 100);
+                    ?>
 
-                    <!-- Scent Quiz Results -->
-                    <div class="dashboard-card quiz" data-aos="fade-up">
-                        <div class="card-header">
-                            <h2>Your Scent Profile</h2>
-                            <a href="index.php?page=account&section=quiz" class="btn-link">
-                                View History <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
+                    <!-- Scent Quiz Results Card -->
+                    <?php
+                    $quizContent = '';
+                    if (empty($quizResults)) {
+                        $quizContent = "<div class='text-center py-6'>";
+                        $quizContent .= "<i class='fas fa-flask text-4xl text-gray-300 mb-3'></i>"; // Changed icon
+                        $quizContent .= "<p class='text-gray-600 mb-4'>Take the quiz to discover your profile.</p>";
+                        $quizContent .= "<a href='index.php?page=quiz' class='btn-primary btn-sm'>Take Quiz Now</a>";
+                        $quizContent .= "</div>";
+                    } else {
+                        $latestQuiz = $quizResults[0]; // Get the most recent result
+                        $preferences = isset($latestQuiz['answers']) ? json_decode($latestQuiz['answers'], true) : [];
+                        if (!is_array($preferences)) $preferences = [];
+                        $recommendedIds = isset($latestQuiz['recommendations']) ? json_decode($latestQuiz['recommendations'], true) : [];
+                        if (!is_array($recommendedIds)) $recommendedIds = [];
 
-                        <?php if (empty($quizResults)): ?>
-                            <div class="empty-state">
-                                <i class="fas fa-clipboard-list"></i>
-                                <p>Take our scent quiz to discover your perfect match</p>
-                                <a href="index.php?page=quiz" class="btn-primary">Take Quiz</a>
-                            </div>
-                        <?php else: ?>
-                            <?php
-                                // Ensure $quizResults[0] exists and keys are set before accessing
-                                $latestQuiz = $quizResults[0];
-                                $preferences = isset($latestQuiz['answers']) ? json_decode($latestQuiz['answers'], true) : [];
-                                if (!is_array($preferences)) $preferences = []; // Ensure it's an array
-                                // Use 'recommendations' key from DB
-                                $recommendedIds = isset($latestQuiz['recommendations']) ? json_decode($latestQuiz['recommendations'], true) : [];
-                                if (!is_array($recommendedIds)) $recommendedIds = []; // Ensure it's an array
-                            ?>
-                            <div class="quiz-results">
-                                <div class="scent-preferences">
-                                    <h3>Your Preferences</h3>
-                                    <?php if (!empty($preferences)): ?>
-                                        <ul>
-                                            <?php foreach ($preferences as $key => $pref): // Display key/value from answers ?>
-                                                <li>
-                                                    <i class="fas fa-check"></i>
-                                                    <?= htmlspecialchars(ucfirst(str_replace('_', ' ', $key))) ?>: <strong><?= htmlspecialchars($pref) ?></strong>
-                                                </li>
-                                            <?php endforeach; ?>
-                                        </ul>
-                                     <?php else: ?>
-                                        <p>No preferences recorded for this result.</p>
-                                    <?php endif; ?>
-                                </div>
+                        $quizContent .= "<div class='space-y-4'>";
+                        $quizContent .= "<div><h3 class='font-semibold text-gray-700 mb-2'>Latest Preferences:</h3>";
+                        if (!empty($preferences)) {
+                            $quizContent .= "<ul class='list-disc list-inside space-y-1 text-sm text-gray-600 pl-4'>";
+                            foreach ($preferences as $key => $pref) {
+                                $quizContent .= "<li>" . htmlspecialchars(ucfirst(str_replace('_', ' ', $key))) . ": <strong>" . htmlspecialchars($pref) . "</strong></li>";
+                            }
+                            $quizContent .= "</ul>";
+                        } else {
+                            $quizContent .= "<p class='text-sm text-gray-500 italic'>No preferences recorded for latest result.</p>";
+                        }
+                         $quizContent .= "</div>";
 
-                                <?php if (!empty($recommendedIds)): ?>
-                                    <div class="recommended-products">
-                                        <h3>Recommended Products</h3>
-                                        <div class="product-recommendations">
-                                            <?php
-                                                // Ensure $pdo is available (auto-available via renderView)
-                                                if (isset($pdo)) {
-                                                    if (!class_exists('Product')) require_once __DIR__ . '/../../models/Product.php';
-                                                    $productModel = new Product($pdo);
-                                                    $recommendations = $productModel->getProductsByIds($recommendedIds);
-                                                    if (empty($recommendations)) {
-                                                         echo '<p class="text-gray-500 italic">Could not load recommended products.</p>';
-                                                    } else {
-                                                         foreach ($recommendations as $product):
-                                            ?>
-                                                            <div class="recommended-product">
-                                                                <img src="<?= htmlspecialchars($product['image'] ?? '/images/placeholder.jpg') ?>"
-                                                                     alt="<?= htmlspecialchars($product['name']) ?>">
-                                                                <div class="product-info">
-                                                                    <h4><?= htmlspecialchars($product['name']) ?></h4>
-                                                                    <p class="price">$<?= number_format($product['price'], 2) ?></p>
-                                                                    <a href="index.php?page=product&id=<?= $product['id'] ?>"
-                                                                       class="btn-secondary">View Product</a>
-                                                                </div>
-                                                            </div>
-                                            <?php
-                                                          endforeach;
-                                                    }
-                                                } else {
-                                                    echo '<p class="text-red-500">Error: Database connection not available for product recommendations.</p>';
-                                                }
-                                            ?>
-                                        </div>
-                                    </div>
-                                 <?php else: ?>
-                                     <div class="recommended-products">
-                                          <h3>Recommended Products</h3>
-                                          <p>No specific product recommendations available for this result.</p>
-                                     </div>
-                                 <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
+                         // Display Recommended Products (Fetch details if needed)
+                         if (!empty($recommendedIds)) {
+                             $quizContent .= "<div><h3 class='font-semibold text-gray-700 mb-2 mt-4 border-t pt-3'>Top Recommendations:</h3>";
+                             // Fetch product details based on $recommendedIds
+                              if (isset($pdo)) { // Check if $pdo is available
+                                   if (!class_exists('Product')) require_once __DIR__ . '/../../models/Product.php';
+                                   $productModel = new Product($pdo);
+                                   // Fetch details for a limited number, e.g., 2 for the dashboard card
+                                   $recommendations = $productModel->getProductsByIds(array_slice($recommendedIds, 0, 2));
+                                   if (!empty($recommendations)) {
+                                       $quizContent .= "<div class='flex flex-col gap-3'>";
+                                       foreach ($recommendations as $product) {
+                                            $quizContent .= "<div class='recommended-product flex items-center gap-3 p-2 border rounded-md bg-gray-50/50'>";
+                                            $quizContent .= "<img src='" . htmlspecialchars($product['image'] ?? '/images/placeholder.jpg') . "' alt='" . htmlspecialchars($product['name']) . "' class='w-10 h-10 object-cover rounded flex-shrink-0'>";
+                                            $quizContent .= "<div class='flex-grow'><h4 class='text-sm font-medium text-primary'>" . htmlspecialchars($product['name']) . "</h4>";
+                                            $quizContent .= "<p class='text-xs text-gray-500'>$" . number_format($product['price'], 2) . "</p></div>";
+                                            $quizContent .= "<a href='index.php?page=product&id={$product['id']}' class='btn-secondary btn-xs whitespace-nowrap'>View</a>";
+                                            $quizContent .= "</div>";
+                                       }
+                                       $quizContent .= "</div>";
+                                   } else {
+                                       $quizContent .= "<p class='text-sm text-gray-500 italic'>Could not load recommendations.</p>";
+                                   }
+                              } else {
+                                   $quizContent .= "<p class='text-sm text-red-500 italic'>Database connection error.</p>";
+                              }
+                         } else {
+                              $quizContent .= "<p class='text-sm text-gray-500 italic mt-4 border-t pt-3'>No product recommendations from this quiz.</p>";
+                         }
+                         $quizContent .= "</div>";
+                         $quizContent .= "</div>"; // Close space-y-4
+                    }
+                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=account&section=quiz', 'View History', 200);
+                    ?>
 
-                    <!-- Quick Actions -->
-                    <div class="dashboard-card actions" data-aos="fade-up">
-                        <h2>Quick Actions</h2>
-                        <div class="action-buttons">
-                            <a href="index.php?page=quiz" class="btn-action">
-                                <i class="fas fa-sync"></i>
-                                Retake Quiz
-                            </a>
-                            <a href="index.php?page=account&section=profile" class="btn-action">
-                                <i class="fas fa-user-edit"></i>
-                                Edit Profile
-                            </a>
-                            <a href="index.php?page=products" class="btn-action">
-                                <i class="fas fa-shopping-cart"></i>
-                                Shop Now
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                    <!-- Quick Actions Card -->
+                    <?php
+                    $actionsContent = "<div class='grid grid-cols-1 sm:grid-cols-3 gap-4'>";
+                    $actionsContent .= "<a href='index.php?page=account&section=profile' class='btn-action flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-secondary/20 transition duration-150 text-center'><i class='fas fa-user-edit text-2xl mb-2 text-primary'></i><span class='text-sm font-medium'>Edit Profile</span></a>";
+                    $actionsContent .= "<a href='index.php?page=quiz' class='btn-action flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-secondary/20 transition duration-150 text-center'><i class='fas fa-sync text-2xl mb-2 text-primary'></i><span class='text-sm font-medium'>Retake Quiz</span></a>";
+                    $actionsContent .= "<a href='index.php?page=products' class='btn-action flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-secondary/20 transition duration-150 text-center'><i class='fas fa-shopping-bag text-2xl mb-2 text-primary'></i><span class='text-sm font-medium'>Shop Now</span></a>";
+                    $actionsContent .= "</div>";
+                    renderDashboardCard('Quick Actions', $actionsContent, null, null, 300, 'md:col-span-2'); // Span full width
+                    ?>
+
+                </div> <!-- End Dashboard Grid -->
+            </div> <!-- End Account Content -->
+        </div> <!-- End Account Grid -->
+    </div> <!-- End Container -->
 </section>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // Standard footer include ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; ?>
 
 ```
 

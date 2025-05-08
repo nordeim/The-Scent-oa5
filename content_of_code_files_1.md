@@ -282,17 +282,20 @@ try {
 
 ```
 
-# config.php  
+# config.php.1  
 ```php
 <?php
 // Environment
 define('ENVIRONMENT', getenv('APP_ENV') ?: 'production');
+// --- MOVED BASE_URL DEFINITION HERE ---
+define('BASE_URL', '/'); // Adjust for your environment ('/' for root, '/the-scent/' if in subfolder)
+// --- END MOVED BASE_URL DEFINITION ---
 
 // Security Settings
 define('SECURITY_SETTINGS', [
     'session' => [
         'lifetime' => 3600,
-        'secure' => true,
+        'secure' => true, // Requires HTTPS
         'httponly' => true,
         'samesite' => 'Lax',
         'regenerate_id_interval' => 900 // 15 minutes
@@ -304,59 +307,68 @@ define('SECURITY_SETTINGS', [
         'ip_whitelist' => [], // Add trusted IPs here
         'endpoints' => [
             'login' => ['window' => 300, 'max_requests' => 5],
-            'reset_password' => ['window' => 3600, 'max_requests' => 3],
-            'register' => ['window' => 3600, 'max_requests' => 5]
+            'password_reset_request' => ['window' => 3600, 'max_requests' => 3],
+            'password_reset_attempt' => ['window' => 300, 'max_requests' => 5],
+            'register' => ['window' => 3600, 'max_requests' => 5],
+            'newsletter_subscribe' => ['window' => 3600, 'max_requests' => 10],
+            'checkout_submit' => ['window' => 60, 'max_requests' => 10],
+            'coupon_apply' => ['window' => 300, 'max_requests' => 15],
+            'profile_update' => ['window' => 3600, 'max_requests' => 20],
+            'address_update' => ['window' => 3600, 'max_requests' => 10],
+            'quiz_submit' => ['window' => 60, 'max_requests' => 5]
+            // Add other actions as needed
         ]
     ],
     'encryption' => [
         'algorithm' => 'AES-256-CBC',
-        'key_length' => 32
+        'key_length' => 32 // Added key_length for reference if needed
     ],
     'password' => [
         'min_length' => 12,
         'require_special' => true,
         'require_number' => true,
         'require_mixed_case' => true,
-        'max_attempts' => 5,
-        'lockout_duration' => 900
+        'max_attempts' => 5, // Example: Max login attempts
+        'lockout_duration' => 900 // Example: 15 minutes lockout
     ],
     'logging' => [
         'security_log' => __DIR__ . '/logs/security.log',
-        'error_log' => __DIR__ . '/logs/error.log',
-        'audit_log' => __DIR__ . '/logs/audit.log',
-        'rotation_size' => 10485760, // 10MB
-        'max_files' => 10
+        'error_log' => __DIR__ . '/logs/error.log', // Keep PHP error log separate maybe
+        'audit_log' => __DIR__ . '/logs/audit.log', // Keep audit separate
+        'rotation_size' => 10485760, // 10MB (Example)
+        'max_files' => 10 // Example: keep last 10 log files
     ],
-    'cors' => [
-        'allowed_origins' => ['https://the-scent.com'],
-        'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE'],
-        'allowed_headers' => ['Content-Type', 'Authorization'],
-        'expose_headers' => ['X-Request-ID'],
-        'max_age' => 3600
+    'cors' => [ // Cross-Origin Resource Sharing (Example, adjust as needed)
+        // Use BASE_URL constant which is now defined above
+        'allowed_origins' => [BASE_URL], // <<< THIS LINE CAUSED THE ERROR
+        'allowed_methods' => ['GET', 'POST'], // Restrict methods
+        'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Accept'], // Common headers
+        'expose_headers' => [],
+        'max_age' => 0 // Don't cache preflight requests aggressively during dev
     ],
     'csrf' => [
-        'enabled' => true,
-        'token_length' => 32,
-        'token_lifetime' => 3600
+        'enabled' => true, // Keep enabled
+        'token_length' => 32, // Standard length
+        'token_lifetime' => 3600 // 1 hour validity
     ],
     'headers' => [
         'X-Frame-Options' => 'DENY',
         'X-XSS-Protection' => '1; mode=block',
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
-        // CSP tightened: removed 'unsafe-inline' from script-src and style-src
-        'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self'; frame-src https://js.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com",
-        'Strict-Transport-Security' => 'max-age=31536000; includeSubDomains'
+        // CSP Update: Added *.stripe.com and *.stripe.network
+        'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com https://*.stripe.com; style-src 'self' 'unsafe-inline'; frame-src 'self' https://js.stripe.com https://*.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com https://*.stripe.com https://*.stripe.network",
+        'Strict-Transport-Security' => 'max-age=31536000; includeSubDomains' // Enable HSTS if using HTTPS
     ],
-    'file_upload' => [
+    'file_upload' => [ // Example file upload settings
         'max_size' => 5242880, // 5MB
-        'allowed_types' => [
+        'allowed_types' => [ // Example MIME types
             'image/jpeg',
             'image/png',
             'image/gif',
             'application/pdf'
         ],
-        'scan_malware' => true
+        'scan_malware' => false // Set to true if ClamAV or similar is available
     ]
 ]);
 
@@ -364,35 +376,53 @@ define('SECURITY_SETTINGS', [
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'the_scent');
 define('DB_USER', 'scent_user');
-define('DB_PASS', 'StrongPassword123');
-define('BASE_URL', '/');
+define('DB_PASS', 'StrongPassword123'); // Use environment variables in production
+// BASE_URL is defined near the top now
 
-// Stripe Configuration
-define('STRIPE_PUBLIC_KEY', 'pk_test_51xxx');
-define('STRIPE_SECRET_KEY', 'sk_test_51yyy');
-define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret');
+// Stripe Configuration (Replace placeholders with your actual keys)
+define('STRIPE_PUBLIC_KEY', 'pk_test_51');
+define('STRIPE_SECRET_KEY', 'sk_test_51');
+define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret'); // Get this from your Stripe Dashboard Webhook settings
 
-// Email Configuration (for next phase)
-define('SMTP_HOST', 'localhost');
-define('SMTP_PORT', 1025);
-define('SMTP_USER', '');
-define('SMTP_PASS', '');
-define('SMTP_FROM', 'noreply@thescent.local');
-define('SMTP_FROM_NAME', 'The Scent (Dev)');
+// Email Configuration
+define('SMTP_HOST', 'localhost'); // Or your actual SMTP host
+define('SMTP_PORT', 1025); // Common ports: 587 (TLS), 465 (SSL), 25 (unencrypted), 1025 (Mailhog)
+define('SMTP_USER', ''); // Your SMTP username (if required)
+define('SMTP_PASS', ''); // Your SMTP password (if required)
+define('SMTP_FROM', 'noreply@thescent.local'); // Your sending email address
+define('SMTP_FROM_NAME', 'The Scent (Dev)'); // Your sender name
+define('SMTP_DEBUG', false); // Set to true for verbose debugging during development ONLY
 
 // Application Settings
-define('TAX_RATE', 0.10); // 10% tax rate
+define('TAX_RATE', 0.10); // Example: 10% tax rate (Not currently used, TaxController handles rates)
 define('FREE_SHIPPING_THRESHOLD', 50.00); // Free shipping on orders over $50
 define('SHIPPING_COST', 5.99); // Standard shipping cost
+define('PASSWORD_RESET_EXPIRY_SECONDS', 3600); // 1 hour validity for password reset tokens
+define('NEWSLETTER_SECRET_KEY', 'USE_A_STRONG_RANDOM_SECRET_KEY_HERE_32_CHARS+'); // Replace with a long random string
 
-// Error Logging Configuration
-define('ERROR_LOG_PATH', '/var/log/thescent/');
-define('ERROR_LOG_LEVEL', E_ALL);
+// Error & Logging
+define('ERROR_LOG_PATH', __DIR__ . '/logs/error.log'); // Consolidated error log path
+ini_set('log_errors', 1);
+ini_set('error_log', ERROR_LOG_PATH);
+// Determine error reporting level based on environment
+if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
+    error_reporting(E_ALL);
+    ini_set('display_errors', 1); // Display errors ONLY in development
+} else {
+    error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT); // Log most errors in production
+    ini_set('display_errors', 0); // DO NOT display errors in production
+}
+define('ERROR_ALERT_THRESHOLD', 10); // Example: Alert if same error occurs > 10 times/hour
 
-// Quiz Configuration
-define('QUIZ_MAX_ATTEMPTS', 3);
-define('QUIZ_RESULT_EXPIRY_DAYS', 30);
-define('RECOMMENDATION_LIMIT', 5);
+// Session & Security Defaults (Backup if SECURITY_SETTINGS fails)
+ini_set('session.cookie_lifetime', '3600');
+ini_set('session.use_strict_mode', '1');
+ini_set('session.cookie_secure', '1'); // Requires HTTPS
+ini_set('session.cookie_httponly', '1');
+ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.gc_maxlifetime', '3600');
+
+?>
 
 ```
 
@@ -1957,7 +1987,7 @@ class Quiz {
             return []; // Return empty array for invalid user ID
         }
         try {
-            // --- FIX: Select 'recommendations' column instead of 'recommended_products' ---
+            // --- START FIX: Select 'recommendations' column instead of 'recommended_products' ---
             $stmt = $this->pdo->prepare("
                 SELECT id, user_id, email, answers, recommendations, created_at
                 FROM quiz_results
@@ -1967,6 +1997,15 @@ class Quiz {
             // --- END FIX ---
             $stmt->execute([$userId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Optionally decode JSON fields here if needed by the view immediately
+            foreach ($results as &$item) {
+                 $item['answers'] = isset($item['answers']) ? (json_decode($item['answers'], true) ?? []) : [];
+                 // Decode the correct column now
+                 $item['recommendations'] = isset($item['recommendations']) ? (json_decode($item['recommendations'], true) ?? []) : [];
+            }
+            unset($item); // Unset reference
+
 
             return $results ?: []; // Return results or empty array
 

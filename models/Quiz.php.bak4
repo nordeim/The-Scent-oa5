@@ -145,7 +145,7 @@ class Quiz {
             return []; // Return empty array for invalid user ID
         }
         try {
-            // --- START FIX: Select 'recommendations' column instead of 'recommended_products' ---
+            // --- FIX: Select 'recommendations' column instead of 'recommended_products' ---
             $stmt = $this->pdo->prepare("
                 SELECT id, user_id, email, answers, recommendations, created_at
                 FROM quiz_results
@@ -155,15 +155,6 @@ class Quiz {
             // --- END FIX ---
             $stmt->execute([$userId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            // Optionally decode JSON fields here if needed by the view immediately
-            foreach ($results as &$item) {
-                 $item['answers'] = isset($item['answers']) ? (json_decode($item['answers'], true) ?? []) : [];
-                 // Decode the correct column now
-                 $item['recommendations'] = isset($item['recommendations']) ? (json_decode($item['recommendations'], true) ?? []) : [];
-            }
-            unset($item); // Unset reference
-
 
             return $results ?: []; // Return results or empty array
 

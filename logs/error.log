@@ -1,0 +1,32 @@
+[08-May-2025 12:10:40 UTC] Checkout Info: Found 1 distinct item types for User ID: 1
+[08-May-2025 12:10:40 UTC] Tax calculation error: Invalid tax calculation parameters
+[08-May-2025 12:10:40 UTC] Checkout processing error: User 1 - SQLSTATE[42S22]: Column not found: 1054 Unknown column 'subtotal' in 'field list'
+[08-May-2025 12:14:15 UTC] General error/exception in index.php: CSRF token validation failed Trace: #0 /cdrom/project/The-Scent-oa5/index.php(43): SecurityMiddleware::validateCSRF()
+#1 {main}
+[08-May-2025 12:14:15 UTC] [2025-05-08 12:14:15 UTC] [Exception] CSRF token validation failed in /cdrom/project/The-Scent-oa5/includes/SecurityMiddleware.php on line 276
+Stack trace:
+#0 /cdrom/project/The-Scent-oa5/index.php(43): SecurityMiddleware::validateCSRF()
+#1 {main}
+Context: {
+    "url": "/index.php?page=checkout&action=calculateTax",
+    "method": "POST",
+    "ip": "127.0.0.1",
+    "timestamp": "2025-05-08 12:14:15 UTC",
+    "user_id": 6
+}
+[08-May-2025 12:26:53 UTC] Checkout Info: Found 1 distinct item types for User ID: 1
+[08-May-2025 12:26:53 UTC] Tax calculation error: Invalid tax calculation parameters
+[08-May-2025 12:26:53 UTC] Checkout processing error: User 1 - SQLSTATE[42S22]: Column not found: 1054 Unknown column 'subtotal' in 'field list'
+[08-May-2025 12:29:52 UTC] General error/exception in index.php: CSRF token validation failed Trace: #0 /cdrom/project/The-Scent-oa5/index.php(43): SecurityMiddleware::validateCSRF()
+#1 {main}
+[08-May-2025 12:29:52 UTC] [2025-05-08 12:29:52 UTC] [Exception] CSRF token validation failed in /cdrom/project/The-Scent-oa5/includes/SecurityMiddleware.php on line 276
+Stack trace:
+#0 /cdrom/project/The-Scent-oa5/index.php(43): SecurityMiddleware::validateCSRF()
+#1 {main}
+Context: {
+    "url": "/index.php?page=checkout&action=calculateTax",
+    "method": "POST",
+    "ip": "127.0.0.1",
+    "timestamp": "2025-05-08 12:29:52 UTC",
+    "user_id": 6
+}

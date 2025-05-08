@@ -226,7 +226,6 @@ class ProductController extends BaseController {
      * Displays the list of products in the admin panel.
      */
     public function listAdminProducts() {
-        // --- START: NEW METHOD ---
         try {
             $this->requireAdmin();
 
@@ -246,17 +245,13 @@ class ProductController extends BaseController {
             $this->setFlashMessage('Failed to load products list.', 'error');
             $this->redirect('index.php?page=admin'); // Redirect to admin dashboard
         }
-        // --- END: NEW METHOD ---
     }
 
 
     /**
      * Handles displaying the form for creating/editing a product (GET)
-     * and processing the form submission (POST).
-     * This method combines the logic for create/update based on presence of $id.
      */
     public function showAdminProductForm(?int $id = null) {
-         // --- START: NEW METHOD TO HANDLE GET FOR CREATE/EDIT ---
          try {
              $this->requireAdmin();
 
@@ -287,14 +282,12 @@ class ProductController extends BaseController {
              $this->setFlashMessage('Error loading product form: ' . $e->getMessage(), 'error');
              $this->redirect('index.php?page=admin&section=products');
          }
-         // --- END: NEW METHOD TO HANDLE GET FOR CREATE/EDIT ---
      }
 
     /**
       * Handles saving (create or update) product data submitted via POST.
       */
      public function saveAdminProduct() {
-         // --- START: NEW METHOD TO HANDLE POST FOR CREATE/EDIT (with JSON parsing) ---
          $productId = null; // Initialize for logging/redirect
          try {
              $this->requireAdmin();
@@ -325,12 +318,11 @@ class ProductController extends BaseController {
                  'origin' => $this->validateInput($_POST['origin'] ?? null, 'string', ['max' => 100]),
                  'ingredients' => $this->validateInput($_POST['ingredients'] ?? null, 'string'), // Allow longer text
                  'usage_instructions' => $this->validateInput($_POST['usage_instructions'] ?? null, 'string') // Allow longer text
-                 // 'benefits' and 'gallery_images' will be handled next
              ];
 
-             // --- START: Parse Textareas for JSON Fields ---
+             // --- START: FIX - Parse Textareas for JSON Fields ---
              $benefitsInput = $_POST['benefits'] ?? '';
-             // Split by any newline type, trim whitespace from each line, filter out empty lines, re-index numerically
+             // Split by any newline type (\r\n, \r, \n), trim whitespace from each line, filter out empty lines, re-index numerically
              $data['benefits'] = !empty($benefitsInput)
                  ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $benefitsInput))))
                  : []; // Default to empty array if textarea was empty
@@ -339,7 +331,7 @@ class ProductController extends BaseController {
              $data['gallery_images'] = !empty($galleryInput)
                  ? array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $galleryInput))))
                  : []; // Default to empty array
-             // --- END: Parse Textareas for JSON Fields ---
+             // --- END: FIX - Parse Textareas for JSON Fields ---
 
 
              // Assign initial stock if not explicitly set during creation
@@ -395,14 +387,12 @@ class ProductController extends BaseController {
              $redirectUrl = 'index.php?page=admin&section=products' . ($productId ? '&task=edit&id='.$productId : '&task=create');
              $this->redirect($redirectUrl);
          }
-          // --- END: NEW METHOD TO HANDLE POST FOR CREATE/EDIT (with JSON parsing) ---
      }
 
     /**
      * Handles deleting a product via POST request.
      */
     public function deleteAdminProduct(?int $id = null) {
-         // --- START: NEW METHOD TO HANDLE DELETE ---
          try {
              $this->requireAdmin();
              $this->validateCSRF(); // Validates POST CSRF
@@ -444,7 +434,6 @@ class ProductController extends BaseController {
              $this->setFlashMessage('Failed to delete product: ' . $e->getMessage(), 'error');
              $this->redirect('index.php?page=admin&section=products');
          }
-         // --- END: NEW METHOD TO HANDLE DELETE ---
     }
 
 

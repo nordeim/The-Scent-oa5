@@ -53,7 +53,7 @@ echo "PHP Setup: ErrorHandler initialized.\n";
 
 
 // --- Simulate Logged-in User ---
-$testUserId = 2; // Use the ID confirmed previously
+$testUserId = 1; // Use the ID confirmed previously
 $testUserData = null;
 try {
     // Check if User class is loaded

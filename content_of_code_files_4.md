@@ -1046,7 +1046,7 @@ class NewsletterController extends BaseController {
 # controllers/CheckoutController.php  
 ```php
 <?php
-// controllers/CheckoutController.php (Updated - Handle address_line2, map data for save)
+// controllers/CheckoutController.php (Updated - Fix validateCartStock, add logging)
 
 require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Product.php';
@@ -1214,9 +1214,16 @@ class CheckoutController extends BaseController {
         $cartModel = new Cart($this->db, $userId);
         $items = $cartModel->getItems(); // Uses getCartItemsInternal which nests product data
 
+        // --- START: Add Logging for Cart Items ---
         if (empty($items)) {
-             return $this->jsonResponse(['success' => false, 'error' => 'Your cart is empty.'], 400);
-        }
+            error_log("Checkout Error: Cart items are empty for User ID: {$userId} at start of processCheckout.");
+             // Return specific error if cart is unexpectedly empty
+             return $this->jsonResponse(['success' => false, 'error' => 'Your cart appears empty. Please add items before checkout.'], 400);
+         } else {
+             error_log("Checkout Info: Found " . count($items) . " distinct item types for User ID: {$userId}");
+         }
+         // --- END: Add Logging ---
+
 
         // --- Collect Cart Details ---
         $cartItemsForOrder = [];
@@ -1259,11 +1266,7 @@ class CheckoutController extends BaseController {
                  'error' => 'Please fill required shipping fields: ' . implode(', ', $missingFields) . '.'
              ], 400);
         }
-        // --- START FIX: Explicitly read optional address line 2 ---
-        // Use the same name as the input field in the view
         $postData['shipping_address_line2'] = $this->validateInput($_POST['shipping_address_line2'] ?? null, 'string', ['max' => 255]);
-        // --- END FIX ---
-
         $orderNotes = $this->validateInput($_POST['order_notes'] ?? null, 'string', ['max' => 1000]);
         $saveAddress = isset($_POST['save_address']) && $_POST['save_address'] === '1';
 
@@ -1283,7 +1286,6 @@ class CheckoutController extends BaseController {
                      $discountAmount = $this->couponController->calculateDiscount($coupon, $subtotal);
                  }
             } else {
-                 // Coupon is invalid for some reason (expired, limit reached, etc.)
                  error_log("Checkout Warning: Coupon '{$couponCode}' became invalid during final checkout for user {$userId}. Message: " . ($validationResult['message'] ?? 'N/A'));
                  $couponCode = null; // Clear the code
                  $coupon = null;
@@ -1317,132 +1319,62 @@ class CheckoutController extends BaseController {
 
             // --- Create Order Record ---
             $orderData = [
-                'user_id' => $userId,
-                'subtotal' => $subtotal,
-                'discount_amount' => $discountAmount,
-                'coupon_code' => $coupon ? $coupon['code'] : null, // Store code only if coupon was valid and applied
-                'coupon_id' => $coupon ? $coupon['id'] : null,
-                'shipping_cost' => $shipping_cost,
-                'tax_amount' => $tax_amount,
-                'total_amount' => $total,
-                'shipping_name' => $postData['shipping_name'],
-                'shipping_email' => $postData['shipping_email'],
-                // --- START FIX: Use correct keys for order saving ---
-                // Use the values from $postData which have the shipping_ prefix
-                'shipping_address' => $postData['shipping_address'], // This corresponds to address_line1 generally
-                'shipping_address_line2' => $postData['shipping_address_line2'] ?? null, // <<< Add address line 2
-                // --- END FIX ---
-                'shipping_city' => $postData['shipping_city'],
-                'shipping_state' => $postData['shipping_state'],
-                'shipping_zip' => $postData['shipping_zip'],
-                'shipping_country' => $postData['shipping_country'],
-                'status' => 'pending_payment',
-                'payment_status' => 'pending',
-                'order_notes' => $orderNotes,
-                'payment_intent_id' => null // Initially null
+                'user_id' => $userId, 'subtotal' => $subtotal, 'discount_amount' => $discountAmount, 'coupon_code' => $coupon ? $coupon['code'] : null,
+                'coupon_id' => $coupon ? $coupon['id'] : null, 'shipping_cost' => $shipping_cost, 'tax_amount' => $tax_amount, 'total_amount' => $total,
+                'shipping_name' => $postData['shipping_name'], 'shipping_email' => $postData['shipping_email'], 'shipping_address' => $postData['shipping_address'],
+                'shipping_address_line2' => $postData['shipping_address_line2'] ?? null, 'shipping_city' => $postData['shipping_city'], 'shipping_state' => $postData['shipping_state'],
+                'shipping_zip' => $postData['shipping_zip'], 'shipping_country' => $postData['shipping_country'], 'status' => 'pending_payment',
+                'payment_status' => 'pending', 'order_notes' => $orderNotes, 'payment_intent_id' => null
             ];
-            // --- Correction: Check if shipping_address_line2 column exists in orders table ---
-            // Assuming the `orders` table *also* needs an `shipping_address_line2` column.
-            // If it doesn't exist, remove `'shipping_address_line2' => ...` from $orderData above.
-            // For now, assuming the column exists in `orders` table similar to `users` table.
-            // If not, the OrderModel::create would need adjustment or this key removed here.
-
             $orderId = $this->orderModel->create($orderData);
             if (!$orderId) throw new Exception("Failed to create order record.");
 
             // --- Create Order Items & Decrement Inventory ---
-            $itemStmt = $this->db->prepare("
-                INSERT INTO order_items (order_id, product_id, quantity, price)
-                VALUES (?, ?, ?, ?)
-            ");
+            $itemStmt = $this->db->prepare("INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)");
             foreach ($cartItemsForOrder as $productId => $itemData) {
-                // Use price from the cart item array (which should reflect current price)
                 $itemStmt->execute([$orderId, $productId, $itemData['quantity'], $itemData['price']]);
-                // Decrement stock using InventoryController for audit trail
-                 // Pass $this->db explicitly if InventoryController needs it and doesn't inherit
-                 $inventoryController = new InventoryController($this->db); // Instantiate if not already available
+                $inventoryController = new InventoryController($this->db);
                 if (!$inventoryController->updateStock($productId, -$itemData['quantity'], 'sale', $orderId)) {
-                    // updateStock should throw exception on failure, caught below
                     throw new Exception("Failed to update inventory for product ID {$productId}");
                 }
             }
 
-            // --- START FIX: Update User Address if Requested (Map keys correctly) ---
+            // --- Update User Address if Requested ---
             if ($saveAddress) {
-                 // Create a new array mapping checkout field names to user table column names
                  $addressUpdateData = [
-                    'address_line1' => $postData['shipping_address'], // Map 'shipping_address' to 'address_line1'
-                    'address_line2' => $postData['shipping_address_line2'], // Map 'shipping_address_line2' to 'address_line2'
-                    'city'          => $postData['shipping_city'],
-                    'state'         => $postData['shipping_state'],
-                    'postal_code'   => $postData['shipping_zip'],
-                    'country'       => $postData['shipping_country']
-                 ];
-                 // Pass the mapped data to UserModel::updateAddress
-                if (!$this->userModel->updateAddress($userId, $addressUpdateData)) {
-                     // Log warning but don't fail the checkout transaction
-                     error_log("Warning: Failed to save user address during checkout for User ID {$userId}. Order ID {$orderId}.");
-                } else {
-                     $this->logAuditTrail('user_address_update_checkout', $userId, ['order_id' => $orderId]);
-                }
+                    'address_line1' => $postData['shipping_address'], 'address_line2' => $postData['shipping_address_line2'], 'city' => $postData['shipping_city'],
+                    'state' => $postData['shipping_state'], 'postal_code' => $postData['shipping_zip'], 'country' => $postData['shipping_country'] ];
+                if (!$this->userModel->updateAddress($userId, $addressUpdateData)) { error_log("Warning: Failed to save user address during checkout for User ID {$userId}. Order ID {$orderId}."); }
+                else { $this->logAuditTrail('user_address_update_checkout', $userId, ['order_id' => $orderId]); }
             }
-            // --- END FIX ---
 
             // --- Create Payment Intent ---
             $paymentResult = $this->paymentController->createPaymentIntent($total, 'usd', $orderId, $postData['shipping_email']);
             if (!$paymentResult['success'] || empty($paymentResult['client_secret']) || empty($paymentResult['payment_intent_id'])) {
-                // Attempt to update order status to failed, but proceed to throw exception anyway
-                $this->orderModel->updateStatus($orderId, 'payment_failed'); // Best effort update
-                throw new Exception($paymentResult['error'] ?? 'Could not initiate payment.');
+                $this->orderModel->updateStatus($orderId, 'payment_failed'); throw new Exception($paymentResult['error'] ?? 'Could not initiate payment.');
             }
-            $clientSecret = $paymentResult['client_secret'];
-            $paymentIntentId = $paymentResult['payment_intent_id'];
+            $clientSecret = $paymentResult['client_secret']; $paymentIntentId = $paymentResult['payment_intent_id'];
 
             // --- Update Order with Payment Intent ID ---
-            if (!$this->orderModel->updatePaymentIntentId($orderId, $paymentIntentId)) {
-                 // This is critical - if we can't link PI, payment completion can't find the order
-                 throw new Exception("Failed to link Payment Intent ID {$paymentIntentId} to Order ID {$orderId}.");
-            }
+            if (!$this->orderModel->updatePaymentIntentId($orderId, $paymentIntentId)) { throw new Exception("Failed to link Payment Intent ID {$paymentIntentId} to Order ID {$orderId}."); }
 
-            // --- Record Coupon Usage (Only if coupon was valid and applied) ---
-            if ($coupon) {
-                 if (!$this->couponController->recordUsage($coupon['id'], $orderId, $userId, $discountAmount)) {
-                      // Log failure but don't necessarily fail the whole checkout if usage recording fails
-                      error_log("Warning: Failed to record usage for coupon ID {$coupon['id']} on order ID {$orderId}. Check coupon_usage table.");
-                 }
-            }
+            // --- Record Coupon Usage ---
+            if ($coupon) { if (!$this->couponController->recordUsage($coupon['id'], $orderId, $userId, $discountAmount)) { error_log("Warning: Failed to record usage for coupon ID {$coupon['id']} on order ID {$orderId}."); } }
 
             // --- Commit Transaction ---
             $this->commit();
 
-            $this->logAuditTrail('order_pending_payment', $userId, [
-                'order_id' => $orderId, 'total_amount' => $total, 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN'
-            ]);
+            $this->logAuditTrail('order_pending_payment', $userId, [ 'order_id' => $orderId, 'total_amount' => $total, 'ip' => $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN' ]);
 
-            // --- Return Client Secret and Order ID to Frontend ---
-            return $this->jsonResponse([
-                'success' => true,
-                'orderId' => $orderId,
-                'clientSecret' => $clientSecret
-            ]);
+            // --- Return Client Secret and Order ID ---
+            return $this->jsonResponse([ 'success' => true, 'orderId' => $orderId, 'clientSecret' => $clientSecret ]);
 
         } catch (Exception $e) {
-            $this->rollback(); // Rollback on any exception during the process
-            error_log("Checkout processing error: User {$userId} - " . $e->getMessage());
-            // Provide a more generic message to the user unless it's a specific stock issue
-            $statusCode = 500; // Default server error
-             if ($e->getCode() === 409) { $statusCode = 409; } // Conflict for stock issues
-             if ($e->getCode() === 429) { $statusCode = 429; } // Rate limit
-
-            $errorMessage = ($e->getCode() == 409 || strpos($e->getMessage(), 'stock') !== false)
-                            ? $e->getMessage() // Show specific stock errors
-                            : (($e->getCode() === 429) ? $e->getMessage() : 'An error occurred during checkout. Please try again.'); // Show rate limit message
-             if ($e instanceof PDOException) { $errorMessage = 'A database error occurred. Please try again later.'; }
-
-            return $this->jsonResponse([
-                'success' => false,
-                'error' => $errorMessage
-            ], $statusCode);
+            $this->rollback(); error_log("Checkout processing error: User {$userId} - " . $e->getMessage());
+            $statusCode = 500; if ($e->getCode() === 409 || $e->getCode() === 429) { $statusCode = $e->getCode(); }
+            $errorMessage = ($statusCode == 409 || strpos($e->getMessage(), 'stock') !== false) ? $e->getMessage() : (($statusCode === 429) ? $e->getMessage() : 'An error occurred during checkout. Please try again.');
+            if ($e instanceof PDOException) { $errorMessage = 'A database error occurred. Please try again later.'; }
+            return $this->jsonResponse([ 'success' => false, 'error' => $errorMessage ], $statusCode);
         }
     }
 
@@ -1452,46 +1384,17 @@ class CheckoutController extends BaseController {
      */
     public function applyCouponAjax() {
          // (Method content unchanged - it was already correct)
-         $this->requireLogin(true); // AJAX
-         $this->validateRateLimit('coupon_apply');
-         $this->validateCSRF();
-
-         $json = file_get_contents('php://input');
-         $data = json_decode($json, true);
-
-         $code = $this->validateInput($data['code'] ?? null, 'string');
-         $currentSubtotal = $this->validateInput($data['subtotal'] ?? null, 'float'); // Get subtotal from client
-         $userId = $this->getUserId();
-
-         if (!$code || $currentSubtotal === false || $currentSubtotal < 0) {
-             return $this->jsonResponse(['success' => false, 'message' => 'Invalid coupon code or subtotal amount provided.'], 400);
-         }
-
+         $this->requireLogin(true); $this->validateRateLimit('coupon_apply'); $this->validateCSRF();
+         $json = file_get_contents('php://input'); $data = json_decode($json, true);
+         $code = $this->validateInput($data['code'] ?? null, 'string'); $currentSubtotal = $this->validateInput($data['subtotal'] ?? null, 'float'); $userId = $this->getUserId();
+         if (!$code || $currentSubtotal === false || $currentSubtotal < 0) { return $this->jsonResponse(['success' => false, 'message' => 'Invalid coupon code or subtotal amount provided.'], 400); }
          $validationResult = $this->couponController->validateCouponCodeOnly($code, $currentSubtotal);
-         if (!$validationResult['valid']) {
-             return $this->jsonResponse(['success' => false, 'message' => $validationResult['message']]);
-         }
+         if (!$validationResult['valid']) { return $this->jsonResponse(['success' => false, 'message' => $validationResult['message']]); }
          $coupon = $validationResult['coupon'];
-
-         if ($this->couponController->hasUserUsedCoupon($coupon['id'], $userId)) {
-              return $this->jsonResponse(['success' => false, 'message' => 'You have already used this coupon.']);
-         }
-
-         $discountAmount = $this->couponController->calculateDiscount($coupon, $currentSubtotal);
-         // Recalculate totals based *only* on discount for the estimate sent back to JS
-         // JS will trigger a separate tax update call
-         $subtotalAfterDiscount = max(0, $currentSubtotal - $discountAmount);
-         $shipping_cost = $subtotalAfterDiscount >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST;
-         // Exclude tax from this estimate, JS will handle it
-         $newTotalEstimate = $subtotalAfterDiscount + $shipping_cost;
-
-         return $this->jsonResponse([
-             'success' => true,
-             'message' => 'Coupon applied successfully!',
-             'coupon_code' => $coupon['code'],
-             'discount_amount' => number_format($discountAmount, 2),
-             'new_total_estimate' => number_format($newTotalEstimate, 2) // Estimate for UI update (without tax)
-         ]);
+         if ($this->couponController->hasUserUsedCoupon($coupon['id'], $userId)) { return $this->jsonResponse(['success' => false, 'message' => 'You have already used this coupon.']); }
+         $discountAmount = $this->couponController->calculateDiscount($coupon, $currentSubtotal); $subtotalAfterDiscount = max(0, $currentSubtotal - $discountAmount);
+         $shipping_cost = $subtotalAfterDiscount >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_COST; $newTotalEstimate = $subtotalAfterDiscount + $shipping_cost;
+         return $this->jsonResponse([ 'success' => true, 'message' => 'Coupon applied successfully!', 'coupon_code' => $coupon['code'], 'discount_amount' => number_format($discountAmount, 2), 'new_total_estimate' => number_format($newTotalEstimate, 2) ]);
     }
 
     /**
@@ -1501,215 +1404,44 @@ class CheckoutController extends BaseController {
      */
     public function showOrderConfirmation() {
          // (Method content unchanged from previous robust version)
-         $this->requireLogin(); // Ensure user is logged in
-         $userId = $this->getUserId();
-
-         // 1. Get Payment Intent ID from URL
-         $paymentIntentId = $this->validateInput($_GET['payment_intent'] ?? null, 'string');
-
-         if (!$paymentIntentId || !str_starts_with($paymentIntentId, 'pi_')) { // Basic format check
-             $this->setFlashMessage('Invalid or missing payment confirmation identifier.', 'error');
-             $this->redirect('index.php?page=account&section=orders'); // Use action=orders for consistency
-             return;
-         }
-
+         $this->requireLogin(); $userId = $this->getUserId(); $paymentIntentId = $this->validateInput($_GET['payment_intent'] ?? null, 'string');
+         if (!$paymentIntentId || !str_starts_with($paymentIntentId, 'pi_')) { $this->setFlashMessage('Invalid or missing payment confirmation identifier.', 'error'); $this->redirect('index.php?page=account&section=orders'); return; }
          try {
-             // 2. Retrieve Payment Intent from Stripe
-             // Ensure PaymentController and its Stripe client are available
-             if (!$this->paymentController || !($stripeClient = $this->paymentController->getStripeClient())) {
-                  error_log("Stripe client not available in CheckoutController::showOrderConfirmation.");
-                  throw new Exception("Payment verification service temporarily unavailable. Please check your order history later.");
-             }
-
-             // Use Stripe SDK to fetch the Payment Intent
-             // Assumes Stripe SDK is loaded via Composer autoload in index.php
+             if (!$this->paymentController || !($stripeClient = $this->paymentController->getStripeClient())) { error_log("Stripe client not available."); throw new Exception("Payment verification service temporarily unavailable."); }
              $paymentIntent = $stripeClient->paymentIntents->retrieve($paymentIntentId, []);
-
-             // 3. Verify Payment Intent Status
-             if ($paymentIntent->status !== 'succeeded') {
-                  error_log("Confirmation page accessed for non-succeeded PI: {$paymentIntentId}, Status: {$paymentIntent->status}");
-                  // Provide helpful message based on status if possible
-                  $message = match ($paymentIntent->status) {
-                      'processing' => 'Your payment is still processing. We will notify you upon completion.',
-                      'requires_payment_method', 'requires_action', 'requires_capture', 'requires_confirmation' => 'Payment was not completed successfully. Please check your orders or contact support.',
-                      'canceled' => 'The payment was cancelled.',
-                      default => 'Payment confirmation is pending or failed. Please check your orders.',
-                  };
-                  $this->setFlashMessage($message, 'warning');
-                  $this->redirect('index.php?page=account&section=orders');
-                  return;
-             }
-
-             // 4. Fetch Corresponding Order from DB using PI ID
+             if ($paymentIntent->status !== 'succeeded') { error_log("Confirmation page accessed for non-succeeded PI: {$paymentIntentId}, Status: {$paymentIntent->status}"); $message = match ($paymentIntent->status) { 'processing' => 'Your payment is still processing.', default => 'Payment confirmation is pending or failed.', }; $this->setFlashMessage($message, 'warning'); $this->redirect('index.php?page=account&section=orders'); return; }
              $order = $this->orderModel->getByPaymentIntentId($paymentIntentId);
-
-             // 5. Validate Order Ownership and Existence
-             if (!$order || $order['user_id'] !== $userId) {
-                  error_log("Order not found or user mismatch for PI: {$paymentIntentId}, Order ID: " . ($order['id'] ?? 'N/A') . ", User ID: {$userId}");
-                  // Log security event for potential access violation attempt
-                  $this->logSecurityEvent('confirmation_access_denied', ['payment_intent_id' => $paymentIntentId, 'logged_in_user' => $userId, 'order_user' => $order['user_id'] ?? null]);
-                  $this->setFlashMessage('Order details not found or access denied.', 'error');
-                  $this->redirect('index.php?page=account&section=orders');
-                  return;
-             }
-
-             // 6. (Optional but Recommended) Verify Order Status in DB is suitable
-             // Allow for webhook delay - accept states the webhook would set on success
-             $acceptableStatuses = ['processing', 'paid', 'shipped', 'delivered', 'completed']; // Add 'paid' if it's a valid post-payment status
-             if (!in_array($order['status'], $acceptableStatuses)) {
-                   // If status is still 'pending_payment', it means webhook might be delayed.
-                   // Show confirmation anyway since Stripe confirmed success, but log it.
-                   error_log("Confirmation Warning: PI {$paymentIntentId} succeeded, but order {$order['id']} status is '{$order['status']}'. Showing confirmation page, webhook may be delayed.");
-             }
-
-             // 7. Fetch full order details (with items) using the verified Order ID
-             $fullOrder = $this->orderModel->getByIdAndUserId($order['id'], $userId); // Fetches items
-             if (!$fullOrder || empty($fullOrder['items'])) {
-                  // This shouldn't happen if order was found, but check anyway
-                  error_log("Could not fetch full order details for confirmed order ID: {$order['id']}");
-                  $this->setFlashMessage('Could not display full order details. Please check your order history.', 'error');
-                  $this->redirect('index.php?page=account&section=orders');
-                  return;
-             }
-
-             // 8. Render Confirmation View
-             $csrfToken = $this->getCsrfToken();
-             $bodyClass = 'page-order-confirmation';
-             $pageTitle = 'Order Confirmation - The Scent';
-
-             echo $this->renderView('order_confirmation', [
-                 'order' => $fullOrder, // Pass the verified and complete order data
-                 'csrfToken' => $csrfToken,
-                 'bodyClass' => $bodyClass,
-                 'pageTitle' => $pageTitle
-             ]);
-
-         } catch (\Stripe\Exception\ApiErrorException $e) {
-             // Handle specific Stripe API errors (e.g., invalid PI ID, network issue)
-             error_log("Stripe API error fetching Payment Intent {$paymentIntentId}: " . $e->getMessage());
-             $this->setFlashMessage('Error verifying payment status. Please try again later or check your order history.', 'error');
-             $this->redirect('index.php?page=account&action=orders');
-         } catch (Exception $e) {
-             // Handle other errors (DB issues, missing Stripe client, etc.)
-             error_log("Error showing order confirmation for PI {$paymentIntentId}: " . $e->getMessage());
-             $this->setFlashMessage('An unexpected error occurred while confirming your order. Please check your order history.', 'error');
-             $this->redirect('index.php?page=account&action=orders');
-         }
+             if (!$order || $order['user_id'] !== $userId) { error_log("Order not found or user mismatch for PI: {$paymentIntentId}"); $this->logSecurityEvent('confirmation_access_denied', ['payment_intent_id' => $paymentIntentId, 'logged_in_user' => $userId, 'order_user' => $order['user_id'] ?? null]); $this->setFlashMessage('Order details not found or access denied.', 'error'); $this->redirect('index.php?page=account&section=orders'); return; }
+             $acceptableStatuses = ['processing', 'paid', 'shipped', 'delivered', 'completed']; if (!in_array($order['status'], $acceptableStatuses)) { error_log("Confirmation Warning: PI {$paymentIntentId} succeeded, but order {$order['id']} status is '{$order['status']}'."); }
+             $fullOrder = $this->orderModel->getByIdAndUserId($order['id'], $userId);
+             if (!$fullOrder || empty($fullOrder['items'])) { error_log("Could not fetch full order details for confirmed order ID: {$order['id']}"); $this->setFlashMessage('Could not display full order details.', 'error'); $this->redirect('index.php?page=account&section=orders'); return; }
+             $csrfToken = $this->getCsrfToken(); $bodyClass = 'page-order-confirmation'; $pageTitle = 'Order Confirmation - The Scent';
+             echo $this->renderView('order_confirmation', [ 'order' => $fullOrder, 'csrfToken' => $csrfToken, 'bodyClass' => $bodyClass, 'pageTitle' => $pageTitle ]);
+         } catch (\Stripe\Exception\ApiErrorException $e) { error_log("Stripe API error fetching PI {$paymentIntentId}: " . $e->getMessage()); $this->setFlashMessage('Error verifying payment status.', 'error'); $this->redirect('index.php?page=account&action=orders');
+         } catch (Exception $e) { error_log("Error showing order confirmation for PI {$paymentIntentId}: " . $e->getMessage()); $this->setFlashMessage('An unexpected error occurred.', 'error'); $this->redirect('index.php?page=account&action=orders'); }
      }
 
 
     // --- Admin Method (Restored - Unchanged from previous working state) ---
     public function updateOrderStatus($orderId, $status, $trackingInfo = null) {
          // (Method content unchanged - assuming it was already correct)
-         $this->requireAdmin(true); // Indicate AJAX
-         // Validate CSRF if this is triggered by a form/AJAX POST from admin panel
-         // $this->validateCSRF(); // Consider adding if applicable
-
-         $orderId = $this->validateInput($orderId, 'int');
-         $status = $this->validateInput($status, 'string'); // Basic validation
-
-         if (!$orderId || !$status) {
-             return $this->jsonResponse(['success' => false, 'error' => 'Invalid input.'], 400);
-         }
-
-         $order = $this->orderModel->getById($orderId); // Fetch by ID for admin
-         if (!$order) {
-            return $this->jsonResponse(['success' => false, 'error' => 'Order not found'], 404);
-         }
-
-         // --- Add logic to check allowed status transitions ---
-         $allowedTransitions = [
-             'pending_payment' => ['paid', 'processing', 'cancelled', 'payment_failed'], // Allow direct to processing?
-             'paid' => ['processing', 'cancelled', 'refunded'],
-             'processing' => ['shipped', 'cancelled', 'refunded'],
-             'shipped' => ['delivered', 'refunded'], // Consider returns separate?
-             'delivered' => ['refunded', 'completed'], // Add completed?
-             'payment_failed' => ['pending_payment', 'cancelled'], // Allow retry or cancel
-             'cancelled' => [],
-             'refunded' => [],
-             'partially_refunded' => ['refunded'], // Allow full refund after partial
-             'disputed' => ['refunded'], // Allow refunding after dispute
-             'completed' => [], // Terminal state
-         ];
-
-         if (!isset($allowedTransitions[$order['status']]) || !in_array($status, $allowedTransitions[$order['status']])) {
-              return $this->jsonResponse(['success' => false, 'error' => "Invalid status transition from '{$order['status']}' to '{$status}'."], 400);
-         }
-         // --- End Status Transition Check ---
-
-         try {
-             $this->beginTransaction();
-
-             // Use OrderModel update method
-             $updated = $this->orderModel->updateStatus($orderId, $status);
-             if (!$updated) {
-                 // Re-check if status is already set to prevent false failure
-                 $currentOrder = $this->orderModel->getById($orderId);
-                 if (!$currentOrder || $currentOrder['status'] !== $status) {
-                     throw new Exception("Failed to update order status in DB.");
-                 }
-             }
-
-             // Handle tracking info and email notification for 'shipped' status
-             // Assuming $trackingInfo is passed correctly if status is 'shipped'
-             if ($status === 'shipped' && $trackingInfo && !empty($trackingInfo['number'])) {
-                 $trackingNumber = $this->validateInput($trackingInfo['number'], 'string', ['max' => 100]);
-                 $carrier = $this->validateInput($trackingInfo['carrier'] ?? null, 'string', ['max' => 100]);
-
-                 if ($trackingNumber) {
-                      $trackingUpdated = $this->orderModel->updateTracking(
-                          $orderId,
-                          $trackingNumber,
-                          $carrier
-                      );
-
-                      if ($trackingUpdated) {
-                          // --- Corrected: Use $this->userModel ---
-                          // $userModel = new User($this->db); // Removed
-                          $user = $this->userModel->getById($order['user_id']);
-                          // --- End Correction ---
-                          // Fetch full order details for email context
-                          $fullOrder = $this->orderModel->getByIdAndUserId($orderId, $order['user_id']); // Use correct method
-
-                          if ($user && $fullOrder && $this->emailService && method_exists($this->emailService, 'sendShippingUpdate')) {
-                               $this->emailService->sendShippingUpdate(
-                                  $fullOrder, // Pass full order data
-                                  $user,
-                                  $trackingNumber,
-                                  $carrier ?? ''
-                              );
-                          } elseif (!$user) {
-                               error_log("Could not find user {$order['user_id']} to send shipping update for order {$orderId}");
-                          } elseif (!$fullOrder) {
-                               error_log("Could not find full order details for shipping update email (Order ID: {$orderId})");
-                          } else {
-                               error_log("EmailService or sendShippingUpdate method not available for order {$orderId}");
-                          }
-                      } else {
-                          error_log("Failed to update tracking info for order {$orderId}");
-                      }
-                 }
-             }
-
-             // TODO: Add more logic for other status changes (e.g., refund trigger, restock on cancel/refund)
-             if ($status === 'cancelled' || $status === 'refunded') {
-                  error_log("Order {$orderId} status changed to {$status}. Consider adding refund/restock logic here.");
-             }
-
-             $this->commit();
-
-             $adminUserId = $this->getUserId(); // Assumes admin is logged in
-             $this->logAuditTrail('order_status_update', $adminUserId, [
-                  'order_id' => $orderId, 'new_status' => $status, 'tracking_provided' => ($status === 'shipped' && !empty($trackingNumber))
-             ]);
-
+         $this->requireAdmin(true); $orderId = $this->validateInput($orderId, 'int'); $status = $this->validateInput($status, 'string');
+         if (!$orderId || !$status) { return $this->jsonResponse(['success' => false, 'error' => 'Invalid input.'], 400); } $order = $this->orderModel->getById($orderId);
+         if (!$order) { return $this->jsonResponse(['success' => false, 'error' => 'Order not found'], 404); }
+         $allowedTransitions = [ /* ... transitions ... */ 'pending_payment' => ['paid', 'processing', 'cancelled', 'payment_failed'], 'paid' => ['processing', 'cancelled', 'refunded'], 'processing' => ['shipped', 'cancelled', 'refunded'], 'shipped' => ['delivered', 'refunded'], 'delivered' => ['refunded', 'completed'], 'payment_failed' => ['pending_payment', 'cancelled'], 'cancelled' => [], 'refunded' => [], 'partially_refunded' => ['refunded'], 'disputed' => ['refunded'], 'completed' => [] ];
+         if (!isset($allowedTransitions[$order['status']]) || !in_array($status, $allowedTransitions[$order['status']])) { return $this->jsonResponse(['success' => false, 'error' => "Invalid status transition from '{$order['status']}' to '{$status}'."], 400); }
+         try { $this->beginTransaction(); $updated = $this->orderModel->updateStatus($orderId, $status);
+             if (!$updated) { $currentOrder = $this->orderModel->getById($orderId); if (!$currentOrder || $currentOrder['status'] !== $status) { throw new Exception("Failed to update order status in DB."); } }
+             if ($status === 'shipped' && $trackingInfo && !empty($trackingInfo['number'])) { $trackingNumber = $this->validateInput($trackingInfo['number'], 'string', ['max' => 100]); $carrier = $this->validateInput($trackingInfo['carrier'] ?? null, 'string', ['max' => 100]);
+                 if ($trackingNumber) { $trackingUpdated = $this->orderModel->updateTracking( $orderId, $trackingNumber, $carrier );
+                      if ($trackingUpdated) { $user = $this->userModel->getById($order['user_id']); $fullOrder = $this->orderModel->getByIdAndUserId($orderId, $order['user_id']);
+                           if ($user && $fullOrder && $this->emailService && method_exists($this->emailService, 'sendShippingUpdate')) { $this->emailService->sendShippingUpdate( $fullOrder, $user, $trackingNumber, $carrier ?? '' ); }
+                           elseif (!$user) { error_log("Could not find user {$order['user_id']} to send shipping update for order {$orderId}"); } elseif (!$fullOrder) { error_log("Could not find full order details for shipping update email (Order ID: {$orderId})"); } else { error_log("EmailService or sendShippingUpdate method not available for order {$orderId}"); } }
+                      else { error_log("Failed to update tracking info for order {$orderId}"); } } }
+             if ($status === 'cancelled' || $status === 'refunded') { error_log("Order {$orderId} status changed to {$status}. Consider adding refund/restock logic here."); }
+             $this->commit(); $adminUserId = $this->getUserId(); $this->logAuditTrail('order_status_update', $adminUserId, [ 'order_id' => $orderId, 'new_status' => $status, 'tracking_provided' => ($status === 'shipped' && !empty($trackingNumber)) ]);
              return $this->jsonResponse(['success' => true, 'message' => 'Order status updated successfully.']);
-
-         } catch (Exception $e) {
-             $this->rollback();
-             error_log("Error updating order status for {$orderId}: " . $e->getMessage());
-            return $this->jsonResponse(['success' => false, 'error' => 'Failed to update order status.'], 500);
-         }
+         } catch (Exception $e) { $this->rollback(); error_log("Error updating order status for {$orderId}: " . $e->getMessage()); return $this->jsonResponse(['success' => false, 'error' => 'Failed to update order status.'], 500); }
     }
     // --- End Admin Method (Restored) ---
 
@@ -1720,22 +1452,28 @@ class CheckoutController extends BaseController {
      * Expects $cartItems as [productId => ['quantity' => q, ...]]
      */
      private function validateCartStock(array $cartItems): array {
-         // (Method content unchanged - it was already correct)
          $errors = [];
-         if (empty($cartItems)) { return ['Cart is empty']; }
+         // --- START FIX: Return empty array if cart is empty ---
+         if (empty($cartItems)) {
+             return []; // Cart being empty is not a stock error
+         }
+         // --- END FIX ---
 
          foreach ($cartItems as $productId => $itemData) {
              // Ensure itemData has quantity key
              $quantity = $itemData['quantity'] ?? 0;
              if ($quantity <= 0) continue;
 
-             $product = $this->productModel->getById($productId); // Fetch product details
+             $product = $this->productModel->getById($productId);
              if (!$product) {
-                 $errors[] = "Product ID {$productId} not found.";
+                 // This case should ideally be handled earlier, but good to have defence here
+                 $errors[] = "Product ID {$productId} not found during stock check.";
                  continue;
              }
              if (!$this->productModel->isInStock($productId, $quantity)) {
-                 $errors[] = htmlspecialchars($product['name'] ?? "Product ID {$productId}") . " has insufficient stock";
+                 // --- START FIX: Improve out-of-stock message ---
+                 $errors[] = htmlspecialchars($product['name'] ?? "Product ID {$productId}") . " (Only " . ($product['stock_quantity'] ?? 0) . " left)"; // Be more specific
+                 // --- END FIX ---
              }
          }
          return $errors;

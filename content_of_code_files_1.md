@@ -285,6 +285,8 @@ try {
 # config.php  
 ```php
 <?php
+// config.php (Updated - Correct Stripe PK)
+
 // Environment
 define('ENVIRONMENT', getenv('APP_ENV') ?: 'production');
 // --- MOVED BASE_URL DEFINITION HERE ---
@@ -340,7 +342,7 @@ define('SECURITY_SETTINGS', [
     ],
     'cors' => [ // Cross-Origin Resource Sharing (Example, adjust as needed)
         // Use BASE_URL constant which is now defined above
-        'allowed_origins' => [BASE_URL], // <<< THIS LINE CAUSED THE ERROR
+        'allowed_origins' => [BASE_URL],
         'allowed_methods' => ['GET', 'POST'], // Restrict methods
         'allowed_headers' => ['Content-Type', 'X-Requested-With', 'Accept'], // Common headers
         'expose_headers' => [],
@@ -380,9 +382,11 @@ define('DB_PASS', 'StrongPassword123'); // Use environment variables in producti
 // BASE_URL is defined near the top now
 
 // Stripe Configuration (Replace placeholders with your actual keys)
-define('STRIPE_PUBLIC_KEY', 'pk_test_51R');
-define('STRIPE_SECRET_KEY', 'sk_test_51R');
-define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret'); // Get this from your Stripe Dashboard Webhook settings
+// --- START FIX: Use the correct, complete Stripe Public Key ---
+define('STRIPE_PUBLIC_KEY', 'pk_test_51RLNNX4axRnYhkNVHz16qi7Gq4UnX5LDalYvXf3lIqneXziRQFrzrk0e4dMyBqaKQ8IxmJhSqtpiApC2TaBcIQqS00NJG40ELn');
+// --- END FIX ---
+define('STRIPE_SECRET_KEY', 'sk_test_51RLNNX4axRnYhkNVVM6I6jESZEGNKiI6ALCYm5dEzDLqqA17H0BkTz2Jvq3I3jmeBEFmUDN73AKKiL1Dj5omE2iJ00yutlxS1C');
+define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret'); // IMPORTANT: Get this from your Stripe Dashboard Webhook settings
 
 // Email Configuration
 define('SMTP_HOST', 'localhost'); // Or your actual SMTP host

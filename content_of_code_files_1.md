@@ -282,7 +282,7 @@ try {
 
 ```
 
-# config.php.1  
+# config.php  
 ```php
 <?php
 // Environment
@@ -380,8 +380,8 @@ define('DB_PASS', 'StrongPassword123'); // Use environment variables in producti
 // BASE_URL is defined near the top now
 
 // Stripe Configuration (Replace placeholders with your actual keys)
-define('STRIPE_PUBLIC_KEY', 'pk_test_51');
-define('STRIPE_SECRET_KEY', 'sk_test_51');
+define('STRIPE_PUBLIC_KEY', 'pk_test_51R');
+define('STRIPE_SECRET_KEY', 'sk_test_51R');
 define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret'); // Get this from your Stripe Dashboard Webhook settings
 
 // Email Configuration

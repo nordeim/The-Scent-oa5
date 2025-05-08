@@ -94,8 +94,8 @@ define('DB_PASS', 'StrongPassword123'); // Use environment variables in producti
 // BASE_URL is defined near the top now
 
 // Stripe Configuration (Replace placeholders with your actual keys)
-define('STRIPE_PUBLIC_KEY', 'pk_test_51R');
-define('STRIPE_SECRET_KEY', 'sk_test_51R');
+define('STRIPE_PUBLIC_KEY', 'pk_test_51RLNNX4axRnYhkNVHz16qi7Gq4UnX5LDalYvXf3lIqneXziRQFrzrk0e4dMyBqaKQ8IxmJhSqtpiApC2TaBcIQqS00NJG40ELn');
+define('STRIPE_SECRET_KEY', 'sk_test_51RLNNX4axRnYhkNVVM6I6jESZEGNKiI6ALCYm5dEzDLqqA17H0BkTz2Jvq3I3jmeBEFmUDN73AKKiL1Dj5omE2iJ00yutlxS1C');
 define('STRIPE_WEBHOOK_SECRET', 'whsec_your_stripe_webhook_secret'); // Get this from your Stripe Dashboard Webhook settings
 
 // Email Configuration

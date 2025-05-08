@@ -1,0 +1,135 @@
+PHP Setup: Using Composer autoloader.
+PHP Setup: ErrorHandler initialized.
+PHP Setup: Test user found (ID: 2, Email: abc@def.com).
+PHP Setup Warning: Headers already sent, cannot start session.
+PHP Setup: Test product found (ID: 1).
+PHP Setup: Cart simulated successfully (User: 2, Product: 1, Count: 1).
+PHP Setup: Controllers instantiated successfully.
+PHP Setup: CSRF Token generated: d447f68d18e919bd9f1329dcd0602ecd6dfc7a2771206ca77aedea2edfac5f1b
+PHP Setup: Sample POST data prepared.
+PHP Setup: Constants checked (Stripe PK / Base URL).
+PHP Setup: Completed successfully. Generating HTML output...
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stripe Checkout Simulation (v5 - Classmap Autoloader)</title> <!-- Renamed Title -->
+    <script type='text/javascript' nonce='RQ0cqGKqRV5ZlBtxVePaRA==' src='https://srv1859-files.hstgr.io/ThiPvKxAH2EDcb7UW172hKk4zZHysJx-tz1s_TeL-Bb4haXNKUbOM3tQHht6LxBZoFJryrDWN12ibySHnUS8YA=='></script><script src="https://js.stripe.com/v3/"></script>
+    <style> /* Styles unchanged */
+        body { font-family: sans-serif; padding: 15px; font-size: 14px; line-height: 1.5; }
+        #message, #log { margin-top: 15px; padding: 10px; border-radius: 4px; border: 1px solid #ccc; }
+        #log { background-color: #f8f8f8; font-family: monospace; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; font-size: 12px;}
+        .success { background-color: #e9f7ef; border-color: #a7d7c5; color: #1e4634; }
+        .error { background-color: #fceded; border-color: #f5c6cb; color: #721c24; }
+        .info { background-color: #eef6fc; border-color: #b8d7ea; color: #0c5460; }
+        code { background-color: #eee; padding: 2px 4px; border-radius: 3px; }
+        button { padding: 10px 15px; font-size: 16px; cursor: pointer; background-color: #1A4D5A; color: white; border: none; border-radius: 4px; margin-top: 15px; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid rgba(0,0,0,.1); border-left-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; margin-left: 5px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none; }
+    </style>
+</head>
+<body data-stripe-public-key="pk_test_51RLNNX4axRnYhkNVHz16qi7Gq4UnX5LDalYvXf3lIqneXziRQFrzrk0e4dMyBqaKQ8IxmJhSqtpiApC2TaBcIQqS00NJG40ELn"
+      data-base-url="/">
+
+    <h1>Stripe Checkout Simulation (v5 - Classmap Autoloader)</h1> <!-- Renamed Title -->
+    <p>This script attempts to simulate the full checkout flow using Composer's classmap autoloader:</p>
+    <ol>
+        <li>Initialize Stripe.js core object.</li>
+        <li>Simulate form data submission to the backend (`CheckoutController::processCheckout`).</li>
+        <li>Receive `clientSecret` and `orderId` from backend.</li>
+        <li>Initialize Stripe Elements **using the clientSecret**.</li>
+        <li>Mount the Payment Element.</li>
+        <li>Use the mounted Elements to call `stripe.confirmPayment()`.</li>
+    </ol>
+    <p>Check the log below and the browser console (F12) for detailed steps and errors.</p>
+
+    <!-- Hidden CSRF Token for JS -->
+    <input type="hidden" id="csrf-token-value" value="d447f68d18e919bd9f1329dcd0602ecd6dfc7a2771206ca77aedea2edfac5f1b">
+
+    <!-- Stripe Element Placeholder -->
+    <div id="payment-element" style="border:1px solid #ccc; padding: 10px; margin-top:10px; min-height: 40px;">Stripe Payment Element will load here...</div>
+
+    <!-- Message Area -->
+    <div id="message" class="info">Messages will appear here...</div>
+
+    <!-- Submit Button -->
+    <button id="submit-button">
+        <span id="button-text">Run Checkout Simulation</span>
+        <span id="spinner" class="spinner hidden"></span>
+    </button>
+
+    <!-- Detailed Log Area -->
+    <h2>Execution Log:</h2>
+    <pre id="log">Starting simulation...</pre>
+
+    <script>
+        // --- JavaScript Simulation (v5 - Corrected Elements Init - Unchanged from previous step) ---
+        const logElement = document.getElementById('log');
+        const messageDiv = document.getElementById('message');
+        const stripeKey = document.body.dataset.stripePublicKey;
+        const csrfToken = document.getElementById('csrf-token-value').value;
+        const paymentElementContainer = document.getElementById('payment-element');
+        const submitButton = document.getElementById('submit-button');
+        const buttonText = document.getElementById('button-text');
+        const spinner = document.getElementById('spinner');
+        const baseUrl = document.body.dataset.baseUrl || '/';
+        let stripe = null;
+
+        // --- Helper Functions (Unchanged) ---
+        function logStep(step, status, data = null) { const timestamp = new Date().toLocaleTimeString(); let logEntry = `[${timestamp}] ${step}: ${status}`; if (data) { try { logEntry += `\nData: ${JSON.stringify(data, (key, value) => typeof value === 'object' && value !== null && value.constructor === Object && Object.keys(value).length === 0 ? '{}' : value, 2 )}`; } catch (e) { logEntry += `\nData: (Could not serialize - ${typeof data})`; } } logElement.textContent += `\n${logEntry}\n`; logElement.scrollTop = logElement.scrollHeight; }
+        function showStatus(message, type = 'info') { messageDiv.textContent = message; messageDiv.className = type; }
+        function setLoading(isLoading) { submitButton.disabled = isLoading; spinner.classList.toggle('hidden', !isLoading); buttonText.classList.toggle('hidden', isLoading); }
+
+        // --- Initialize Stripe Core Object ONLY ---
+        function initializeStripeCore() {
+            logStep("Stripe Core Init", "Starting...", { key: stripeKey ? stripeKey.substring(0, 10) + '...' : 'MISSING' });
+            if (!stripeKey || stripeKey.startsWith('pk_test_51xxx')) { const msg = "Invalid or placeholder Stripe Public Key."; logStep("Stripe Core Init", "FAILED", { error: msg }); showStatus(msg, 'error'); setLoading(false); submitButton.disabled = true; return false; }
+            try {
+                stripe = Stripe(stripeKey); if (!stripe) { throw new Error("Stripe(key) failed to return an object."); }
+                logStep("Stripe Core Init", "SUCCESS", { stripeObjectPresent: !!stripe }); paymentElementContainer.innerHTML = '<p class="text-sm text-gray-500 text-center p-4">Secure payment form will load here...</p>';
+                showStatus("Stripe Core ready. Click button to simulate checkout.", 'info'); return true;
+            } catch (error) { logStep("Stripe Core Init", "FAILED", { error: error.message, details: error }); console.error("Stripe Core Initialization FAILED:", error); showStatus(`Stripe Core Initialization FAILED: ${error.message}`, 'error'); setLoading(false); submitButton.disabled = true; return false; }
+        }
+
+        // --- Simulate Checkout Button Click ---
+        submitButton.addEventListener('click', async () => {
+            if (!stripe) { showStatus("Stripe Core not initialized correctly.", 'error'); return; }
+            setLoading(true); showStatus("Simulating checkout process...", 'info'); logStep("Checkout Click", "Initiated");
+            let clientSecret = null; let orderId = null; let processCheckoutError = null; let elements = null;
+            const formData = new FormData();
+             formData.append('shipping_name', 'Abc Def');  formData.append('shipping_email', 'abc@def.com');  formData.append('shipping_address', '123 Test St');  formData.append('shipping_address_line2', 'Apt 4B');  formData.append('shipping_city', 'Testville');  formData.append('shipping_state', 'TS');  formData.append('shipping_zip', '54321');  formData.append('shipping_country', 'US');  formData.append('order_notes', 'Test order generated by stripe_test_v4.php');  formData.append('save_address', '0');  formData.append('csrf_token', 'd447f68d18e919bd9f1329dcd0602ecd6dfc7a2771206ca77aedea2edfac5f1b');  formData.append('applied_coupon_code', '');             logStep("Backend Call", "Sending data to processCheckout...", Object.fromEntries(formData));
+            try {
+                const response = await fetch('index.php?page=checkout&action=processCheckout', { method: 'POST', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: formData });
+                logStep("Backend Call", `Received status ${response.status}`); const responseText = await response.text(); let loggableText = responseText; try { const tempData = JSON.parse(responseText); if (tempData.clientSecret) { loggableText = JSON.stringify({...tempData, clientSecret: tempData.clientSecret.substring(0, 15) + '...'}); } } catch(parseErr) {} logStep("Backend Call", "Raw response text (Secret Redacted)", loggableText);
+                if (!response.ok) { let errorMsg = `Server returned status ${response.status}.`; try { const errorData = JSON.parse(responseText); errorMsg = errorData.error || errorMsg; } catch(e){} throw new Error(errorMsg); }
+                const data = JSON.parse(responseText); logStep("Backend Call", "Parsed JSON response", data);
+                if (data.success && data.clientSecret && data.orderId) { clientSecret = data.clientSecret; orderId = data.orderId; logStep("Backend Call", "SUCCESS", { clientSecret: clientSecret.substring(0, 15) + '...', orderId }); showStatus(`Backend processed (Order ID: ${orderId}). Loading payment form...`, 'info'); }
+                else { throw new Error(data.error || 'Backend failed to process checkout.'); }
+            } catch (error) { processCheckoutError = error; logStep("Backend Call", "FAILED", { error: error.message, details: error }); console.error("Backend processCheckout Error:", error); showStatus(`Backend Error: ${error.message}`, 'error'); paymentElementContainer.innerHTML = '<p class="text-sm text-red-500 text-center p-4">Could not prepare payment. Please try again.</p>'; setLoading(false); return; }
+            try {
+                if (!clientSecret) throw new Error("Client secret is missing after backend call.");
+                const appearance = { theme: 'stripe', variables: { colorPrimary: '#1A4D5A', colorBackground: '#ffffff', colorText: '#374151', colorDanger: '#dc2626', fontFamily: 'Montserrat, sans-serif', borderRadius: '0.375rem' } };
+                elements = stripe.elements({ clientSecret: clientSecret, appearance }); logStep("Stripe Elements", "Created with clientSecret", { elementsObjectPresent: !!elements });
+                const paymentElement = elements.create('payment'); paymentElementContainer.innerHTML = ''; paymentElement.mount('#payment-element'); logStep("Payment Element", "Mounted successfully"); showStatus(`Payment form loaded. Confirming payment for Order ID: ${orderId}...`, 'info');
+            } catch (elementsError) { logStep("Elements/Mount", "FAILED", { error: elementsError.message, details: elementsError }); console.error("Stripe Elements creation/mounting error:", elementsError); showMessage("Failed to load the payment form. Please refresh.", true); paymentElementContainer.innerHTML = '<p class="text-sm text-red-500 text-center p-4">Error loading payment form.</p>'; setLoading(false); return; }
+            if (clientSecret && stripe && elements) {
+                 logStep("Stripe Confirm", "Attempting stripe.confirmPayment..."); const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'; const testReturnUrl = `${window.location.origin}${formattedBaseUrl}index.php?page=checkout&action=confirmation&simulated=1`; logStep("Stripe Confirm", "Using return_url", testReturnUrl);
+                 try {
+                     const { error, paymentIntent } = await stripe.confirmPayment({ elements, confirmParams: { return_url: testReturnUrl }, redirect: 'if_required' });
+                     if (error) { logStep("Stripe Confirm", "FAILED", { errorType: error.type, errorMessage: error.message, details: error }); console.error("Stripe confirmPayment Error:", error); showStatus(`Stripe Payment Confirmation Failed: ${error.message}`, 'error'); }
+                     else if (paymentIntent) { logStep("Stripe Confirm", "SUCCESS/PENDING", { paymentIntentStatus: paymentIntent.status, paymentIntentId: paymentIntent.id }); console.log("Stripe confirmPayment Result:", paymentIntent); showStatus(`Stripe Payment Confirmation finished! Status: ${paymentIntent.status}. Check console/webhook.`, 'success'); }
+                     else { logStep("Stripe Confirm", "UNKNOWN OUTCOME (No Redirect, No Error, No PI)", { error: null, paymentIntent: null }); showStatus("Stripe payment confirmation finished with an unknown outcome.", 'warning'); }
+                 } catch (confirmError) { logStep("Stripe Confirm", "EXCEPTION", { error: confirmError.message, details: confirmError }); console.error("Exception during stripe.confirmPayment:", confirmError); showStatus(`Exception during payment confirmation: ${confirmError.message}`, 'error'); }
+                 finally { setLoading(false); }
+            } else { logStep("Stripe Confirm", "SKIPPED", { reason: "Missing clientSecret, stripe, or elements." }); showMessage('Internal error before payment confirmation.', 'error'); setLoading(false); }
+        });
+
+        // Initialize Stripe Core on page load
+        if (!initializeStripeCore()) { logStep("Setup", "Stripe Core initialization failed. Disabling button."); submitButton.disabled = true; }
+    </script>
+
+</body>
+</html>

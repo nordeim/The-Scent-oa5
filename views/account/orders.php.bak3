@@ -1,7 +1,8 @@
 <?php
-// Updated: views/account/orders.php (Quiz History Link Updated)
+// Updated: views/account/orders.php
+// Added header and footer includes
 
-require_once __DIR__ . '/../layout/header.php'; 
+require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
 ?>
 
 <section class="account-section">
@@ -34,7 +35,7 @@ require_once __DIR__ . '/../layout/header.php';
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=quiz&action=history"> {/* MODIFIED LINK */}
+                                <a href="index.php?page=account&section=quiz">
                                     <i class="fas fa-clipboard-list"></i> Quiz History
                                 </a>
                             </li>
@@ -246,4 +247,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>

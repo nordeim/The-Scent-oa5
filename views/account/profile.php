@@ -1,8 +1,7 @@
 <?php
-// Updated: views/account/profile.php (v16.2 - Added MY, SG countries)
-// Added header and footer includes
+// Updated: views/account/profile.php (v16.2 - Quiz History Link Updated, Added MY, SG countries)
 
-require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
+require_once __DIR__ . '/../layout/header.php'; 
 ?>
 
 <section class="account-section">
@@ -35,7 +34,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=account&section=quiz">
+                                <a href="index.php?page=quiz&action=history"> 
                                     <i class="fas fa-clipboard-list"></i> Quiz History
                                 </a>
                             </li>
@@ -207,10 +206,8 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                              <option value="CA" <?= (($userAddress['country'] ?? '') === 'CA') ? 'selected' : '' ?>>Canada</option>
                                              <option value="GB" <?= (($userAddress['country'] ?? '') === 'GB') ? 'selected' : '' ?>>United Kingdom</option>
                                              <option value="AU" <?= (($userAddress['country'] ?? '') === 'AU') ? 'selected' : '' ?>>Australia</option>
-                                             <!-- START: Added Countries -->
                                              <option value="MY" <?= (($userAddress['country'] ?? '') === 'MY') ? 'selected' : '' ?>>Malaysia</option>
                                              <option value="SG" <?= (($userAddress['country'] ?? '') === 'SG') ? 'selected' : '' ?>>Singapore</option>
-                                             <!-- END: Added Countries -->
                                              {/* Add more countries as needed */}
                                         </select>
                                    </div>
@@ -247,7 +244,6 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
 </section>
 
 <script>
-// Existing JS for password toggle and validation (from content_of_code_files_6) remains unchanged
 document.addEventListener('DOMContentLoaded', function() {
     // --- Password visibility toggle ---
     document.querySelectorAll('.toggle-password').forEach(button => {
@@ -280,13 +276,11 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function validatePasswordRequirements() {
-        if (!passwordForm || !newPassword || !confirmPassword) return; // Check if elements exist
+        if (!passwordForm || !newPassword || !confirmPassword) return; 
 
         let allMet = true;
         const passwordValue = newPassword.value;
         const confirmPasswordValue = confirmPassword.value;
-
-        // Only validate if new password field is not empty
         const shouldValidate = passwordValue.length > 0;
 
         for (const reqKey in requirements) {
@@ -300,7 +294,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 isMet = req.regex.test(passwordValue);
             }
 
-            // Update UI only if validation should occur
             if (shouldValidate) {
                  req.element.classList.toggle('met', isMet);
                  req.element.classList.toggle('not-met', !isMet);
@@ -312,7 +305,6 @@ document.addEventListener('DOMContentLoaded', function() {
                      icon.classList.toggle('text-red-500', !isMet);
                  }
             } else {
-                 // Reset UI if new password field is empty
                  req.element.classList.remove('met');
                  req.element.classList.add('not-met');
                  const icon = req.element.querySelector('i');
@@ -321,38 +313,30 @@ document.addEventListener('DOMContentLoaded', function() {
                       icon.classList.add('fa-times-circle', 'text-red-500');
                  }
             }
-
             if (shouldValidate && !isMet) allMet = false;
         }
-        // Enable submit button only if *all* requirements are met OR if the new password field is empty
         const submitButton = passwordForm.querySelector('button[type="submit"]');
         if (submitButton) {
              submitButton.disabled = !(allMet || !shouldValidate);
         }
-
         return allMet || !shouldValidate;
     }
 
     if (passwordForm && newPassword && confirmPassword) {
         newPassword.addEventListener('input', validatePasswordRequirements);
         confirmPassword.addEventListener('input', validatePasswordRequirements);
-        // Initial validation check on load
         validatePasswordRequirements();
 
         passwordForm.addEventListener('submit', function(e) {
-            // Only perform final check if a new password has been entered
             if (newPassword.value.length > 0) {
-                // Check if passwords match
                  if (newPassword.value !== confirmPassword.value) {
                      e.preventDefault();
-                     // Use the global flash message function if available
                      if(typeof window.showFlashMessage === 'function') {
                           window.showFlashMessage('New passwords do not match.', 'error');
                      } else { alert('New passwords do not match.'); }
                      confirmPassword.focus();
                      return;
                  }
-                 // Check if password meets requirements according to pattern attribute (browser validation)
                  if (!newPassword.checkValidity()) {
                      e.preventDefault();
                       if(typeof window.showFlashMessage === 'function') {
@@ -362,11 +346,9 @@ document.addEventListener('DOMContentLoaded', function() {
                      return;
                  }
             }
-             // Current password validation (if new password is set) should be handled server-side for security.
         });
     }
 
-    // Optional: Add basic client-side validation for the address form if desired
     const addressForm = document.getElementById('addressForm');
     if (addressForm) {
          addressForm.addEventListener('submit', function(e) {
@@ -376,7 +358,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   const input = document.getElementById(id);
                   if (!input || !input.value.trim()) {
                        addressIsValid = false;
-                       input?.classList.add('border-red-500'); // Add error indication
+                       input?.classList.add('border-red-500'); 
                   } else {
                        input?.classList.remove('border-red-500');
                   }
@@ -387,13 +369,38 @@ document.addEventListener('DOMContentLoaded', function() {
                        window.showFlashMessage('Please fill in all required address fields.', 'error');
                   } else { alert('Please fill in all required address fields.'); }
              } else {
-                 // Optional: Add spinner/loading state to button
                  const submitBtn = addressForm.querySelector('button[type="submit"]');
-                 if (submitBtn) submitBtn.disabled = true; // Prevent double submit
+                 if (submitBtn) {
+                     submitBtn.disabled = true;
+                     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving Address...';
+                 }
              }
          });
     }
+
+    // Add submit handlers for profile and preferences forms to show loading state
+    const profileForm = document.getElementById('profileForm');
+    if(profileForm) {
+        profileForm.addEventListener('submit', function() {
+            const submitBtn = profileForm.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving Changes...';
+            }
+        });
+    }
+    const preferencesForm = document.getElementById('preferencesForm');
+    if(preferencesForm) {
+        preferencesForm.addEventListener('submit', function() {
+            const submitBtn = preferencesForm.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Updating Preferences...';
+            }
+        });
+    }
+
 });
 </script>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; ?>

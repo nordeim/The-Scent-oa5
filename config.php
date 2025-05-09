@@ -73,7 +73,7 @@ define('SECURITY_SETTINGS', [
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         // CSP Update: Added *.stripe.com and *.stripe.network
-        'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com https://*.stripe.com; style-src 'self' 'unsafe-inline'; frame-src 'self' https://js.stripe.com https://*.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com https://*.stripe.com https://*.stripe.network",
+        // 'Content-Security-Policy' => "default-src 'self'; script-src 'self' https://js.stripe.com https://*.stripe.com; style-src 'self' 'unsafe-inline'; frame-src 'self' https://js.stripe.com https://*.stripe.com; img-src 'self' data: https:; connect-src 'self' https://api.stripe.com https://*.stripe.com https://*.stripe.network",
         'Strict-Transport-Security' => 'max-age=31536000; includeSubDomains' // Enable HSTS if using HTTPS
     ],
     'file_upload' => [ // Example file upload settings

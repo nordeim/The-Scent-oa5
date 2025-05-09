@@ -1,25 +1,5 @@
-[09-May-2025 06:41:09 UTC] Tax calculation error: Invalid tax calculation parameters
-[09-May-2025 06:41:09 UTC] [2025-05-09 06:41:09 UTC] [E_WARNING (Warning)] Undefined property: TaxController::$pdo in /cdrom/project/The-Scent-oa5/controllers/TaxController.php on line 62
-Context: {
-    "url": "/index.php?page=checkout&action=calculateTax",
-    "method": "POST",
-    "ip": "127.0.0.1",
-    "timestamp": "2025-05-09 06:41:09 UTC",
-    "user_id": 6
-}
-[09-May-2025 06:41:09 UTC] General error/exception in index.php: Call to a member function prepare() on null Trace: #0 /cdrom/project/The-Scent-oa5/controllers/CheckoutController.php(134): TaxController->getTaxRate()
-#1 /cdrom/project/The-Scent-oa5/index.php(102): CheckoutController->calculateTax()
-#2 {main}
-[09-May-2025 06:41:09 UTC] [2025-05-09 06:41:09 UTC] [Error] Call to a member function prepare() on null in /cdrom/project/The-Scent-oa5/controllers/TaxController.php on line 62
-Stack trace:
-#0 /cdrom/project/The-Scent-oa5/controllers/CheckoutController.php(134): TaxController->getTaxRate()
-#1 /cdrom/project/The-Scent-oa5/index.php(102): CheckoutController->calculateTax()
-#2 {main}
-Context: {
-    "url": "/index.php?page=checkout&action=calculateTax",
-    "method": "POST",
-    "ip": "127.0.0.1",
-    "timestamp": "2025-05-09 06:41:09 UTC",
-    "user_id": 6
-}
-[09-May-2025 06:41:09 UTC] ErrorHandler Warning: Cannot set HTTP 500 status code for exception, headers already sent. Exception: Call to a member function prepare() on null
+[09-May-2025 14:09:56 UTC] Tax calculation error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
+[09-May-2025 14:09:56 UTC] Tax rate lookup error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
+[09-May-2025 14:11:05 UTC] Tax calculation error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
+[09-May-2025 14:11:05 UTC] Tax rate lookup error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
+[09-May-2025 14:14:05 UTC] Login failed for email 'asd@zxc.com' from IP 127.0.0.1: Invalid email or password.

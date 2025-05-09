@@ -123,6 +123,27 @@ I did not share the original file for  `views/admin/product_form.php` earlier. I
 Please carefully review the "diff" command output comparing the newly generated `js/man.js` against the original version shared earlier. using line-by-line comparison to confirm that the necessary changes have been merged successfully in the new version, while not accidentally omitting other features and functions in the original version of `js/main.js`. Do a very detailed comparison and analysis before giving your conclusion.
 
 ---
+You are a deep-thinking AI agent recognized for and exemplary in modern UI design and production quality code generation. You may use an extremely long chain of thoughts to deeply consider the problem and deliberate with yourself via systematic reasoning processes to help come to a correct or most optimal solution before answering. You will carefully explore various options before choosing the best option for producing your final answer. You will thoroughly explore various implementation options before choosing the most optimal option or approach to implement a given request. To produce error-free results or code output, you will come up with a detailed execution plan based on your chosen best option or most optimal solution, then cautiously execute according to the plan to complete your given task. You will double-check and validate any code changes before implementing. You should enclose your thoughts and internal monologue inside <think> </think> tags, and then provide your solution or response to the problem. This is a meta-instruction about how you should operate for subsequent prompts.
+
+Carefully review the attached `diff` output comparing the `-new` version of `js/main.js` versus the original version attached as `main-orig.js`. The `diff` output shows that the previous `js/main.js-new` may be missing large chunks of functionality compared to the original `js/main.js`, which corresponds to `main-orig.js`.
+
+You will now provide the complete, corrected `js/main.js`, using the version from `main-orig.js` as the base and applying the necessary fixes:
+
+You will now meticulously compared `js/main.js-orig` (from `main-orig.js`) with the `js/main.js-new` from the diff output. You will use `js/main.js-orig` as the definitive base and re-apply only the necessary targeted fixes for the recommended fixes. Do not make up the content of the relevant files from scratch.
+
+---
+Please carefully review the "diff" command output attached comparing the newly generated `js/man.js-new` (v2) against the original version shared earlier as `main-orig.js`. You will use line-by-line comparison to confirm that the necessary changes have been merged successfully in the new version, while not accidentally omitting other features and functions in the original version of `js/main.js`. Do a very detailed comparison and analysis before giving your conclusion.
+
+---
+You stopped half way through generating the new complete and updated version of `views/account/profile.php` (see below). Please continue to generate the complete and updated version of the remaining files according to you earlier plan - start from generating the complete and updated version of `views/account/profile.php` again.
+
+---
+please carefully review the following "diff" command output comparing the newly generated version of `js/main.js` against the original version to confirm that the following recommended fixes have been applied correctly. Use the attached `main-orig.js` as the base to generate a complete and updated version of main.js, do not make up the file. You need to double check your new version to make sure that no other features and functions are accidentally left out (omitted) in your generated version. You will use line-by-line comparison to confirm that the necessary changes have been merged successfully in the new version, while not accidentally omitting other features and functions in the original version of `js/main.js`. Do a very detailed comparison and analysis before giving your conclusion. Create a new complete updated `js/main.js` to add back other features or functions in the original version.
+
+---
+Please carefully review the following "diff" command output comparing your newly generated `js/main.js` (v2) against the original version shared earlier. Do a line-by-line comparison to validate the changes and to confirm that no original features or functions have been accidentally left out (omitted) in your newly generated version.
+
+---
 Your newly generated `js/main.js` is much smaller than the original version enclosed in `content_of_code_files_3.md` shared earlier. Please carefully review the "diff" command output attached comparing the newly generated `js/man.js` against the original version shared earlier. You will use line-by-line comparison to confirm that the necessary changes have been merged successfully in the new version, while not accidentally omitting other features and functions in the original version of `js/main.js`. Do a very detailed comparison and analysis before giving your conclusion. Create a new complete updated `js/main.js` to add back other features or functions in the original version.
 
 Help me to create a sql script to make the necessary changes to the `orders` table. The existing database schema for the `orders` table:

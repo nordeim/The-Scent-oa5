@@ -1,7 +1,7 @@
 # views/account/dashboard.php  
 ```php
 <?php
-// views/account/dashboard.php (Layout Refactored with Tailwind CSS)
+// views/account/dashboard.php (Layout Refactored with Tailwind CSS - Quiz History Link Updated)
 require_once __DIR__ . '/../layout/header.php'; // Standard header include
 
 // Helper to render dashboard cards consistently
@@ -54,7 +54,7 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=account&section=quiz" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                <a href="index.php?page=quiz&action=history" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out"> {/* MODIFIED LINK */}
                                     <i class="fas fa-clipboard-list w-6 text-center mr-3"></i> Quiz History
                                 </a>
                             </li>
@@ -180,7 +180,7 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
                          $quizContent .= "</div>";
                          $quizContent .= "</div>"; // Close space-y-4
                     }
-                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=account&section=quiz', 'View History', 200);
+                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=quiz&action=history', 'View History', 200); // MODIFIED LINK
                     ?>
 
                     <!-- Quick Actions Card -->
@@ -206,10 +206,9 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
 # views/account/order_details.php  
 ```php
 <?php
-// Updated: views/account/order_details.php
-// Added header and footer includes
+// Updated: views/account/order_details.php (Quiz History Link Updated)
 
-require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
+require_once __DIR__ . '/../layout/header.php'; 
 ?>
 
 <section class="account-section">
@@ -242,7 +241,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=account&section=quiz">
+                                <a href="index.php?page=quiz&action=history"> {/* MODIFIED LINK */}
                                     <i class="fas fa-clipboard-list"></i> Quiz History
                                 </a>
                             </li>
@@ -536,17 +535,16 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
 .progress-line.active { background-color: #1A4D5A; }
 </style>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; ?>
 
 ```
 
 # views/account/orders.php  
 ```php
 <?php
-// Updated: views/account/orders.php
-// Added header and footer includes
+// Updated: views/account/orders.php (Quiz History Link Updated)
 
-require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
+require_once __DIR__ . '/../layout/header.php'; 
 ?>
 
 <section class="account-section">
@@ -579,7 +577,7 @@ require_once __DIR__ . '/../layout/header.php'; // <<< ADDED
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=account&section=quiz">
+                                <a href="index.php?page=quiz&action=history"> {/* MODIFIED LINK */}
                                     <i class="fas fa-clipboard-list"></i> Quiz History
                                 </a>
                             </li>
@@ -791,7 +789,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php require_once __DIR__ . '/../layout/footer.php'; // <<< ADDED ?>
+<?php require_once __DIR__ . '/../layout/footer.php'; ?>
 
 ```
 

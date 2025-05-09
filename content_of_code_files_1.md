@@ -1,7 +1,7 @@
 # index.php  
 ```php
 <?php
-// index.php (Updated - Admin Product Routing)
+// index.php (Updated - Admin Product Routing & Quiz History Routing)
 
 define('ROOT_PATH', __DIR__);
 require_once __DIR__ . '/config.php'; // Defines BASE_URL, etc.
@@ -46,7 +46,7 @@ try {
     }
 
     switch ($page) {
-        // --- Public Routes (Unchanged) ---
+        // --- Public Routes ---
         case 'home':
             require_once __DIR__ . '/controllers/ProductController.php';
             $controller = new ProductController($pdo);
@@ -59,7 +59,11 @@ try {
                 $controller->showProduct($id);
             } else {
                  http_response_code(404);
-                 require_once __DIR__ . '/views/404.php'; // Consider using renderView
+                 // Use renderView from a BaseController instance if available, or direct include
+                 // For simplicity here, direct include:
+                 $pageTitle = 'Page Not Found'; $bodyClass = 'page-404'; $csrfToken = SecurityMiddleware::generateCSRFToken();
+                 extract(['pageTitle' => $pageTitle, 'bodyClass' => $bodyClass, 'csrfToken' => $csrfToken]);
+                 require_once __DIR__ . '/views/404.php';
             }
             break;
         case 'products':
@@ -92,7 +96,6 @@ try {
             if (empty($action)) {
                 $cartCtrl = new CartController($pdo);
                 if (empty($cartCtrl->getCartItems())) {
-                    // Use BaseController flash message if possible, assumes controller has it
                     if(method_exists($controller, 'setFlashMessage')) {
                         $controller->setFlashMessage('Your cart is empty.', 'info');
                     } else { $_SESSION['flash_message'] = 'Your cart is empty.'; $_SESSION['flash_type'] = 'info';}
@@ -103,12 +106,12 @@ try {
             elseif ($action === 'confirmation') { $controller->showOrderConfirmation(); }
             elseif ($action === 'calculateTax' && $_SERVER['REQUEST_METHOD'] === 'POST') { $controller->calculateTax(); }
             elseif ($action === 'applyCouponAjax' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-                 require_once __DIR__ . '/controllers/CouponController.php'; // Need CouponController here
+                 require_once __DIR__ . '/controllers/CouponController.php'; 
                  $couponController = new CouponController($pdo);
-                 $couponController->applyCouponAjax(); // Delegate to CouponController
+                 $couponController->applyCouponAjax(); 
             } else { $controller->showCheckout(); }
             break;
-        // --- Auth Routes (Unchanged) ---
+        // --- Auth Routes ---
         case 'login':
             if (isLoggedIn()) { header('Location: ' . BASE_URL . 'index.php?page=account'); exit; }
             require_once __DIR__ . '/controllers/AccountController.php';
@@ -128,24 +131,20 @@ try {
              }
              require_once __DIR__ . '/controllers/AccountController.php';
              $controller = new AccountController($pdo);
-             $section = SecurityMiddleware::validateInput($_GET['section'] ?? 'dashboard', 'string'); // Define section for account
-             switch ($section) { // Use section instead of action here
+             $section = SecurityMiddleware::validateInput($_GET['section'] ?? 'dashboard', 'string'); 
+             switch ($section) { 
                  case 'profile':
-                     // Decide based on request method if it's view or update
                      if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                          $controller->updateProfile(); // POST handles update logic
+                          $controller->updateProfile(); 
                      } else {
-                          $controller->showProfile(); // GET shows the profile page
+                          $controller->showProfile(); 
                      }
                      break;
                  case 'orders':
-                     // Check if an order ID is provided for details view
                      if ($id) { $controller->showOrderDetails($id); }
-                     else { $controller->showOrders(); } // Show list otherwise
+                     else { $controller->showOrders(); } 
                      break;
-                 // Add other account sections (e.g., quiz history) here
-                 // case 'quiz': $controller->showQuizHistory(); break;
-                 case 'dashboard': // Explicit dashboard case
+                 case 'dashboard': 
                  default: $controller->showDashboard(); break;
              }
              break;
@@ -157,13 +156,22 @@ try {
              if (isLoggedIn()) { header('Location: ' . BASE_URL . 'index.php?page=account'); exit; }
              require_once __DIR__ . '/controllers/AccountController.php';
              $controller = new AccountController($pdo); $controller->resetPassword(); break;
-        // --- Other Routes (Unchanged except Newsletter/Quiz) ---
+        
+        // --- Quiz Routes ---
         case 'quiz':
             require_once __DIR__ . '/controllers/QuizController.php';
             $controller = new QuizController($pdo);
             if ($action === 'submit' && $_SERVER['REQUEST_METHOD'] === 'POST') { $controller->processQuiz(); }
-            else { $controller->showQuiz(); }
+            elseif ($action === 'results') { $controller->showResults(); } 
+            elseif ($action === 'history' && isLoggedIn()) { 
+                $controller->showUserQuizHistory(); 
+            } elseif ($action === 'history' && !isLoggedIn()) { 
+                $_SESSION['redirect_after_login'] = BASE_URL . 'index.php?page=quiz&action=history';
+                header('Location: ' . BASE_URL . 'index.php?page=login'); exit;
+            }
+            else { $controller->showQuiz(); } 
             break;
+
         case 'newsletter':
              require_once __DIR__ . '/controllers/NewsletterController.php';
              $controller = new NewsletterController($pdo);
@@ -172,41 +180,38 @@ try {
              else { http_response_code(404); require_once __DIR__ . '/views/404.php'; }
              break;
 
-        // --- START: Updated Admin Routing ---
+        // --- Admin Routing ---
         case 'admin':
              if (!isAdmin()) {
                  $_SESSION['redirect_after_login'] = BASE_URL . 'index.php?page=admin';
                  header('Location: ' . BASE_URL . 'index.php?page=login'); exit;
              }
              $section = SecurityMiddleware::validateInput($_GET['section'] ?? 'dashboard', 'string');
-             $task = SecurityMiddleware::validateInput($_GET['task'] ?? 'list', 'string'); // Default task to 'list'
-             $adminId = SecurityMiddleware::validateInput($_GET['id'] ?? null, 'int'); // Use a different var name for admin ID
+             $task = SecurityMiddleware::validateInput($_GET['task'] ?? 'list', 'string'); 
+             $adminId = SecurityMiddleware::validateInput($_GET['id'] ?? null, 'int'); 
 
              switch ($section) {
-                case 'products': // NEW Product Section
+                case 'products': 
                     require_once __DIR__ . '/controllers/ProductController.php';
                     $controller = new ProductController($pdo);
                     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                        // POST requests handle saving or deleting
                         if ($task === 'save') {
-                             $controller->saveAdminProduct(); // Handles both create/update POST
+                             $controller->saveAdminProduct(); 
                         } elseif ($task === 'delete') {
-                             $controller->deleteAdminProduct($adminId); // Assumes ID might be passed via GET or POST
+                             $controller->deleteAdminProduct($adminId); 
                         } else {
-                             // Unknown POST task, redirect to list
                              $controller->listAdminProducts();
                         }
                     } else {
-                        // GET requests handle displaying lists or forms
                         if ($task === 'create') {
-                             $controller->showAdminProductForm(); // Show empty form
+                             $controller->showAdminProductForm(); 
                         } elseif ($task === 'edit' && $adminId) {
-                             $controller->showAdminProductForm($adminId); // Show form with product data
-                        } else { // Default task or 'list'
-                             $controller->listAdminProducts(); // Show product list
+                             $controller->showAdminProductForm($adminId); 
+                        } else { 
+                             $controller->listAdminProducts(); 
                         }
                     }
-                    break; // End Product Section
+                    break; 
 
                  case 'quiz_analytics':
                      require_once __DIR__ . '/controllers/QuizController.php';
@@ -215,29 +220,26 @@ try {
                     require_once __DIR__ . '/controllers/CouponController.php';
                     $controller = new CouponController($pdo);
                     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                         // Use adminId for consistency
                          if ($task === 'save') { $controller->saveCoupon(); }
                          elseif ($task === 'toggle_status' && $adminId) { $controller->toggleCouponStatus($adminId); }
                          elseif ($task === 'delete' && $adminId) { $controller->deleteCoupon($adminId); }
                          else { $controller->listCoupons(); }
-                    } else { // GET
+                    } else { 
                          if ($task === 'edit' && $adminId) { $controller->showEditForm($adminId); }
                          elseif ($task === 'create') { $controller->showCreateForm(); }
                          else { $controller->listCoupons(); }
                     }
                     break;
-                 // Add other admin sections here...
                  case 'dashboard':
-                 default: // Admin Dashboard
+                 default: 
                       $pageTitle = "Admin Dashboard"; $bodyClass = "page-admin-dashboard";
                       $csrfToken = SecurityMiddleware::generateCSRFToken();
                       extract(['pageTitle' => $pageTitle, 'bodyClass' => $bodyClass, 'csrfToken' => $csrfToken]);
                       require_once __DIR__ . '/views/admin/dashboard.php'; break;
              }
              break;
-        // --- END: Updated Admin Routing ---
 
-        // --- Static Pages (Unchanged) ---
+        // --- Static Pages ---
         case 'contact':
             $pageTitle = 'Contact Us'; $csrfToken = SecurityMiddleware::generateCSRFToken(); $bodyClass = 'page-contact';
             extract(['pageTitle' => $pageTitle, 'csrfToken' => $csrfToken, 'bodyClass' => $bodyClass]);
@@ -268,13 +270,12 @@ try {
             extract(['pageTitle' => $pageTitle, 'bodyClass' => $bodyClass, 'csrfToken' => $csrfToken]);
             require_once __DIR__ . '/views/error.php'; break;
 
-        default: // 404 Not Found
+        default: 
             http_response_code(404);
             $pageTitle = 'Page Not Found'; $bodyClass = 'page-404'; $csrfToken = SecurityMiddleware::generateCSRFToken();
             extract(['pageTitle' => $pageTitle, 'bodyClass' => $bodyClass, 'csrfToken' => $csrfToken]);
             require_once __DIR__ . '/views/404.php'; break;
     }
-// --- Exception Handling (Unchanged) ---
 } catch (PDOException $e) { ErrorHandler::handleException($e); exit(1);
 } catch (\Stripe\Exception\ApiErrorException $e) { error_log("Stripe API error in routing/controller: " . $e->getMessage()); ErrorHandler::handleException($e); exit(1);
 } catch (Throwable $e) { error_log("General error/exception in index.php: " . $e->getMessage() . " Trace: " . $e->getTraceAsString()); ErrorHandler::handleException($e); exit(1);

@@ -24,7 +24,7 @@ class TaxController extends BaseController {
             }
             
             // Get tax rate from database
-            $stmt = $this->db->prepare(" 
+            $stmt = $this->db->prepare(" // USE $this->db
                 SELECT rate 
                 FROM tax_rates 
                 WHERE country_code = ? 
@@ -62,7 +62,7 @@ class TaxController extends BaseController {
                 return $this->cache[$cacheKey];
             }
             
-            $stmt = $this->db->prepare(" 
+            $stmt = $this->db->prepare(" // USE $this->db
                 SELECT rate 
                 FROM tax_rates 
                 WHERE country_code = ? 
@@ -95,7 +95,7 @@ class TaxController extends BaseController {
         try {
             $this->requireAdmin();
             
-            $stmt = $this->db->query(" 
+            $stmt = $this->db->query(" // USE $this->db
                 SELECT 
                     tr.*,
                     COUNT(th.id) as change_count,
@@ -144,7 +144,7 @@ class TaxController extends BaseController {
             $this->beginTransaction(); // Uses $this->db from BaseController
             
             // Get existing rate if any
-            $stmt = $this->db->prepare(" 
+            $stmt = $this->db->prepare(" // USE $this->db
                 SELECT id, rate 
                 FROM tax_rates 
                 WHERE country_code = ? 
@@ -159,7 +159,7 @@ class TaxController extends BaseController {
             
             if ($existing) {
                 // Update existing rate
-                $stmt = $this->db->prepare(" 
+                $stmt = $this->db->prepare(" // USE $this->db
                     UPDATE tax_rates 
                     SET rate = ?,
                         start_date = ?,
@@ -186,7 +186,7 @@ class TaxController extends BaseController {
                 }
             } else {
                 // Insert new rate
-                $stmt = $this->db->prepare(" 
+                $stmt = $this->db->prepare(" // USE $this->db
                     INSERT INTO tax_rates (
                         country_code,
                         state_code,
@@ -207,7 +207,7 @@ class TaxController extends BaseController {
                     $this->getUserId()
                 ]);
                 
-                $rateId = $this->db->lastInsertId(); 
+                $rateId = $this->db->lastInsertId(); // USE $this->db
                 $this->logRateChange($rateId, 0, $data['rate']);
             }
             
@@ -234,7 +234,7 @@ class TaxController extends BaseController {
     }
     
     private function logRateChange($rateId, $oldRate, $newRate) {
-        $stmt = $this->db->prepare(" 
+        $stmt = $this->db->prepare(" // USE $this->db
             INSERT INTO tax_rate_history (
                 tax_rate_id,
                 old_rate,
@@ -259,7 +259,7 @@ class TaxController extends BaseController {
                 throw new Exception('Invalid tax rate ID');
             }
             
-            $stmt = $this->db->prepare(" 
+            $stmt = $this->db->prepare(" // USE $this->db
                 SELECT 
                     th.*,
                     u.name as changed_by_name

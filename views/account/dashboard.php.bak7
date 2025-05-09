@@ -1,5 +1,5 @@
 <?php
-// views/account/dashboard.php (Layout Refactored with Tailwind CSS - Quiz History Link Updated)
+// views/account/dashboard.php (Layout Refactored with Tailwind CSS)
 require_once __DIR__ . '/../layout/header.php'; // Standard header include
 
 // Helper to render dashboard cards consistently
@@ -52,7 +52,7 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=quiz&action=history" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out"> {/* MODIFIED LINK */}
+                                <a href="index.php?page=account&section=quiz" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
                                     <i class="fas fa-clipboard-list w-6 text-center mr-3"></i> Quiz History
                                 </a>
                             </li>
@@ -178,7 +178,7 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
                          $quizContent .= "</div>";
                          $quizContent .= "</div>"; // Close space-y-4
                     }
-                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=quiz&action=history', 'View History', 200); // MODIFIED LINK
+                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=account&section=quiz', 'View History', 200);
                     ?>
 
                     <!-- Quick Actions Card -->

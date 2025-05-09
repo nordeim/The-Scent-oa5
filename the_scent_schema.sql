@@ -39,7 +39,7 @@ CREATE TABLE `audit_log` (
   `details` text,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=134 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -60,7 +60,7 @@ CREATE TABLE `cart_items` (
   KEY `product_id` (`product_id`),
   CONSTRAINT `cart_items_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `cart_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -99,7 +99,7 @@ CREATE TABLE `email_log` (
   KEY `idx_user_id` (`user_id`),
   KEY `idx_email_type` (`email_type`),
   CONSTRAINT `fk_email_log_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -171,11 +171,38 @@ DROP TABLE IF EXISTS `orders`;
 CREATE TABLE `orders` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int DEFAULT NULL,
+  `subtotal` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `discount_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `coupon_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `coupon_id` int DEFAULT NULL,
+  `shipping_cost` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `tax_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `total_amount` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `shipping_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `shipping_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `shipping_address` text COLLATE utf8mb4_unicode_ci,
+  `shipping_address_line2` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `shipping_city` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `shipping_state` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `shipping_zip` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `shipping_country` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `total_price` decimal(10,2) DEFAULT NULL,
-  `status` enum('pending','paid','shipped','delivered','cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `status` enum('pending_payment','paid','processing','shipped','delivered','cancelled','refunded','disputed','payment_failed','completed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'pending_payment',
+  `payment_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `payment_intent_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `order_notes` text COLLATE utf8mb4_unicode_ci,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `paid_at` datetime DEFAULT NULL,
+  `dispute_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `disputed_at` datetime DEFAULT NULL,
+  `refund_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `refunded_at` datetime DEFAULT NULL,
+  `tracking_number` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `carrier` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
+  KEY `idx_payment_intent_id` (`payment_intent_id`),
   CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -196,7 +223,7 @@ CREATE TABLE `product_attributes` (
   PRIMARY KEY (`id`),
   KEY `product_id` (`product_id`),
   CONSTRAINT `product_attributes_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -255,7 +282,7 @@ CREATE TABLE `quiz_results` (
   KEY `idx_created_at` (`created_at`),
   KEY `idx_user_timestamp` (`user_id`,`created_at`),
   CONSTRAINT `quiz_results_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -287,7 +314,7 @@ CREATE TABLE `users` (
   UNIQUE KEY `email` (`email`),
   KEY `idx_reset_token` (`reset_token`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -307,4 +334,4 @@ CREATE TABLE `users` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-04-28 19:37:32
+-- Dump completed on 2025-05-09 12:17:14

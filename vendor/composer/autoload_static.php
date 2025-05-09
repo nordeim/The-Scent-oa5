@@ -34,6 +34,7 @@ class ComposerStaticInit777dc5923531c4582c6e21348a341cf6
         'Cart' => __DIR__ . '/../..' . '/models/Cart.php',
         'CartController' => __DIR__ . '/../..' . '/controllers/CartController.php',
         'CheckoutController' => __DIR__ . '/../..' . '/controllers/CheckoutController.php',
+        'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'CouponController' => __DIR__ . '/../..' . '/controllers/CouponController.php',
         'EmailService' => __DIR__ . '/../..' . '/includes/EmailService.php',
         'ErrorHandler' => __DIR__ . '/../..' . '/includes/ErrorHandler.php',

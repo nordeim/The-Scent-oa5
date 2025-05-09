@@ -43,7 +43,7 @@
       data-base-shipping-cost="5.99">
 
     <!-- Global CSRF Token Input for JavaScript AJAX Requests -->
-    <input type="hidden" id="csrf-token-value" value="1b39b56719db2876c7361cdb6b4e69f5725bfb98d641a07f7218018d80e05c15">
+    <input type="hidden" id="csrf-token-value" value="19da3952adcd8e57df4a20330bab29789f3bc878a4d0bdab0c5d7de3d29cbc1f">
 
     <header>
         <nav class="main-nav sample-header">
@@ -65,7 +65,7 @@
                                         <a href="index.php?page=cart" class="cart-link relative group" aria-label="Cart">
                         <i class="fas fa-shopping-bag"></i>
                                                 <span class="cart-count" style="display: flex;">
-                            2                        </span>
+                            3                        </span>
                         <!-- Mini-cart dropdown -->
                         <div class="mini-cart-dropdown absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden group-hover:block group-focus-within:block transition-all duration-200" style="min-width:320px;">
                             <div id="mini-cart-content" class="p-4">
@@ -88,7 +88,7 @@
         <!-- Container for dynamically added flash messages by JS -->
         <div class="flash-message-container fixed top-5 right-5 z-[1100] max-w-sm w-full space-y-2"></div>
 <!-- Output CSRF token for JS (for AJAX checkout/coupon/tax) -->
-<input type="hidden" id="csrf-token-value" value="1b39b56719db2876c7361cdb6b4e69f5725bfb98d641a07f7218018d80e05c15">
+<input type="hidden" id="csrf-token-value" value="19da3952adcd8e57df4a20330bab29789f3bc878a4d0bdab0c5d7de3d29cbc1f">
 
 <!-- Add Stripe.js -->
 <script src="https://js.stripe.com/v3/"></script>
@@ -105,7 +105,7 @@
                     <!-- NOTE: The form tag itself doesn't need action/method as JS handles the submission -->
                     <form id="checkoutForm">
                         <!-- ADD Standard CSRF Token for initial server-side check during processCheckout -->
-                        <input type="hidden" name="csrf_token" value="1b39b56719db2876c7361cdb6b4e69f5725bfb98d641a07f7218018d80e05c15">
+                        <input type="hidden" name="csrf_token" value="19da3952adcd8e57df4a20330bab29789f3bc878a4d0bdab0c5d7de3d29cbc1f">
                         <!-- Hidden field to potentially store applied coupon code -->
                         <input type="hidden" id="applied_coupon_code" name="applied_coupon_code" value="">
 
@@ -674,7 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     <p><i class="fas fa-phone"></i> +1 (555) 123-4567</p>
                     <p><i class="fas fa-envelope"></i> hello@thescent.com</p>
                     <form id="newsletter-form-footer" class="newsletter-form" style="margin-top:1rem;">
-                        <input type="hidden" name="csrf_token" value="1b39b56719db2876c7361cdb6b4e69f5725bfb98d641a07f7218018d80e05c15">
+                        <input type="hidden" name="csrf_token" value="19da3952adcd8e57df4a20330bab29789f3bc878a4d0bdab0c5d7de3d29cbc1f">
                         <input type="email" name="email" placeholder="Enter your email" required class="newsletter-input">
                         <button type="submit" class="btn btn-primary newsletter-btn">Subscribe</button>
                     </form>

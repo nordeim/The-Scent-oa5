@@ -885,10 +885,12 @@ function initRegisterPage() {
         formData.append('confirm_password', confirmPasswordInput.value); // Send confirmation for backend double check if needed
         formData.append('csrf_token', csrfToken);
 
+        // --- START: FIX FOR NEWSLETTER PREFERENCE ---
         // Append newsletter_signup only if the checkbox exists and is checked
         if (newsletterCheckbox && newsletterCheckbox.checked) {
             formData.append('newsletter_signup', '1'); // Use '1' as the value
         }
+        // --- END: FIX FOR NEWSLETTER PREFERENCE ---
 
 
         fetch('index.php?page=register', {
@@ -1436,9 +1438,9 @@ function initAdminCouponsPage() {
 }
 
 
-// --- Checkout Page Initialization (v4.1 - Stripe Object Check) ---
+// --- Checkout Page Initialization (v4 - Corrected Flow) ---
 function initCheckoutPage() {
-    console.log("Initializing Checkout Page JS (v4.1 - Stripe Object Check)..."); // Updated console log
+    console.log("Initializing Checkout Page JS (v4)...");
     // --- Configuration ---
     const bodyData = document.body.dataset;
     const stripePublicKey = bodyData.stripePublicKey || '';
@@ -1470,15 +1472,16 @@ function initCheckoutPage() {
     const couponMessageEl = document.getElementById('coupon-message');
 
     // --- State Variables ---
-    let stripe = null;
+    let stripe = null; // Initialize as null
+    // let elements = null; // Defer elements initialization
     let currentSubtotal = parseFloat(summarySubtotalEl?.textContent?.replace('$', '') || '0');
-    let currentShippingCost = parseFloat(summaryShippingEl?.textContent?.replace(/[^0-9.]/g, '') || baseShippingCost.toString());
+    let currentShippingCost = parseFloat(summaryShippingEl?.textContent?.replace(/[^0-9.]/g, '') || baseShippingCost.toString()); // Handle FREE text
     let currentTaxAmount = parseFloat(taxAmountEl?.textContent?.replace('$', '') || '0');
     let currentDiscountAmount = parseFloat(discountAmountEl?.textContent?.replace('-$', '') || '0');
 
 
     // --- Basic Checks ---
-    console.log("Stripe Public Key (from body.dataset):", stripePublicKey);
+    console.log("Stripe Public Key:", stripePublicKey);
     if (!stripePublicKey) {
         showMessage("Stripe configuration error. Payment cannot proceed.", true);
         setLoading(false, true); return;
@@ -1487,31 +1490,21 @@ function initCheckoutPage() {
         console.error("Checkout form critical elements missing. Aborting initialization."); return;
     }
 
-    // --- ADDED: Check if Stripe object is available ---
-    if (typeof Stripe === 'undefined') {
-        console.error("Stripe.js library not loaded or `Stripe` object is undefined.");
-        showMessage("Payment system library (Stripe.js) failed to load. Please check your internet connection or ad-blockers and refresh.", true);
-        setLoading(false, true);
-        paymentElementContainer.innerHTML = '<p class="text-sm text-red-500 text-center p-4">Error: Payment library missing. Cannot initialize payment form.</p>';
-        return;
-    }
-    // --- END ADDED ---
-
     // --- Initialize Stripe Core Object ONLY ---
     try {
          stripe = Stripe(stripePublicKey);
          if (!stripe) { throw new Error("Stripe(key) failed to return an object."); }
-         console.log("Stripe object initialized successfully:", stripe);
-         paymentElementContainer.innerHTML = '<p class="text-sm text-gray-500 text-center p-4">Secure payment form will load here...</p>';
+         console.log("Stripe object initialized:", stripe);
+         paymentElementContainer.innerHTML = '<p class="text-sm text-gray-500 text-center p-4">Secure payment form will load here...</p>'; // Placeholder
 
     } catch (stripeError) {
         console.error("Stripe initialization error:", stripeError);
-        showMessage("Could not initialize payment system. Please refresh. Details: " + stripeError.message, true);
+        showMessage("Could not initialize payment system. Please refresh.", true);
         setLoading(false, true);
         return;
     }
 
-    // --- Helper Functions ---
+    // --- Helper Functions (Ensure these are fully defined here) ---
      function setLoading(isLoading, disablePermanently = false) {
         if (!submitButton || !spinner || !buttonText) return;
         if (isLoading) {
@@ -1563,13 +1556,10 @@ function initCheckoutPage() {
             }
             try {
                 taxAmountEl.textContent = '...';
-                // --- MODIFIED: Add csrf_token to JSON body for calculateTax ---
-                const requestBody = { country, state, subtotal: currentSubtotal, discount: currentDiscountAmount, csrf_token: csrfToken };
                 const response = await fetch('index.php?page=checkout&action=calculateTax', {
                     method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify({ country, state, subtotal: currentSubtotal, discount: currentDiscountAmount })
                 });
-                // --- END MODIFICATION ---
                 if (!response.ok) throw new Error(`Tax calculation failed (${response.status})`);
                 const data = await response.json();
                 if (data.success) { taxRateEl.textContent = data.tax_rate_formatted || 'N/A'; currentTaxAmount = parseFloat(data.tax_amount) || 0; }
@@ -1580,7 +1570,7 @@ function initCheckoutPage() {
 
     // --- Event Listeners (Tax, Coupon) ---
     if(shippingCountryEl) shippingCountryEl.addEventListener('change', updateTax);
-    if(shippingStateEl) shippingStateEl.addEventListener('input', updateTax); // Changed to 'input' for potentially faster state updates if typed
+    if(shippingStateEl) shippingStateEl.addEventListener('input', updateTax);
     if (applyCouponButton && couponCodeInput && appliedCouponHiddenInput) {
         applyCouponButton.addEventListener('click', async function() {
             const couponCode = couponCodeInput.value.trim(); if (!couponCode) { showCouponMessage('Please enter a coupon code.', 'error'); return; }
@@ -1594,7 +1584,7 @@ function initCheckoutPage() {
                 const data = await response.json();
                 if (data.success) {
                     showCouponMessage(data.message || 'Coupon applied!', 'success'); currentDiscountAmount = parseFloat(data.discount_amount) || 0;
-                    appliedCouponHiddenInput.value = data.coupon_code || couponCode; updateTax(); // updateTax will also updateOrderSummaryUI
+                    appliedCouponHiddenInput.value = data.coupon_code || couponCode; updateTax();
                 } else {
                     showCouponMessage(data.message || 'Invalid coupon code.', 'error'); currentDiscountAmount = 0; appliedCouponHiddenInput.value = ''; updateTax();
                 }
@@ -1625,7 +1615,7 @@ function initCheckoutPage() {
         // 2. Send checkout data to server -> create order, get clientSecret
         let clientSecret = null;
         let serverOrderId = null;
-        let elements = null;
+        let elements = null; // Define elements here for this scope
         try {
             const checkoutFormData = new FormData(checkoutForm);
             if (appliedCouponHiddenInput && appliedCouponHiddenInput.value) { checkoutFormData.set('applied_coupon_code', appliedCouponHiddenInput.value); } else { checkoutFormData.delete('applied_coupon_code'); }
@@ -1643,14 +1633,14 @@ function initCheckoutPage() {
             setLoading(false); return;
         }
 
-        // --- Step 3: Initialize Elements & Mount Payment Element ---
+        // --- *** NEW STEP 3: Initialize Elements & Mount Payment Element *** ---
         try {
-            if (!clientSecret) throw new Error("Client secret is missing after backend call.");
+            if (!clientSecret) throw new Error("Client secret is missing after backend call."); // Safety check
             const appearance = { theme: 'stripe', variables: { colorPrimary: '#1A4D5A', colorBackground: '#ffffff', colorText: '#374151', colorDanger: '#dc2626', fontFamily: 'Montserrat, sans-serif', borderRadius: '0.375rem' } };
-            elements = stripe.elements({ clientSecret: clientSecret, appearance });
+            elements = stripe.elements({ clientSecret: clientSecret, appearance }); // Pass clientSecret here
             console.log("Stripe Elements created with clientSecret.");
             const paymentElement = elements.create('payment');
-            paymentElementContainer.innerHTML = '';
+            paymentElementContainer.innerHTML = ''; // Clear placeholder
             paymentElement.mount('#payment-element'); console.log("Payment Element mounted successfully.");
         } catch (elementsError) {
             console.error("Stripe Elements creation/mounting error:", elementsError); showMessage("Failed to load the payment form. Please refresh.", true);
@@ -1658,7 +1648,7 @@ function initCheckoutPage() {
             setLoading(false); return;
         }
 
-        // --- STEP 4: Confirm Payment ---
+        // --- *** STEP 4: Confirm Payment *** ---
         if (clientSecret && stripe && elements) {
             console.log("Attempting stripe.confirmPayment...");
             const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
@@ -1666,9 +1656,9 @@ function initCheckoutPage() {
             console.log("Stripe return_url:", returnUrl);
 
             const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-                elements,
+                elements, // Pass the initialized elements group
                 confirmParams: { return_url: returnUrl },
-                redirect: 'if_required'
+                redirect: 'if_required' // Let Stripe handle redirects if needed
             });
 
             if (stripeError) {
@@ -1677,15 +1667,14 @@ function initCheckoutPage() {
                  setLoading(false);
             } else if (paymentIntent && paymentIntent.status === 'succeeded') {
                  console.log("Stripe confirmPayment SUCCEEDED directly:", paymentIntent);
-                 window.location.href = returnUrl;
+                 window.location.href = returnUrl; // Manually redirect if needed
             } else if (paymentIntent) {
                  console.log("Stripe confirmPayment finished with status:", paymentIntent.status);
-                 showMessage(`Payment status: ${paymentIntent.status}. You might be redirected.`, false); // Use false for non-error message
-                 setLoading(false); // Allow user interaction if not redirecting immediately
+                 showMessage(`Payment status: ${paymentIntent.status}. You might be redirected.`, 'info');
+                 setLoading(false);
             } else {
-                 console.log("confirmPayment finished. Assuming redirect or error handled by Stripe.");
-                 // Keep loading spinner ON if Stripe is handling redirect.
-                 // setLoading(true) might be appropriate here if a redirect is always expected.
+                 console.log("confirmPayment finished. Assuming redirect or error handled.");
+                 // Keep loading spinner ON if redirect is expected
             }
         } else {
             console.error("Missing clientSecret, stripe, or elements for confirmPayment.");
@@ -1713,6 +1702,7 @@ function initAdminOrdersPage() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
+                // 'X-```javascript
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-Token': document.getElementById('csrf-token-value')?.value // Include CSRF token
             },

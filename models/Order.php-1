@@ -1,14 +1,29 @@
 <?php
 // models/Order.php
 
-class Order {
-    private PDO $pdo;
+// Ensure Product model is available if needed for item details fetching
+// Assuming autoloader or previous require_once handles this
+// require_once __DIR__ . '/Product.php';
 
-    public function __construct(PDO $pdo) {
+class Order {
+    private PDO $pdo; // Use type hint
+
+    public function __construct(PDO $pdo) { // Use type hint
         $this->pdo = $pdo;
     }
 
+    /**
+     * Creates a new order in the database.
+     * Accepts extended data including coupon info, payment intent ID, etc.
+     *
+     * @param array $data Order data including user_id, totals, shipping info, coupon info, etc.
+     * @return int|false The ID of the newly created order, or false on failure.
+     */
     public function create(array $data): int|false {
+        // SQL statement reflects the newer schema with detailed columns.
+        // The error "Unknown column 'subtotal'" indicates the user's DB schema is outdated.
+        // User MUST apply the database patch (e.g., from README Appendix D) to fix this.
+        // This PHP code assumes the newer schema.
         $sql = "
             INSERT INTO orders (
                 user_id, subtotal, discount_amount, coupon_code, coupon_id,
@@ -26,6 +41,8 @@ class Order {
         ";
         $stmt = $this->pdo->prepare($sql);
 
+        // Using null coalescing for robustness if optional fields are missing from $data.
+        // Required fields (like user_id, shipping_name, total_amount) should be validated by the controller.
         $params = [
             ':user_id' => $data['user_id'] ?? null,
             ':subtotal' => $data['subtotal'] ?? 0.00,
@@ -49,6 +66,7 @@ class Order {
             ':order_notes' => $data['order_notes'] ?? null
         ];
 
+        // Basic check for absolutely essential data to prevent SQL errors if controller didn't validate fully.
         if ($params[':user_id'] === null || $params[':shipping_name'] === null || $params[':total_amount'] === null) {
             error_log("OrderModel::create error: Missing essential data (user_id, shipping_name, or total_amount). Data: " . json_encode($data));
             return false;
@@ -57,32 +75,61 @@ class Order {
             $success = $stmt->execute($params);
             return $success ? (int)$this->pdo->lastInsertId() : false;
         } catch (PDOException $e) {
+            // This catch block will likely be triggered by the "Unknown column" error if DB is not patched.
             error_log("OrderModel::create PDOException: " . $e->getMessage() . ". Ensure DB schema is up-to-date. Params: " . json_encode($params));
+            // Re-throw to be handled by the controller's transaction management
             throw $e;
         }
     }
 
+    /**
+     * Fetches a single order by its ID, including its items.
+     *
+     * @param int $id The order ID.
+     * @return array|null The order data including items, or null if not found.
+     */
     public function getById(int $id): ?array {
         $stmt = $this->pdo->prepare("SELECT * FROM orders WHERE id = ?");
         $stmt->execute([$id]);
         $order = $stmt->fetch();
+
         if ($order) {
             $order['items'] = $this->_fetchOrderItems($id);
         }
         return $order ?: null;
     }
 
+    /**
+     * Fetches a single order by its ID and User ID, including its items.
+     * Ensures the order belongs to the specified user.
+     *
+     * @param int $orderId The order ID.
+     * @param int $userId The user ID.
+     * @return array|null The order data including items, or null if not found or access denied.
+     */
     public function getByIdAndUserId(int $orderId, int $userId): ?array {
         $stmt = $this->pdo->prepare("SELECT * FROM orders WHERE id = ? AND user_id = ?");
         $stmt->execute([$orderId, $userId]);
         $order = $stmt->fetch();
+
         if ($order) {
             $order['items'] = $this->_fetchOrderItems($orderId);
         }
         return $order ?: null;
     }
 
+
+    /**
+     * Fetches recent orders for a specific user, mainly for dashboard display.
+     * Includes a concatenated summary of items.
+     *
+     * @param int $userId The user ID.
+     * @param int $limit Max number of orders to fetch.
+     * @return array List of recent orders.
+     */
     public function getRecentByUserId(int $userId, int $limit = 5): array {
+        // This version uses GROUP_CONCAT for a simple item summary, suitable for dashboards.
+        // Use getAllByUserId for full item details if needed elsewhere.
         $stmt = $this->pdo->prepare("
             SELECT o.*,
                    GROUP_CONCAT(CONCAT(oi.quantity, 'x ', p.name) SEPARATOR '<br>') as items_summary
@@ -100,6 +147,14 @@ class Order {
         return $stmt->fetchAll() ?: [];
     }
 
+     /**
+     * Fetches all orders for a specific user with pagination, including full item details.
+     *
+     * @param int $userId The user ID.
+     * @param int $page Current page number.
+     * @param int $perPage Number of orders per page.
+     * @return array List of orders for the page.
+     */
     public function getAllByUserId(int $userId, int $page = 1, int $perPage = 10): array {
         $offset = ($page - 1) * $perPage;
         $stmt = $this->pdo->prepare("
@@ -113,27 +168,46 @@ class Order {
         $stmt->bindValue(3, $offset, PDO::PARAM_INT);
         $stmt->execute();
         $orders = $stmt->fetchAll();
+
+        // Fetch items for each order
         foreach ($orders as &$order) {
             $order['items'] = $this->_fetchOrderItems($order['id']);
         }
-        unset($order);
+        unset($order); // Unset reference
+
         return $orders ?: [];
     }
 
+    /**
+     * Gets the total count of orders for a specific user.
+     *
+     * @param int $userId The user ID.
+     * @return int Total number of orders.
+     */
     public function getTotalOrdersByUserId(int $userId): int {
         $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM orders WHERE user_id = ?");
         $stmt->execute([$userId]);
         return (int)$stmt->fetchColumn();
     }
 
+
+    /**
+     * Updates the status of an order. Also updates payment_status and paid_at conditionally.
+     *
+     * @param int $orderId The ID of the order to update.
+     * @param string $status The new status (e.g., 'paid', 'processing', 'shipped', 'cancelled').
+     * @return bool True on success, false on failure.
+     */
     public function updateStatus(int $orderId, string $status): bool {
         $allowedStatuses = ['pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded', 'disputed', 'payment_failed', 'completed'];
         if (!in_array($status, $allowedStatuses)) {
             error_log("Attempted to set invalid order status '{$status}' for order ID {$orderId}");
             return false;
         }
+
         $sql = "UPDATE orders SET status = :status, updated_at = NOW()";
         $params = [':status' => $status, ':id' => $orderId];
+
         if (in_array($status, ['paid', 'processing', 'shipped', 'delivered', 'completed'])) {
              $sql .= ", payment_status = 'completed'";
              $sql .= ", paid_at = COALESCE(paid_at, CASE WHEN :status IN ('paid', 'processing') THEN NOW() ELSE NULL END)";
@@ -146,11 +220,20 @@ class Order {
         } elseif ($status === 'disputed') {
              $sql .= ", payment_status = 'disputed'";
         }
+
         $sql .= " WHERE id = :id";
         $stmt = $this->pdo->prepare($sql);
+
         return $stmt->execute($params);
     }
 
+    /**
+     * Updates the Payment Intent ID for a given order.
+     *
+     * @param int $orderId The ID of the order.
+     * @param string $paymentIntentId The Stripe Payment Intent ID.
+     * @return bool True on success, false on failure.
+     */
     public function updatePaymentIntentId(int $orderId, string $paymentIntentId): bool {
         $stmt = $this->pdo->prepare("
             UPDATE orders
@@ -160,6 +243,13 @@ class Order {
         return $stmt->execute([$paymentIntentId, $orderId]);
     }
 
+
+    /**
+     * Fetches an order by its Stripe Payment Intent ID.
+     *
+     * @param string $paymentIntentId The Stripe Payment Intent ID.
+     * @return array|null The order data, or null if not found.
+     */
     public function getByPaymentIntentId(string $paymentIntentId): ?array {
         $stmt = $this->pdo->prepare("
             SELECT * FROM orders WHERE payment_intent_id = ? LIMIT 1
@@ -169,6 +259,14 @@ class Order {
         return $order ?: null;
     }
 
+    /**
+      * Updates the order status and adds dispute information.
+      *
+      * @param int $orderId
+      * @param string $status Typically 'disputed'.
+      * @param string $disputeId Stripe Dispute ID.
+      * @return bool
+      */
      public function updateStatusAndDispute(int $orderId, string $status, string $disputeId): bool {
          if ($status !== 'disputed') {
              error_log("Invalid status '{$status}' provided to updateStatusAndDispute for order {$orderId}");
@@ -186,6 +284,15 @@ class Order {
          return $stmt->execute([$status, $disputeId, $orderId]);
      }
 
+     /**
+      * Updates the order status and adds refund information.
+      *
+      * @param int $orderId
+      * @param string $status Typically 'refunded'.
+      * @param string $paymentStatus Typically 'refunded' or 'partially_refunded'.
+      * @param string $refundId Stripe Refund ID.
+      * @return bool
+      */
      public function updateRefundStatus(int $orderId, string $status, string $paymentStatus, string $refundId): bool {
          if (!in_array($status, ['refunded', 'partially_refunded'])) {
              error_log("Invalid status '{$status}' provided to updateRefundStatus for order {$orderId}");
@@ -203,6 +310,14 @@ class Order {
          return $stmt->execute([$status, $paymentStatus, $refundId, $orderId]);
      }
 
+     /**
+      * Updates the tracking information for an order.
+      *
+      * @param int $orderId
+      * @param string $trackingNumber
+      * @param string|null $carrier
+      * @return bool
+      */
      public function updateTracking(int $orderId, string $trackingNumber, ?string $carrier = null): bool {
          $sql = "UPDATE orders SET tracking_number = ?, carrier = ?, updated_at = NOW()";
          $params = [$trackingNumber, $carrier];
@@ -212,6 +327,13 @@ class Order {
          return $stmt->execute($params);
      }
 
+    /**
+     * Fetches all items associated with a given order ID.
+     * Joins with products table to get item details needed for display/emails.
+     *
+     * @param int $orderId The order ID.
+     * @return array List of order items with product details.
+     */
     private function _fetchOrderItems(int $orderId): array {
         $stmt = $this->pdo->prepare("
             SELECT
@@ -228,4 +350,5 @@ class Order {
         $stmt->execute([$orderId]);
         return $stmt->fetchAll() ?: [];
     }
+
 }

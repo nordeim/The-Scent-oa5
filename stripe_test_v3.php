@@ -1,13 +1,11 @@
 <?php
-// stripe_test_v3.php - Comprehensive Checkout Simulation (v4 - Fixed ErrorHandler include)
+// stripe_test_v3.php - Comprehensive Checkout Simulation (v5 - Corrected JS Flow)
 
 // --- START: Fatal Error Capture ---
 function captureFatalError() {
     $error = error_get_last();
     if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR])) {
-        if (!headers_sent()) {
-            header('Content-Type: text/plain; charset=UTF-8');
-        }
+        if (!headers_sent()) { header('Content-Type: text/plain; charset=UTF-8'); }
         echo "\n\n--- FATAL ERROR DETECTED ---\n";
         echo "Type:    " . ($error['type'] ?? 'Unknown') . "\n";
         echo "Message: " . ($error['message'] ?? 'N/A') . "\n";
@@ -28,9 +26,7 @@ define('ROOT_PATH', __DIR__);
 // --- Core Includes FIRST ---
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php'; // Provides $pdo
-// --- Explicitly include ErrorHandler BEFORE using it ---
-require_once __DIR__ . '/includes/ErrorHandler.php';
-// --- Initialize ErrorHandler AFTER its definition is included ---
+require_once __DIR__ . '/includes/ErrorHandler.php'; // Needs to be included before init
 ErrorHandler::init(); // Initialize basic error handling
 // --- End Core Includes ---
 
@@ -41,21 +37,10 @@ $autoloader_path = __DIR__ . '/vendor/autoload.php';
 if (file_exists($autoloader_path)) {
     echo "PHP Setup: Using Composer autoloader.\n";
     require_once $autoloader_path;
-    // Manually include non-PSR classes if needed (BaseController might not follow PSR-4)
+    // Manual include non-PSR classes if needed
     if (!class_exists('BaseController')) require_once __DIR__ . '/controllers/BaseController.php';
-    if (!class_exists('EmailService')) require_once __DIR__ . '/includes/EmailService.php'; // EmailService needed by BaseController
-    // Autoloader *should* handle controllers/models if composer.json is set up correctly,
-    // but we can add manual requires as fallbacks if needed.
-    if (!class_exists('PaymentController')) require_once __DIR__ . '/controllers/PaymentController.php';
-    if (!class_exists('CheckoutController')) require_once __DIR__ . '/controllers/CheckoutController.php';
-    if (!class_exists('CouponController')) require_once __DIR__ . '/controllers/CouponController.php';
-    if (!class_exists('TaxController')) require_once __DIR__ . '/controllers/TaxController.php';
-    if (!class_exists('InventoryController')) require_once __DIR__ . '/controllers/InventoryController.php';
-    if (!class_exists('Order')) require_once __DIR__ . '/models/Order.php';
-    if (!class_exists('Product')) require_once __DIR__ . '/models/Product.php';
-    if (!class_exists('Cart')) require_once __DIR__ . '/models/Cart.php';
-    if (!class_exists('User')) require_once __DIR__ . '/models/User.php';
-
+    if (!class_exists('EmailService')) require_once __DIR__ . '/includes/EmailService.php';
+    // Autoloader should handle the rest if composer.json is correct
 } else {
     echo "PHP Setup: Composer autoloader not found, using manual includes.\n";
     // Manual requires if no autoloader
@@ -73,143 +58,53 @@ if (file_exists($autoloader_path)) {
 }
 
 
-// Simulate Logged-in User (Replace with a valid User ID from your DB)
-$testUserId = 1; // <<< IMPORTANT: Change this to an existing user ID in your 'users' table
-// Fetch user details to ensure test user exists
-if (!isset($pdo)) die("FATAL: PDO object not available after includes/db.php. Check db.php.\n"); // Check PDO
+// --- Simulate Logged-in User ---
+$testUserId = 2; // Use the ID confirmed previously
+if (!isset($pdo)) die("FATAL: PDO object not available after includes/db.php. Check db.php.\n");
 $testUserData = null;
 try {
     $userCheckStmt = $pdo->prepare("SELECT email, name FROM users WHERE id = ?");
     $userCheckStmt->execute([$testUserId]);
     $testUserData = $userCheckStmt->fetch(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-     die("FATAL: Database error checking test user: " . $e->getMessage() . "\n");
-}
-
-if (!$testUserData) {
-    die("FATAL: Test User ID {$testUserId} not found in the database. Please use a valid ID.\n");
-}
-$testUserEmail = $testUserData['email'];
-$testUserName = $testUserData['name'];
+} catch (PDOException $e) { die("FATAL: Database error checking test user: " . $e->getMessage() . "\n"); }
+if (!$testUserData) { die("FATAL: Test User ID {$testUserId} not found in the database. Please use a valid ID.\n"); }
+$testUserEmail = $testUserData['email']; $testUserName = $testUserData['name'];
 echo "PHP Setup: Test user found (ID: {$testUserId}, Email: {$testUserEmail}).\n";
 
+// --- Start Session ---
+if (session_status() === PHP_SESSION_NONE) { if (!headers_sent()) { session_start(); echo "PHP Setup: Session started.\n"; } else { error_log("stripe_test_v3.php Warning: Headers already sent, cannot start session."); echo "PHP Setup Warning: Headers already sent, cannot start session.\n"; } } else { echo "PHP Setup: Session already active.\n"; }
+$_SESSION['user_id'] = $testUserId; $_SESSION['user_role'] = 'user'; $_SESSION['user'] = [ 'id' => $testUserId, 'name' => $testUserName, 'email' => $testUserEmail, 'role' => 'user' ]; $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? 'TestAgentCLI'; $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'; $_SESSION['last_login'] = time(); $_SESSION['last_regeneration'] = time();
 
-// Start session and set user data
-if (session_status() === PHP_SESSION_NONE) {
-    if (!headers_sent()) {
-        session_start();
-        echo "PHP Setup: Session started.\n";
-    } else {
-        error_log("stripe_test_v3.php Warning: Headers already sent, cannot start session.");
-        echo "PHP Setup Warning: Headers already sent, cannot start session.\n";
-    }
-} else {
-     echo "PHP Setup: Session already active.\n";
-}
-
-// Set session data regardless of start success (for CLI testing)
-$_SESSION['user_id'] = $testUserId;
-$_SESSION['user_role'] = 'user';
-$_SESSION['user'] = [ 'id' => $testUserId, 'name' => $testUserName, 'email' => $testUserEmail, 'role' => 'user' ];
-$_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? 'TestAgentCLI';
-$_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
-$_SESSION['last_login'] = time();
-$_SESSION['last_regeneration'] = time();
-
-
-// Simulate Cart (Add at least one VALID product ID from your DB)
-$testProductId = 1; // <<< IMPORTANT: Change this to an existing product ID
+// --- Simulate Cart ---
+$testProductId = 1; // Use the ID confirmed previously
 $testQuantity = 1;
 try {
-    // Ensure Product exists
-    $productCheckStmt = $pdo->prepare("SELECT id FROM products WHERE id = ?");
-    $productCheckStmt->execute([$testProductId]);
-    if (!$productCheckStmt->fetch()) {
-         die("FATAL: Test Product ID {$testProductId} not found in the database. Please use a valid ID.\n");
-    }
-    echo "PHP Setup: Test product found (ID: {$testProductId}).\n";
+    $productCheckStmt = $pdo->prepare("SELECT id FROM products WHERE id = ?"); $productCheckStmt->execute([$testProductId]); if (!$productCheckStmt->fetch()) { die("FATAL: Test Product ID {$testProductId} not found in the database.\n"); } echo "PHP Setup: Test product found (ID: {$testProductId}).\n";
+    if (!class_exists('Cart')) { die("FATAL: Cart class not found. Check includes/autoloader.\n"); }
+    $cartModel = new Cart($pdo, $testUserId); $cartModel->clearCart(); if (!$cartModel->addItem($testProductId, $testQuantity)) { throw new Exception("CartModel::addItem returned false."); } $_SESSION['cart_count'] = $cartModel->getCartCount(); $cartCheckItems = $cartModel->getItems(); if (empty($cartCheckItems)) { throw new Exception("Failed to add/retrieve test item."); } echo "PHP Setup: Cart simulated successfully (User: {$testUserId}, Product: {$testProductId}, Count: {$_SESSION['cart_count']}).\n";
+} catch (Exception $e) { die("Cart Simulation Error: " . $e->getMessage() . "\n"); }
 
-    // Check if Cart class exists (relevant if not using autoloader)
-    if (!class_exists('Cart')) {
-         die("FATAL: Cart class not found. Check includes/autoloader.\n");
-    }
-
-    $cartModel = new Cart($pdo, $testUserId);
-    $cartModel->clearCart(); // Clear previous test items
-    if (!$cartModel->addItem($testProductId, $testQuantity)) { // Add item to DB cart
-         throw new Exception("CartModel::addItem returned false.");
-    }
-    $_SESSION['cart_count'] = $cartModel->getCartCount(); // Ensure session count is accurate
-    $cartCheckItems = $cartModel->getItems();
-    if (empty($cartCheckItems)) {
-        throw new Exception("Failed to add/retrieve test item (ID: {$testProductId}) to the cart for user ID {$testUserId}.");
-    }
-     echo "PHP Setup: Cart simulated successfully for User ID: {$testUserId} with Product ID: {$testProductId} (Count: {$_SESSION['cart_count']}).\n";
-} catch (Exception $e) {
-    die("Cart Simulation Error: " . $e->getMessage() . "\nPlease check the testUserId ({$testUserId}) and testProductId ({$testProductId}).\n");
-}
-
-
-// Instantiate Controllers required for checkout process
-// Add try-catch for instantiation
+// --- Instantiate Controllers ---
 try {
-    // Ensure controller classes exist before instantiation
-    if (!class_exists('PaymentController')) die("FATAL: PaymentController class not found.\n");
-    if (!class_exists('CheckoutController')) die("FATAL: CheckoutController class not found.\n");
+    if (!class_exists('PaymentController')) die("FATAL: PaymentController class not found.\n"); if (!class_exists('CheckoutController')) die("FATAL: CheckoutController class not found.\n");
+    $paymentController = new PaymentController($pdo); $checkoutController = new CheckoutController($pdo, $paymentController); echo "PHP Setup: Controllers instantiated successfully.\n";
+} catch (Throwable $e) { die("FATAL: Error instantiating controllers: " . $e->getMessage() . "\nTrace:\n" . $e->getTraceAsString() . "\n"); }
 
-    $paymentController = new PaymentController($pdo);
-    $checkoutController = new CheckoutController($pdo, $paymentController); // Pass PaymentController
-    echo "PHP Setup: Controllers instantiated successfully.\n";
-} catch (Throwable $e) { // Catch Throwable for fatal errors like missing classes
-     die("FATAL: Error instantiating controllers: " . $e->getMessage() . "\nTrace:\n" . $e->getTraceAsString() . "\n");
-}
+// --- CSRF & Post Data ---
+if (!class_exists('SecurityMiddleware')) { die("FATAL: SecurityMiddleware class not found.\n"); } $csrfToken = SecurityMiddleware::generateCSRFToken(); echo "PHP Setup: CSRF Token generated: " . $csrfToken . "\n";
+$samplePostData = [ 'shipping_name' => $testUserName, 'shipping_email' => $testUserEmail, 'shipping_address' => '123 Test St', 'shipping_address_line2' => 'Apt 4B', 'shipping_city' => 'Testville', 'shipping_state' => 'TS', 'shipping_zip' => '54321', 'shipping_country' => 'US', 'order_notes' => 'Test order generated by stripe_test_v3.php', 'save_address' => '0', 'csrf_token' => $csrfToken, 'applied_coupon_code' => '' ]; echo "PHP Setup: Sample POST data prepared.\n";
 
-
-// Generate CSRF token
-// Check if SecurityMiddleware class exists
-if (!class_exists('SecurityMiddleware')) {
-    die("FATAL: SecurityMiddleware class not found.\n");
-}
-$csrfToken = SecurityMiddleware::generateCSRFToken();
-echo "PHP Setup: CSRF Token generated: " . $csrfToken . "\n";
-
-// --- Sample Shipping Data (mimics form POST) ---
-$samplePostData = [
-    'shipping_name' => $testUserName,
-    'shipping_email' => $testUserEmail,
-    'shipping_address' => '123 Test St',
-    'shipping_address_line2' => 'Apt 4B',
-    'shipping_city' => 'Testville',
-    'shipping_state' => 'TS', // Use a state code if your tax logic needs it
-    'shipping_zip' => '54321',
-    'shipping_country' => 'US', // Use a country code
-    'order_notes' => 'Test order generated by stripe_test_v2.php',
-    'save_address' => '0', // Or '1' to test address saving
-    'csrf_token' => $csrfToken, // Add CSRF token to simulated data
-    'applied_coupon_code' => '' // Simulate no coupon initially
-];
-echo "PHP Setup: Sample POST data prepared.\n";
-
-// Check Essential Constants
-if (!defined('STRIPE_PUBLIC_KEY') || !defined('BASE_URL')) {
-    die("Error: STRIPE_PUBLIC_KEY or BASE_URL constant is not defined. Check config.php.\n");
-}
-$stripePublicKey = STRIPE_PUBLIC_KEY;
-$baseUrl = BASE_URL;
-echo "PHP Setup: Constants checked (Stripe PK / Base URL).\n";
-echo "PHP Setup: Completed successfully. Generating HTML output...\n";
-
-// --- HTML Output starts here ---
+// --- Check Constants ---
+if (!defined('STRIPE_PUBLIC_KEY') || !defined('BASE_URL')) { die("Error: STRIPE_PUBLIC_KEY or BASE_URL constant is not defined. Check config.php.\n"); } $stripePublicKey = STRIPE_PUBLIC_KEY; $baseUrl = BASE_URL; echo "PHP Setup: Constants checked (Stripe PK / Base URL).\n"; echo "PHP Setup: Completed successfully. Generating HTML output...\n";
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stripe Checkout Simulation (v4 - ErrorHandler Fixed)</title>
+    <title>Stripe Checkout Simulation (v5 - Corrected JS Flow)</title>
     <script src="https://js.stripe.com/v3/"></script>
-    <style>
-        /* Styles remain the same as v3 */
+    <style> /* Styles unchanged */
         body { font-family: sans-serif; padding: 15px; font-size: 14px; line-height: 1.5; }
         #message, #log { margin-top: 15px; padding: 10px; border-radius: 4px; border: 1px solid #ccc; }
         #log { background-color: #f8f8f8; font-family: monospace; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; font-size: 12px;}
@@ -227,13 +122,15 @@ echo "PHP Setup: Completed successfully. Generating HTML output...\n";
 <body data-stripe-public-key="<?= htmlspecialchars($stripePublicKey) ?>"
       data-base-url="<?= htmlspecialchars($baseUrl) ?>">
 
-    <h1>Stripe Checkout Simulation (v4 - ErrorHandler Fixed)</h1>
+    <h1>Stripe Checkout Simulation (v5 - Corrected JS Flow)</h1>
     <p>This script attempts to simulate the full checkout flow:</p>
     <ol>
-        <li>Initialize Stripe.js and Elements.</li>
+        <li>Initialize Stripe.js core object.</li>
         <li>Simulate form data submission to the backend (`CheckoutController::processCheckout`).</li>
         <li>Receive `clientSecret` and `orderId` from backend.</li>
-        <li>Use the `clientSecret` obtained to call `stripe.confirmPayment()`.</li>
+        <li>Initialize Stripe Elements **using the clientSecret**.</li>
+        <li>Mount the Payment Element.</li>
+        <li>Use the mounted Elements to call `stripe.confirmPayment()`.</li>
     </ol>
     <p>Check the log below and the browser console (F12) for detailed steps and errors.</p>
 
@@ -257,7 +154,7 @@ echo "PHP Setup: Completed successfully. Generating HTML output...\n";
     <pre id="log">Starting simulation...</pre>
 
     <script>
-        // --- JavaScript Simulation (Identical to v2/v3) ---
+        // --- JavaScript Simulation (v5 - Corrected Elements Init) ---
         const logElement = document.getElementById('log');
         const messageDiv = document.getElementById('message');
         const stripeKey = document.body.dataset.stripePublicKey;
@@ -269,68 +166,48 @@ echo "PHP Setup: Completed successfully. Generating HTML output...\n";
         const baseUrl = document.body.dataset.baseUrl || '/';
 
         let stripe = null;
-        let elements = null;
+        // Elements will be initialized LATER
 
-        // Logging helper
+        // --- Helper Functions (logging, status, loading - unchanged) ---
+        function logStep(step, status, data = null) { /* ... */ }
+        function showStatus(message, type = 'info') { /* ... */ }
+        function setLoading(isLoading) { /* ... */ }
+        // --- Include full definition of helper functions here ---
         function logStep(step, status, data = null) {
             const timestamp = new Date().toLocaleTimeString();
             let logEntry = `[${timestamp}] ${step}: ${status}`;
-            if (data) {
-                try {
-                    logEntry += `\nData: ${JSON.stringify(data, (key, value) =>
-                         typeof value === 'object' && value !== null && value.constructor === Object && Object.keys(value).length === 0 ? '{}' : value,
-                         2
-                     )}`;
-                 } catch (e) {
-                    logEntry += `\nData: (Could not serialize - ${typeof data})`;
-                }
-            }
-            logElement.textContent += `\n${logEntry}\n`;
-            logElement.scrollTop = logElement.scrollHeight; // Auto-scroll
+            if (data) { try { logEntry += `\nData: ${JSON.stringify(data, (key, value) => typeof value === 'object' && value !== null && value.constructor === Object && Object.keys(value).length === 0 ? '{}' : value, 2 )}`; } catch (e) { logEntry += `\nData: (Could not serialize - ${typeof data})`; } }
+            logElement.textContent += `\n${logEntry}\n`; logElement.scrollTop = logElement.scrollHeight;
         }
-        function showStatus(message, type = 'info') {
-            messageDiv.textContent = message;
-            messageDiv.className = type; // 'info', 'success', 'error'
-        }
-        function setLoading(isLoading) {
-            submitButton.disabled = isLoading;
-            spinner.classList.toggle('hidden', !isLoading);
-            buttonText.classList.toggle('hidden', isLoading);
-        }
+        function showStatus(message, type = 'info') { messageDiv.textContent = message; messageDiv.className = type; }
+        function setLoading(isLoading) { submitButton.disabled = isLoading; spinner.classList.toggle('hidden', !isLoading); buttonText.classList.toggle('hidden', isLoading); }
 
-        // 1. Initialize Stripe & Elements
-        function initializeStripe() {
-            logStep("Stripe Init", "Starting...", { key: stripeKey ? stripeKey.substring(0, 10) + '...' : 'MISSING' });
+        // --- Initialize Stripe Core Object ONLY ---
+        function initializeStripeCore() {
+            logStep("Stripe Core Init", "Starting...", { key: stripeKey ? stripeKey.substring(0, 10) + '...' : 'MISSING' });
             if (!stripeKey || stripeKey.startsWith('pk_test_51xxx')) {
-                const msg = "Invalid or placeholder Stripe Public Key.";
-                logStep("Stripe Init", "FAILED", { error: msg });
-                showStatus(msg, 'error'); setLoading(false); submitButton.disabled = true; return false;
+                const msg = "Invalid or placeholder Stripe Public Key."; logStep("Stripe Core Init", "FAILED", { error: msg }); showStatus(msg, 'error'); setLoading(false); submitButton.disabled = true; return false;
             }
             try {
                 stripe = Stripe(stripeKey);
-                 if (!stripe || typeof stripe.elements !== 'function') { throw new Error("Stripe(key) did not return a valid object."); }
-                 logStep("Stripe Init", "SUCCESS", { stripeObjectPresent: !!stripe });
-                 const appearance = { theme: 'stripe' };
-                elements = stripe.elements({ appearance }); // Create Elements group
-                logStep("Stripe Elements", "Created", { elementsObjectPresent: !!elements });
-                const paymentElement = elements.create('payment');
-                paymentElement.mount('#payment-element');
-                logStep("Payment Element", "Mounted successfully");
-                showStatus("Stripe initialized. Click button to simulate checkout.", 'info');
+                if (!stripe) { throw new Error("Stripe(key) failed to return an object."); }
+                logStep("Stripe Core Init", "SUCCESS", { stripeObjectPresent: !!stripe });
+                paymentElementContainer.innerHTML = '<p class="text-sm text-gray-500 text-center p-4">Secure payment form will load here...</p>'; // Placeholder
+                showStatus("Stripe Core ready. Click button to simulate checkout.", 'info');
                 return true;
             } catch (error) {
-                logStep("Stripe Init", "FAILED", { error: error.message, details: error }); console.error("Stripe Initialization FAILED:", error);
-                showStatus(`Stripe Initialization FAILED: ${error.message}`, 'error'); setLoading(false); submitButton.disabled = true; return false;
+                logStep("Stripe Core Init", "FAILED", { error: error.message, details: error }); console.error("Stripe Core Initialization FAILED:", error);
+                showStatus(`Stripe Core Initialization FAILED: ${error.message}`, 'error'); setLoading(false); submitButton.disabled = true; return false;
             }
         }
 
-        // 2. Simulate Checkout Button Click
+        // --- Simulate Checkout Button Click ---
         submitButton.addEventListener('click', async () => {
-            if (!stripe || !elements) { showStatus("Stripe not initialized correctly.", 'error'); return; }
+            if (!stripe) { showStatus("Stripe Core not initialized correctly.", 'error'); return; } // Check core stripe object
             setLoading(true); showStatus("Simulating checkout process...", 'info'); logStep("Checkout Click", "Initiated");
 
-            // 3. Call Backend (processCheckout)
-            let clientSecret = null; let orderId = null; let processCheckoutError = null;
+            // 1. Call Backend (processCheckout)
+            let clientSecret = null; let orderId = null; let processCheckoutError = null; let elements = null; // Define elements locally for this process
             const formData = new FormData();
             <?php foreach ($samplePostData as $key => $value): ?> formData.append('<?= $key ?>', '<?= addslashes($value) ?>'); <?php endforeach; ?>
             logStep("Backend Call", "Sending data to processCheckout...", Object.fromEntries(formData));
@@ -346,30 +223,48 @@ echo "PHP Setup: Completed successfully. Generating HTML output...\n";
                 if (data.success && data.clientSecret && data.orderId) {
                     clientSecret = data.clientSecret; orderId = data.orderId;
                     logStep("Backend Call", "SUCCESS", { clientSecret: clientSecret.substring(0, 15) + '...', orderId });
-                    showStatus(`Backend processed successfully (Order ID: ${orderId}). Confirming payment...`, 'info');
+                    showStatus(`Backend processed (Order ID: ${orderId}). Loading payment form...`, 'info');
                 } else { throw new Error(data.error || 'Backend failed to process checkout.'); }
             } catch (error) {
                 processCheckoutError = error; logStep("Backend Call", "FAILED", { error: error.message, details: error }); console.error("Backend processCheckout Error:", error);
-                showStatus(`Backend Error: ${error.message}`, 'error'); setLoading(false); return;
+                showStatus(`Backend Error: ${error.message}`, 'error'); paymentElementContainer.innerHTML = '<p class="text-sm text-red-500 text-center p-4">Could not prepare payment. Please try again.</p>'; setLoading(false); return;
             }
 
-            // 4. Confirm Payment with Stripe
-            if (clientSecret) {
-                 logStep("Stripe Confirm", "Attempting stripe.confirmPayment...", { clientSecret: clientSecret.substring(0, 15) + '...' });
+            // --- *** 2. Initialize Elements & Mount Payment Element *** ---
+            try {
+                if (!clientSecret) throw new Error("Client secret is missing after backend call.");
+                const appearance = { theme: 'stripe', variables: { colorPrimary: '#1A4D5A', colorBackground: '#ffffff', colorText: '#374151', colorDanger: '#dc2626', fontFamily: 'Montserrat, sans-serif', borderRadius: '0.375rem' } };
+                elements = stripe.elements({ clientSecret: clientSecret, appearance }); // Pass clientSecret
+                logStep("Stripe Elements", "Created with clientSecret", { elementsObjectPresent: !!elements });
+                const paymentElement = elements.create('payment');
+                paymentElementContainer.innerHTML = ''; // Clear placeholder
+                paymentElement.mount('#payment-element');
+                logStep("Payment Element", "Mounted successfully");
+                showStatus(`Payment form loaded. Confirming payment for Order ID: ${orderId}...`, 'info');
+            } catch (elementsError) {
+                logStep("Elements/Mount", "FAILED", { error: elementsError.message, details: elementsError }); console.error("Stripe Elements creation/mounting error:", elementsError);
+                showMessage("Failed to load the payment form. Please refresh.", true); paymentElementContainer.innerHTML = '<p class="text-sm text-red-500 text-center p-4">Error loading payment form.</p>';
+                setLoading(false); return;
+            }
+
+            // --- *** 3. Confirm Payment *** ---
+            if (clientSecret && stripe && elements) { // Check elements again
+                 logStep("Stripe Confirm", "Attempting stripe.confirmPayment...");
+                 const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
+                 const testReturnUrl = `${window.location.origin}${formattedBaseUrl}index.php?page=checkout&action=confirmation&simulated=1`;
+                 logStep("Stripe Confirm", "Using return_url", testReturnUrl);
                  try {
-                     const formattedBaseUrl = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'; const testReturnUrl = `${window.location.origin}${formattedBaseUrl}index.php?page=checkout&action=confirmation&simulated=1`;
-                     logStep("Stripe Confirm", "Using return_url", testReturnUrl);
-                     const { error, paymentIntent } = await stripe.confirmPayment({ elements, confirmParams: { return_url: testReturnUrl, }, redirect: 'if_required' });
+                     const { error, paymentIntent } = await stripe.confirmPayment({ elements, confirmParams: { return_url: testReturnUrl }, redirect: 'if_required' });
                      if (error) { logStep("Stripe Confirm", "FAILED", { errorType: error.type, errorMessage: error.message, details: error }); console.error("Stripe confirmPayment Error:", error); showStatus(`Stripe Payment Confirmation Failed: ${error.message}`, 'error'); }
                      else if (paymentIntent) { logStep("Stripe Confirm", "SUCCESS/PENDING", { paymentIntentStatus: paymentIntent.status, paymentIntentId: paymentIntent.id }); console.log("Stripe confirmPayment Result:", paymentIntent); showStatus(`Stripe Payment Confirmation finished! Status: ${paymentIntent.status}. Check console/webhook.`, 'success'); }
                      else { logStep("Stripe Confirm", "UNKNOWN OUTCOME (No Redirect, No Error, No PI)", { error: null, paymentIntent: null }); showStatus("Stripe payment confirmation finished with an unknown outcome.", 'warning'); }
                  } catch (confirmError) { logStep("Stripe Confirm", "EXCEPTION", { error: confirmError.message, details: confirmError }); console.error("Exception during stripe.confirmPayment:", confirmError); showStatus(`Exception during payment confirmation: ${confirmError.message}`, 'error');
                  } finally { setLoading(false); }
-            } else { logStep("Stripe Confirm", "SKIPPED", { reason: "clientSecret not obtained from backend." }); setLoading(false); }
+            } else { logStep("Stripe Confirm", "SKIPPED", { reason: "Missing clientSecret, stripe, or elements." }); showMessage('Internal error before payment confirmation.', 'error'); setLoading(false); }
         });
 
-        // Initialize Stripe on page load
-        if (!initializeStripe()) { logStep("Setup", "Stripe initialization failed. Disabling button."); submitButton.disabled = true; }
+        // Initialize Stripe Core on page load
+        if (!initializeStripeCore()) { logStep("Setup", "Stripe Core initialization failed. Disabling button."); submitButton.disabled = true; }
     </script>
 
 </body>

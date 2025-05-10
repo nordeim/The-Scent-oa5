@@ -1,5 +1,0 @@
-[09-May-2025 14:09:56 UTC] Tax calculation error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
-[09-May-2025 14:09:56 UTC] Tax rate lookup error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
-[09-May-2025 14:11:05 UTC] Tax calculation error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
-[09-May-2025 14:11:05 UTC] Tax rate lookup error: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'the_scent.tax_rates' doesn't exist
-[09-May-2025 14:14:05 UTC] Login failed for email 'asd@zxc.com' from IP 127.0.0.1: Invalid email or password.

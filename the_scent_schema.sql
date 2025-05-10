@@ -39,7 +39,7 @@ CREATE TABLE `audit_log` (
   `details` text,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=134 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=148 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -60,7 +60,7 @@ CREATE TABLE `cart_items` (
   KEY `product_id` (`product_id`),
   CONSTRAINT `cart_items_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `cart_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -204,7 +204,7 @@ CREATE TABLE `orders` (
   KEY `user_id` (`user_id`),
   KEY `idx_payment_intent_id` (`payment_intent_id`),
   CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -282,7 +282,56 @@ CREATE TABLE `quiz_results` (
   KEY `idx_created_at` (`created_at`),
   KEY `idx_user_timestamp` (`user_id`,`created_at`),
   CONSTRAINT `quiz_results_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `tax_rate_history`
+--
+
+DROP TABLE IF EXISTS `tax_rate_history`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `tax_rate_history` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tax_rate_id` int NOT NULL,
+  `old_rate` decimal(10,4) DEFAULT NULL COMMENT 'Previous tax rate',
+  `new_rate` decimal(10,4) NOT NULL COMMENT 'New tax rate after change',
+  `changed_by` int DEFAULT NULL COMMENT 'User ID of the admin who made the change',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp of when the change was made',
+  PRIMARY KEY (`id`),
+  KEY `idx_tax_rate_id` (`tax_rate_id`),
+  KEY `fk_tax_history_user` (`changed_by`),
+  CONSTRAINT `fk_tax_history_user` FOREIGN KEY (`changed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_tax_rate_history_rate` FOREIGN KEY (`tax_rate_id`) REFERENCES `tax_rates` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tracks changes to tax rates';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `tax_rates`
+--
+
+DROP TABLE IF EXISTS `tax_rates`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `tax_rates` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `country_code` varchar(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ISO 3166-1 alpha-2 country code',
+  `state_code` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ISO 3166-2 state/province code (if applicable)',
+  `rate` decimal(10,4) NOT NULL COMMENT 'Tax rate (e.g., 0.05 for 5%)',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Whether this tax rate is currently active',
+  `start_date` date DEFAULT NULL COMMENT 'Date when this tax rate becomes effective',
+  `end_date` date DEFAULT NULL COMMENT 'Date when this tax rate expires (NULL if no expiry)',
+  `created_by` int DEFAULT NULL COMMENT 'User ID of the admin who created/last modified this rate',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_country_state` (`country_code`,`state_code`),
+  KEY `idx_country_code` (`country_code`),
+  KEY `idx_is_active` (`is_active`),
+  KEY `fk_tax_rates_user` (`created_by`),
+  CONSTRAINT `fk_tax_rates_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores tax rates for different regions';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -334,4 +383,4 @@ CREATE TABLE `users` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-05-09 12:17:14
+-- Dump completed on 2025-05-10  9:08:20

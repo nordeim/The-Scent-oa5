@@ -7,6 +7,7 @@ require_once __DIR__ . '/BaseController.php';
 require_once __DIR__ . '/../models/Order.php';
 require_once __DIR__ . '/../models/Quiz.php';
 require_once __DIR__ . '/../models/User.php';
+require_once __DIR__ . '/../models/Product.php'; // Added for fetching product details
 // EmailService is included via BaseController
 // SecurityMiddleware is included via BaseController (for static methods)
 require_once __DIR__ . '/../controllers/CartController.php'; // Needed for mergeSessionCartOnLogin (ensure file exists)
@@ -17,6 +18,7 @@ class AccountController extends BaseController {
     private User $userModel;
     private Order $orderModel;
     private Quiz $quizModel;
+    private Product $productModel; // Added ProductModel instance
     // Use config for expiry
     private int $resetTokenExpiry; // Set in constructor
 
@@ -25,6 +27,7 @@ class AccountController extends BaseController {
         $this->userModel = new User($pdo);
         $this->orderModel = new Order($pdo);
         $this->quizModel = new Quiz($pdo);
+        $this->productModel = new Product($pdo); // Initialize ProductModel
         // $this->emailService is initialized in parent constructor
         // Default to 1 hour (3600 seconds) if constant not defined
         $this->resetTokenExpiry = defined('PASSWORD_RESET_EXPIRY_SECONDS') ? PASSWORD_RESET_EXPIRY_SECONDS : 3600;
@@ -40,13 +43,32 @@ class AccountController extends BaseController {
 
             // Fetch data
             $recentOrders = $this->orderModel->getRecentByUserId($userId, 5);
-            $quizResults = $this->quizModel->getResultsByUserId($userId); // Assuming this method exists
+            $quizResults = $this->quizModel->getResultsByUserId($userId); // This already decodes answers and recommendations
+
+            // Fetch recommended product details for the latest quiz
+            $latestQuizRecommendationsDetails = [];
+            if (!empty($quizResults)) {
+                $latestQuiz = $quizResults[0]; // Get the most recent quiz result
+                // $latestQuiz['recommendations'] is already an array of product IDs from the model
+                $recommendedIds = (isset($latestQuiz['recommendations']) && is_array($latestQuiz['recommendations']))
+                                  ? $latestQuiz['recommendations']
+                                  : [];
+
+                if (!empty($recommendedIds)) {
+                    $numericIds = array_filter($recommendedIds, 'is_numeric');
+                    if (!empty($numericIds)) {
+                        // Fetch details for a limited number (e.g., 2) for the dashboard card
+                        $latestQuizRecommendationsDetails = $this->productModel->getProductsByIds(array_slice($numericIds, 0, 2));
+                    }
+                }
+            }
 
             // Data for the view
             $data = [
                 'pageTitle' => 'My Account - The Scent',
                 'recentOrders' => $recentOrders,
-                'quizResults' => $quizResults,
+                'quizResults' => $quizResults, // Pass all quiz results (latest can be derived in view if needed, or use specific var)
+                'latestQuizRecommendationsDetails' => $latestQuizRecommendationsDetails, // Pass fetched product details
                 'user' => $currentUser, // Pass user data to the view
                 'csrfToken' => $this->getCsrfToken(), // Use BaseController method
                 'bodyClass' => 'page-account-dashboard'

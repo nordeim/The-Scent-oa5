@@ -445,7 +445,7 @@ class EmailService {
 # views/account/dashboard.php  
 ```php
 <?php
-// views/account/dashboard.php (Layout Refactored with Tailwind CSS - Quiz History Link Updated)
+// views/account/dashboard.php (Layout Refactored with Tailwind CSS - Quiz History Link Updated & Data Fetching Refactored)
 require_once __DIR__ . '/../layout/header.php'; // Standard header include
 
 // Helper to render dashboard cards consistently
@@ -498,7 +498,7 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
                                 </a>
                             </li>
                             <li>
-                                <a href="index.php?page=quiz&action=history" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out"> {/* MODIFIED LINK */}
+                                <a href="index.php?page=quiz&action=history" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
                                     <i class="fas fa-clipboard-list w-6 text-center mr-3"></i> Quiz History
                                 </a>
                             </li>
@@ -568,16 +568,15 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
                     $quizContent = '';
                     if (empty($quizResults)) {
                         $quizContent = "<div class='text-center py-6'>";
-                        $quizContent .= "<i class='fas fa-flask text-4xl text-gray-300 mb-3'></i>"; // Changed icon
+                        $quizContent .= "<i class='fas fa-flask text-4xl text-gray-300 mb-3'></i>";
                         $quizContent .= "<p class='text-gray-600 mb-4'>Take the quiz to discover your profile.</p>";
                         $quizContent .= "<a href='index.php?page=quiz' class='btn-primary btn-sm'>Take Quiz Now</a>";
                         $quizContent .= "</div>";
                     } else {
                         $latestQuiz = $quizResults[0]; // Get the most recent result
-                        $preferences = isset($latestQuiz['answers']) ? json_decode($latestQuiz['answers'], true) : [];
-                        if (!is_array($preferences)) $preferences = [];
-                        $recommendedIds = isset($latestQuiz['recommendations']) ? json_decode($latestQuiz['recommendations'], true) : [];
-                        if (!is_array($recommendedIds)) $recommendedIds = [];
+                        // $latestQuiz['answers'] and $latestQuiz['recommendations'] are already arrays from the model/controller
+                        $preferences = (isset($latestQuiz['answers']) && is_array($latestQuiz['answers'])) ? $latestQuiz['answers'] : [];
+                        // Recommended product details are now pre-fetched by the controller into $latestQuizRecommendationsDetails
 
                         $quizContent .= "<div class='space-y-4'>";
                         $quizContent .= "<div><h3 class='font-semibold text-gray-700 mb-2'>Latest Preferences:</h3>";
@@ -592,39 +591,33 @@ function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'Vie
                         }
                          $quizContent .= "</div>";
 
-                         // Display Recommended Products (Fetch details if needed)
-                         if (!empty($recommendedIds)) {
+                         // Display Recommended Products using pre-fetched $latestQuizRecommendationsDetails
+                         if (isset($latestQuizRecommendationsDetails) && !empty($latestQuizRecommendationsDetails)) {
                              $quizContent .= "<div><h3 class='font-semibold text-gray-700 mb-2 mt-4 border-t pt-3'>Top Recommendations:</h3>";
-                             // Fetch product details based on $recommendedIds
-                              if (isset($pdo)) { // Check if $pdo is available
-                                   if (!class_exists('Product')) require_once __DIR__ . '/../../models/Product.php';
-                                   $productModel = new Product($pdo);
-                                   // Fetch details for a limited number, e.g., 2 for the dashboard card
-                                   $recommendations = $productModel->getProductsByIds(array_slice($recommendedIds, 0, 2));
-                                   if (!empty($recommendations)) {
-                                       $quizContent .= "<div class='flex flex-col gap-3'>";
-                                       foreach ($recommendations as $product) {
-                                            $quizContent .= "<div class='recommended-product flex items-center gap-3 p-2 border rounded-md bg-gray-50/50'>";
-                                            $quizContent .= "<img src='" . htmlspecialchars($product['image'] ?? '/images/placeholder.jpg') . "' alt='" . htmlspecialchars($product['name']) . "' class='w-10 h-10 object-cover rounded flex-shrink-0'>";
-                                            $quizContent .= "<div class='flex-grow'><h4 class='text-sm font-medium text-primary'>" . htmlspecialchars($product['name']) . "</h4>";
-                                            $quizContent .= "<p class='text-xs text-gray-500'>$" . number_format($product['price'], 2) . "</p></div>";
-                                            $quizContent .= "<a href='index.php?page=product&id={$product['id']}' class='btn-secondary btn-xs whitespace-nowrap'>View</a>";
-                                            $quizContent .= "</div>";
-                                       }
-                                       $quizContent .= "</div>";
-                                   } else {
-                                       $quizContent .= "<p class='text-sm text-gray-500 italic'>Could not load recommendations.</p>";
-                                   }
-                              } else {
-                                   $quizContent .= "<p class='text-sm text-red-500 italic'>Database connection error.</p>";
-                              }
+                             $quizContent .= "<div class='flex flex-col gap-3'>";
+                             foreach ($latestQuizRecommendationsDetails as $product) { // Iterate over pre-fetched details
+                                  $quizContent .= "<div class='recommended-product flex items-center gap-3 p-2 border rounded-md bg-gray-50/50'>";
+                                  $quizContent .= "<img src='" . htmlspecialchars($product['image'] ?? '/images/placeholder.jpg') . "' alt='" . htmlspecialchars($product['name']) . "' class='w-10 h-10 object-cover rounded flex-shrink-0'>";
+                                  $quizContent .= "<div class='flex-grow'><h4 class='text-sm font-medium text-primary'>" . htmlspecialchars($product['name']) . "</h4>";
+                                  $quizContent .= "<p class='text-xs text-gray-500'>$" . number_format($product['price'], 2) . "</p></div>";
+                                  $quizContent .= "<a href='index.php?page=product&id={$product['id']}' class='btn-secondary btn-xs whitespace-nowrap'>View</a>";
+                                  $quizContent .= "</div>";
+                             }
+                             $quizContent .= "</div>";
                          } else {
-                              $quizContent .= "<p class='text-sm text-gray-500 italic mt-4 border-t pt-3'>No product recommendations from this quiz.</p>";
+                              // Fallback message if no recommendations or details couldn't be loaded by controller
+                              $originalRecommendedIds = (isset($latestQuiz['recommendations']) && is_array($latestQuiz['recommendations'])) ? $latestQuiz['recommendations'] : [];
+                              if (!empty($originalRecommendedIds)) {
+                                   // This case implies IDs existed but details weren't loaded (less likely now)
+                                   $quizContent .= "<p class='text-sm text-gray-500 italic mt-4 border-t pt-3'>Could not load details for recommendations.</p>";
+                              } else {
+                                   $quizContent .= "<p class='text-sm text-gray-500 italic mt-4 border-t pt-3'>No product recommendations from this quiz.</p>";
+                              }
                          }
-                         $quizContent .= "</div>";
+                         $quizContent .= "</div>"; // Close of the recommendations display div
                          $quizContent .= "</div>"; // Close space-y-4
                     }
-                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=quiz&action=history', 'View History', 200); // MODIFIED LINK
+                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=quiz&action=history', 'View History', 200);
                     ?>
 
                     <!-- Quick Actions Card -->

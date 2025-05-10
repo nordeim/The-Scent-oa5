@@ -1,3 +1,21 @@
+The error "Oops! Something Went Wrong" on the `/index.php?page=account` page, specifically the `TypeError: json_decode(): Argument #1 ($json) must be of type string, array given` on line 131 of `views/account/dashboard.php`, is caused by attempting to `json_decode` data that has already been decoded into a PHP array by the `QuizModel`.
+
+Specifically, `QuizModel::getResultsByUserId()` (called by `AccountController::showDashboard()`) fetches quiz results and decodes the `answers` and `recommendations` JSON strings into PHP arrays. The `views/account/dashboard.php` then incorrectly tries to `json_decode` these already-decoded arrays.
+
+To fix this and improve the MVC pattern, I'll make the following changes:
+
+1.  **`controllers/AccountController.php`**: The `showDashboard()` method will be updated. If quiz results exist, it will take the latest quiz's `recommendations` (which is already an array of product IDs), fetch the actual product details for these recommendations using the `ProductModel`, and then pass these fetched product details to the view.
+2.  **`views/account/dashboard.php`**: This view will be updated to:
+    *   No longer call `json_decode()` on `answers` or `recommendations` from `$latestQuiz`, as they will be provided as arrays.
+    *   No longer instantiate `ProductModel` or fetch product details directly. It will use the pre-fetched recommended product details passed by the `AccountController`.
+
+This approach ensures that the controller is responsible for preparing all necessary data for the view, and the view focuses solely on presentation.
+
+The SQL patch for the missing `tax_rates` table, which I provided previously, is still relevant and necessary to fix the "Table 'the_scent.tax_rates' doesn't exist" errors seen in your logs. I will include it again for completeness.
+
+Here are the updated files:
+
+```php
 <?php
 
 // Ensure all required files are loaded. BaseController should handle session start.
@@ -803,3 +821,306 @@ class AccountController extends BaseController {
 
 
 } // End of AccountController class
+
+```
+
+```php
+<?php
+// views/account/dashboard.php (Layout Refactored with Tailwind CSS - Quiz History Link Updated & Data Fetching Refactored)
+require_once __DIR__ . '/../layout/header.php'; // Standard header include
+
+// Helper to render dashboard cards consistently
+function renderDashboardCard($title, $content, $linkUrl = null, $linkText = 'View All', $aosDelay = 0, $extraClasses = '') {
+    echo "<div class='bg-white rounded-lg shadow-md p-6 {$extraClasses}' data-aos='fade-up' data-aos-delay='{$aosDelay}'>";
+    if ($title) {
+        echo "<div class='flex justify-between items-center mb-4 border-b pb-2'>";
+        echo "<h2 class='text-xl font-semibold text-primary font-heading'>{$title}</h2>";
+        if ($linkUrl) {
+            echo "<a href='{$linkUrl}' class='text-sm text-primary hover:text-primary-dark font-semibold flex items-center gap-1'>";
+            echo "{$linkText} <i class='fas fa-arrow-right text-xs'></i>";
+            echo "</a>";
+        }
+        echo "</div>";
+    }
+    echo "<div class='card-content'>"; // Container for content
+    echo $content;
+    echo "</div>";
+    echo "</div>";
+}
+?>
+
+<section class="account-section py-10 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <!-- Sidebar Navigation -->
+            <aside class="lg:col-span-1" data-aos="fade-right">
+                <div class="account-sidebar bg-white p-6 rounded-lg shadow-md sticky top-24">
+                    <div class="user-info text-center border-b pb-4 mb-4">
+                        <i class="fas fa-user-circle text-5xl text-primary mb-2"></i>
+                        <h3 class="font-semibold text-lg text-gray-800"><?= htmlspecialchars($user['name'] ?? 'User') ?></h3>
+                        <p class="text-sm text-gray-500"><?= htmlspecialchars($user['email'] ?? '') ?></p>
+                    </div>
+
+                    <nav>
+                        <ul class="space-y-2">
+                            <li>
+                                <a href="index.php?page=account" class="flex items-center px-4 py-2 rounded-md text-gray-700 bg-secondary/20 border-l-4 border-primary font-semibold">
+                                    <i class="fas fa-home w-6 text-center mr-3 text-primary"></i> Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=account&section=orders" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-shopping-bag w-6 text-center mr-3"></i> My Orders
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=account&section=profile" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-user w-6 text-center mr-3"></i> Profile Settings
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=quiz&action=history" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-clipboard-list w-6 text-center mr-3"></i> Quiz History
+                                </a>
+                            </li>
+                            <li>
+                                <a href="index.php?page=logout" class="flex items-center px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-primary transition duration-150 ease-in-out">
+                                    <i class="fas fa-sign-out-alt w-6 text-center mr-3"></i> Logout
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </aside>
+
+            <!-- Main Content Area -->
+            <div class="lg:col-span-3">
+                <h1 class="text-3xl font-bold text-primary mb-8 font-heading" data-aos="fade-up">Account Dashboard</h1>
+
+                <!-- Grid for Dashboard Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    <!-- Quick Stats Card -->
+                    <?php
+                    $statsContent = "<div class='flex flex-col sm:flex-row justify-around gap-4'>";
+                    $statsContent .= "<div class='stat-item flex items-center space-x-3 p-3'>";
+                    $statsContent .= "<i class='fas fa-shopping-bag text-3xl text-secondary'></i>";
+                    $statsContent .= "<div class='stat-info'><span class='block text-2xl font-semibold text-primary'>" . count($recentOrders ?? []) . "</span><span class='text-sm text-gray-500'>Recent Orders</span></div>";
+                    $statsContent .= "</div>";
+                    $statsContent .= "<div class='stat-item flex items-center space-x-3 p-3'>";
+                    $statsContent .= "<i class='fas fa-star text-3xl text-secondary'></i>"; // Changed icon
+                    $statsContent .= "<div class='stat-info'><span class='block text-2xl font-semibold text-primary'>" . (is_array($quizResults ?? []) ? count($quizResults) : 0) . "</span><span class='text-sm text-gray-500'>Quiz Results</span></div>"; // Updated label
+                    $statsContent .= "</div>";
+                    $statsContent .= "</div>";
+                    renderDashboardCard(null, $statsContent, null, null, 0, 'md:col-span-2'); // Span full width on medium+
+                    ?>
+
+                    <!-- Recent Orders Card -->
+                    <?php
+                    $ordersContent = '';
+                    if (empty($recentOrders)) {
+                        $ordersContent = "<div class='text-center py-6'>";
+                        $ordersContent .= "<i class='fas fa-shopping-bag text-4xl text-gray-300 mb-3'></i>";
+                        $ordersContent .= "<p class='text-gray-600 mb-4'>No orders found yet.</p>";
+                        $ordersContent .= "<a href='index.php?page=products' class='btn-primary btn-sm'>Start Shopping</a>";
+                        $ordersContent .= "</div>";
+                    } else {
+                        $ordersContent .= "<div class='orders-list space-y-3'>";
+                        foreach ($recentOrders as $order) {
+                            $ordersContent .= "<div class='order-item flex justify-between items-center border p-3 rounded-md hover:bg-gray-50 transition duration-150'>";
+                            $ordersContent .= "<div>";
+                            $ordersContent .= "<span class='font-semibold text-primary block'>#" . str_pad($order['id'], 6, '0', STR_PAD_LEFT) . "</span>";
+                            $ordersContent .= "<span class='text-xs text-gray-500'>" . date('M j, Y', strtotime($order['created_at'])) . "</span>";
+                            $ordersContent .= "</div>";
+                            $ordersContent .= "<div class='text-right'>";
+                            $ordersContent .= "<span class='order-status status-" . htmlspecialchars($order['status']) . " text-xs font-medium px-2 py-0.5 rounded-full'>" . ucfirst(htmlspecialchars($order['status'])) . "</span>";
+                            $ordersContent .= "<span class='text-sm font-semibold ml-2'>$" . number_format($order['total_amount'], 2) . "</span>";
+                            $ordersContent .= "</div>";
+                             $ordersContent .= "<div><a href='index.php?page=account&section=orders&id={$order['id']}' class='btn-secondary btn-xs'>Details</a></div>";
+                            $ordersContent .= "</div>";
+                        }
+                        $ordersContent .= "</div>";
+                    }
+                    renderDashboardCard('Recent Orders', $ordersContent, 'index.php?page=account&section=orders', 'View All', 100);
+                    ?>
+
+                    <!-- Scent Quiz Results Card -->
+                    <?php
+                    $quizContent = '';
+                    if (empty($quizResults)) {
+                        $quizContent = "<div class='text-center py-6'>";
+                        $quizContent .= "<i class='fas fa-flask text-4xl text-gray-300 mb-3'></i>";
+                        $quizContent .= "<p class='text-gray-600 mb-4'>Take the quiz to discover your profile.</p>";
+                        $quizContent .= "<a href='index.php?page=quiz' class='btn-primary btn-sm'>Take Quiz Now</a>";
+                        $quizContent .= "</div>";
+                    } else {
+                        $latestQuiz = $quizResults[0]; // Get the most recent result
+                        // $latestQuiz['answers'] and $latestQuiz['recommendations'] are already arrays from the model/controller
+                        $preferences = (isset($latestQuiz['answers']) && is_array($latestQuiz['answers'])) ? $latestQuiz['answers'] : [];
+                        // Recommended product details are now pre-fetched by the controller into $latestQuizRecommendationsDetails
+
+                        $quizContent .= "<div class='space-y-4'>";
+                        $quizContent .= "<div><h3 class='font-semibold text-gray-700 mb-2'>Latest Preferences:</h3>";
+                        if (!empty($preferences)) {
+                            $quizContent .= "<ul class='list-disc list-inside space-y-1 text-sm text-gray-600 pl-4'>";
+                            foreach ($preferences as $key => $pref) {
+                                $quizContent .= "<li>" . htmlspecialchars(ucfirst(str_replace('_', ' ', $key))) . ": <strong>" . htmlspecialchars($pref) . "</strong></li>";
+                            }
+                            $quizContent .= "</ul>";
+                        } else {
+                            $quizContent .= "<p class='text-sm text-gray-500 italic'>No preferences recorded for latest result.</p>";
+                        }
+                         $quizContent .= "</div>";
+
+                         // Display Recommended Products using pre-fetched $latestQuizRecommendationsDetails
+                         if (isset($latestQuizRecommendationsDetails) && !empty($latestQuizRecommendationsDetails)) {
+                             $quizContent .= "<div><h3 class='font-semibold text-gray-700 mb-2 mt-4 border-t pt-3'>Top Recommendations:</h3>";
+                             $quizContent .= "<div class='flex flex-col gap-3'>";
+                             foreach ($latestQuizRecommendationsDetails as $product) { // Iterate over pre-fetched details
+                                  $quizContent .= "<div class='recommended-product flex items-center gap-3 p-2 border rounded-md bg-gray-50/50'>";
+                                  $quizContent .= "<img src='" . htmlspecialchars($product['image'] ?? '/images/placeholder.jpg') . "' alt='" . htmlspecialchars($product['name']) . "' class='w-10 h-10 object-cover rounded flex-shrink-0'>";
+                                  $quizContent .= "<div class='flex-grow'><h4 class='text-sm font-medium text-primary'>" . htmlspecialchars($product['name']) . "</h4>";
+                                  $quizContent .= "<p class='text-xs text-gray-500'>$" . number_format($product['price'], 2) . "</p></div>";
+                                  $quizContent .= "<a href='index.php?page=product&id={$product['id']}' class='btn-secondary btn-xs whitespace-nowrap'>View</a>";
+                                  $quizContent .= "</div>";
+                             }
+                             $quizContent .= "</div>";
+                         } else {
+                              // Fallback message if no recommendations or details couldn't be loaded by controller
+                              $originalRecommendedIds = (isset($latestQuiz['recommendations']) && is_array($latestQuiz['recommendations'])) ? $latestQuiz['recommendations'] : [];
+                              if (!empty($originalRecommendedIds)) {
+                                   // This case implies IDs existed but details weren't loaded (less likely now)
+                                   $quizContent .= "<p class='text-sm text-gray-500 italic mt-4 border-t pt-3'>Could not load details for recommendations.</p>";
+                              } else {
+                                   $quizContent .= "<p class='text-sm text-gray-500 italic mt-4 border-t pt-3'>No product recommendations from this quiz.</p>";
+                              }
+                         }
+                         $quizContent .= "</div>"; // Close of the recommendations display div
+                         $quizContent .= "</div>"; // Close space-y-4
+                    }
+                    renderDashboardCard('Your Scent Profile', $quizContent, 'index.php?page=quiz&action=history', 'View History', 200);
+                    ?>
+
+                    <!-- Quick Actions Card -->
+                    <?php
+                    $actionsContent = "<div class='grid grid-cols-1 sm:grid-cols-3 gap-4'>";
+                    $actionsContent .= "<a href='index.php?page=account&section=profile' class='btn-action flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-secondary/20 transition duration-150 text-center'><i class='fas fa-user-edit text-2xl mb-2 text-primary'></i><span class='text-sm font-medium'>Edit Profile</span></a>";
+                    $actionsContent .= "<a href='index.php?page=quiz' class='btn-action flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-secondary/20 transition duration-150 text-center'><i class='fas fa-sync text-2xl mb-2 text-primary'></i><span class='text-sm font-medium'>Retake Quiz</span></a>";
+                    $actionsContent .= "<a href='index.php?page=products' class='btn-action flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-secondary/20 transition duration-150 text-center'><i class='fas fa-shopping-bag text-2xl mb-2 text-primary'></i><span class='text-sm font-medium'>Shop Now</span></a>";
+                    $actionsContent .= "</div>";
+                    renderDashboardCard('Quick Actions', $actionsContent, null, null, 300, 'md:col-span-2'); // Span full width
+                    ?>
+
+                </div> <!-- End Dashboard Grid -->
+            </div> <!-- End Account Content -->
+        </div> <!-- End Account Grid -->
+    </div> <!-- End Container -->
+</section>
+
+<?php require_once __DIR__ . '/../layout/footer.php'; ?>
+
+```
+
+```sql
+-- Database Schema Patch for Tax Tables (v16.2) - Included for completeness
+-- This patch adds the `tax_rates` and `tax_rate_history` tables
+-- if they do not already exist, as indicated by the error logs.
+
+CREATE TABLE IF NOT EXISTS `tax_rates` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `country_code` VARCHAR(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ISO 3166-1 alpha-2 country code',
+  `state_code` VARCHAR(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'ISO 3166-2 state/province code (if applicable)',
+  `rate` DECIMAL(10,4) NOT NULL COMMENT 'Tax rate (e.g., 0.05 for 5%)',
+  `is_active` TINYINT(1) NOT NULL DEFAULT '1' COMMENT 'Whether this tax rate is currently active',
+  `start_date` DATE DEFAULT NULL COMMENT 'Date when this tax rate becomes effective',
+  `end_date` DATE DEFAULT NULL COMMENT 'Date when this tax rate expires (NULL if no expiry)',
+  `created_by` INT DEFAULT NULL COMMENT 'User ID of the admin who created/last modified this rate',
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_country_state` (`country_code`, `state_code`),
+  KEY `idx_country_code` (`country_code`),
+  KEY `idx_is_active` (`is_active`),
+  KEY `fk_tax_rates_user` (`created_by`),
+  CONSTRAINT `fk_tax_rates_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores tax rates for different regions';
+
+CREATE TABLE IF NOT EXISTS `tax_rate_history` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `tax_rate_id` INT NOT NULL,
+  `old_rate` DECIMAL(10,4) DEFAULT NULL COMMENT 'Previous tax rate',
+  `new_rate` DECIMAL(10,4) NOT NULL COMMENT 'New tax rate after change',
+  `changed_by` INT DEFAULT NULL COMMENT 'User ID of the admin who made the change',
+  `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Timestamp of when the change was made',
+  PRIMARY KEY (`id`),
+  KEY `idx_tax_rate_id` (`tax_rate_id`),
+  KEY `fk_tax_history_user` (`changed_by`),
+  CONSTRAINT `fk_tax_rate_history_rate` FOREIGN KEY (`tax_rate_id`) REFERENCES `tax_rates` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_tax_history_user` FOREIGN KEY (`changed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tracks changes to tax rates';
+
+-- Optional: Insert some default tax rates if desired
+-- Example: No tax for all countries by default (rate 0 for wildcard country '*')
+INSERT IGNORE INTO `tax_rates` (`country_code`, `state_code`, `rate`, `is_active`, `start_date`, `created_by`)
+VALUES ('*', NULL, 0.0000, 1, CURDATE(), 1); -- Assuming user ID 1 is an admin
+
+-- Example: 10% tax for US, California (CA)
+INSERT IGNORE INTO `tax_rates` (`country_code`, `state_code`, `rate`, `is_active`, `start_date`, `created_by`)
+VALUES ('US', 'CA', 0.1000, 1, CURDATE(), 1);
+
+-- Example: 5% tax for all of Canada (CA) - state_code is NULL for country-wide rate
+INSERT IGNORE INTO `tax_rates` (`country_code`, `state_code`, `rate`, `is_active`, `start_date`, `created_by`)
+VALUES ('CA', NULL, 0.0500, 1, CURDATE(), 1);
+
+```
+**Summary and Conclusion:**
+
+1.  **`controllers/AccountController.php` Updated**: The `showDashboard` method now fetches product details for the latest quiz recommendations and passes this data (`$latestQuizRecommendationsDetails`) to the view.
+2.  **`views/account/dashboard.php` Updated**:
+    *   Removed the redundant `json_decode()` calls for `answers` and `recommendations`.
+    *   Removed the direct instantiation of `ProductModel` and data fetching logic.
+    *   Now uses the `$latestQuizRecommendationsDetails` variable (passed from the controller) to display recommended products.
+3.  **SQL Patch**: The provided SQL patch correctly creates the missing `tax_rates` and `tax_rate_history` tables. Apply this patch to your database to resolve the "Table ... tax_rates doesn't exist" errors.
+4.  **Stripe Checkout Error**: The error "Could not initialize payment system. Please refresh" on the checkout page is not due to the JavaScript initialization sequence itself (as `js/main.js` implements the correct deferred logic). The problem likely lies in:
+    *   The Stripe Public Key not being correctly outputted or read on the `/index.php?page=checkout` page specifically.
+    *   The `Stripe(stripePublicKey)` call failing for other runtime reasons (network, CSP, etc.).
+    *   **Action Required**: You need to **check your browser's developer console on the live checkout page** for the `console.log` and `console.error` messages related to Stripe initialization that were added to `js/main.js`. This will provide the specific error details needed for further diagnosis.
+
+No other files required changes for the issues discussed. The primary remaining issue (Stripe checkout error) requires live debugging on your end using the console logs.
+
+---
+You are absolutely correct. My apologies for the oversight in the previous response. I've reviewed the diffs carefully.
+
+**`controllers/AccountController.php` Diff Analysis:**
+
+*   **Addition of `ProductModel`**:
+    *   `require_once __DIR__ . '/../models/Product.php';` is correctly added.
+    *   `private Product $productModel;` is correctly added as a class property.
+    *   `$this->productModel = new Product($pdo);` is correctly added in the constructor.
+*   **Changes in `showDashboard()`**:
+    *   The comment for `$quizResults = $this->quizModel->getResultsByUserId($userId);` is appropriately updated to reflect that the model already decodes JSON.
+    *   The new block of code to fetch `$latestQuizRecommendationsDetails` using `$this->productModel->getProductsByIds()` is correctly implemented. It correctly handles cases where `$quizResults` or `$recommendedIds` might be empty or not in the expected format.
+    *   The `$data` array passed to `renderView` now correctly includes `'latestQuizRecommendationsDetails' => $latestQuizRecommendationsDetails`.
+
+**Conclusion for `controllers/AccountController.php`**: The changes are exactly as planned and correctly implemented. The controller now takes on the responsibility of fetching the product details for the quiz recommendations. No other functionalities have been unintentionally altered or omitted.
+
+**`views/account/dashboard.php` Diff Analysis:**
+
+*   **Removal of `json_decode`**:
+    *   The lines `isset($latestQuiz['answers']) ? json_decode($latestQuiz['answers'], true) : [];` and `isset($latestQuiz['recommendations']) ? json_decode($latestQuiz['recommendations'], true) : [];` have been correctly replaced/updated. The view now correctly assumes `$latestQuiz['answers']` is already an array, and the product details for recommendations are now passed in `$latestQuizRecommendationsDetails`.
+*   **Removal of Direct Data Fetching Logic**:
+    *   The entire block that checked `if (isset($pdo))`, required `Product.php`, instantiated `new Product($pdo)`, and called `$productModel->getProductsByIds()` has been correctly removed.
+*   **Usage of Controller-Provided Data**:
+    *   The view now iterates over `$latestQuizRecommendationsDetails` (passed from the controller) to display the recommended products.
+    *   The fallback logic for when `$latestQuizRecommendationsDetails` is empty or when there were original recommended IDs but details couldn't be loaded (though less likely with the controller change) is appropriate.
+*   **Quiz History Link**: The link `index.php?page=quiz&action=history` in the sidebar and in the "Your Scent Profile" card is correct.
+
+**Conclusion for `views/account/dashboard.php`**: The changes align perfectly with the plan. The view has been simplified, and the responsibility for fetching recommendation details has been moved to the controller, which resolves the `json_decode` error. No other functionalities seem to be affected.
+
+**Overall Validation:**
+The diffs confirm that the fixes for the `json_decode` error on the account dashboard page have been applied correctly by refactoring the data-fetching logic. The `AccountController` now prepares all necessary data, including the product details for quiz recommendations, and the `dashboard.php` view consumes this pre-fetched data. This adheres better to MVC principles and resolves the reported error.
+
+The SQL patch for the missing `tax_rates` table remains crucial for the tax calculation errors.
+
+You can now proceed with these updated files. The next step for the Stripe issue on the checkout page is to examine the browser console logs for the `stripePublicKey` and any errors from the `Stripe()` constructor call, as discussed.
+

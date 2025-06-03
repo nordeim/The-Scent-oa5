@@ -8,7 +8,7 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
 
 ## 🚀 Live Demo
 
-[🌐 **Click here to view the demo**](#) *(Placeholder - Add Your Live Demo Link Here)*
+[🌐 **Click here to view the demo**](https://magenta-mole-338777.hostingersite.com/)
 
 ---
 

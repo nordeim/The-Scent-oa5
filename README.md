@@ -39,8 +39,6 @@ Welcome to **The Scent**, a modern, full-featured, and beautifully crafted e-com
     *   Coupon Management (CRUD Interface Functional).
     *   Quiz Analytics (Basic View Functional).
 *   ⚠️ **Known Issues/TODOs:**
-    *   **Checkout Payment Initialization Error (Under Investigation):** The checkout page shows "Could not initialize payment system." **Debugging logs have been added to `js/main.js`**. *(Needs live debugging using console logs).*
-    *   **Missing `tax_rates` Table (Patch Required):** Error logs indicate this table is missing. **An SQL patch is provided in Appendix D of the TDS and must be applied.**
     *   **Error Handling ("Headers Already Sent"):** Issue mitigated, potential edge cases remain. Consider making `views/error.php` self-contained.
     *   **Content Security Policy (CSP):** Needs review/tightening for production deployment.
     *   **Rate Limiting Coverage:** Review admin endpoints and other less critical areas.
